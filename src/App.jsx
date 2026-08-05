@@ -1,17 +1,21 @@
-// App.jsx
-import React, { useState, useEffect, useRef } from "react";
-import { doc, setDoc, onSnapshot } from "firebase/firestore";
-import { db } from "./firebaseConfig"; // Importa il database configurato
+import React, { useState, useEffect } from "react";
+import { doc, setDoc, onSnapshot, runTransaction } from "firebase/firestore";
+import { db } from "./firebaseConfig";
 import datiJson from "./giocatori.json";
 import "./App.css";
 
-// Configurazione iniziale immutabile di backup
-const GIOCATORI_INITIAL = datiJson.players.map((player) => ({
+// FIXED: Normalizzazione robusta per supportare sia la struttura standard che il JSON grezzo
+const parsePlayer = (player) => ({
   id: player.id,
-  nome: player.name,
-  squadra: player.team,
-  ruolo: player.role.code,
-}));
+  nome: player.nome || player.name || "Sconosciuto",
+  squadra: player.squadra || player.team || "N.D.",
+  ruolo:
+    typeof player.ruolo === "object"
+      ? player.ruolo.code
+      : player.ruolo || player.role?.code || "D",
+});
+
+const GIOCATORI_INITIAL = (datiJson.players || datiJson).map(parsePlayer);
 
 const PARTECIPANTI_INITIAL = Array.from({ length: 10 }, (_, i) => ({
   id: i + 1,
@@ -25,14 +29,12 @@ const ALFABETO = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const COLORI_RUOLO = { P: "#60a5fa", D: "#34d399", C: "#fbbf24", A: "#f87171" };
 
 export default function App() {
-  // Stati locali sincronizzati con Firebase
   const [giocatori, setGiocatori] = useState(GIOCATORI_INITIAL);
   const [partecipanti, setPartecipanti] = useState(PARTECIPANTI_INITIAL);
   const [isConfigMode, setIsConfigMode] = useState(true);
   const [giocatoreInAsta, setGiocatoreInAsta] = useState(null);
   const [offertaCorrente, setOffertaCorrente] = useState(0);
 
-  // Stati solo locali per filtri e interfacce del singolo utente
   const [acquirenteId, setAcquirenteId] = useState("");
   const [timer, setTimer] = useState(10);
   const [timerAttivo, setTimerAttivo] = useState(false);
@@ -40,32 +42,33 @@ export default function App() {
   const [filtroRuolo, setFiltroRuolo] = useState("TUTTI");
   const [letteraInizio, setLetteraInizio] = useState("A");
 
-  const intervalloRef = useRef(null);
   const docRef = doc(db, "asta_fantacalcio", "sessione_asta");
 
-  // ==========================================
-  // LISTENER IN TEMPO REALE DA FIREBASE
-  // ==========================================
+  // Listener in tempo reale con normalizzazione dati in lettura
   useEffect(() => {
     const unsub = onSnapshot(docRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        setGiocatori(data.giocatori || GIOCATORI_INITIAL);
+        // FIXED: Sincronizziamo e normalizziamo i giocatori letti da Firebase
+        const listaG = (data.giocatori || GIOCATORI_INITIAL).map(parsePlayer);
+        setGiocatori(listaG);
         setPartecipanti(data.partecipanti || PARTECIPANTI_INITIAL);
         setIsConfigMode(
           data.isConfigMode !== undefined ? data.isConfigMode : true,
         );
-        setGiocatoreInAsta(data.giocatoreInAsta || null);
+        setGiocatoreInAsta(
+          data.giocatoreInAsta ? parsePlayer(data.giocatoreInAsta) : null,
+        );
         setOffertaCorrente(data.offertaCorrente || 0);
+
+        if (data.timer !== undefined) setTimer(data.timer);
       } else {
-        // Se il database è vuoto (primo avvio in assoluto), crea il documento iniziale
         salvaSuFirebase(GIOCATORI_INITIAL, PARTECIPANTI_INITIAL, true, null, 0);
       }
     });
     return () => unsub();
   }, []);
 
-  // Funzione centralizzata per scrivere i dati sul Cloud
   const salvaSuFirebase = async (
     nuoviG,
     nuoviP,
@@ -86,16 +89,44 @@ export default function App() {
     }
   };
 
-  // Gestione locale del conto alla rovescia (uguale per tutti ma calcolato localmente)
-  useEffect(() => {
-    if (timerAttivo && timer > 0) {
-      intervalloRef.current = setInterval(() => setTimer((p) => p - 1), 1000);
-    } else if (timer === 0) {
-      clearInterval(intervalloRef.current);
-      setTimerAttivo(false);
+  // FIXED: Funzione per aggiornare il DB Firebase col nuovo JSON senza resettare le rose!
+  const aggiornaDatabaseDaJSON = () => {
+    if (
+      window.confirm(
+        "Vuoi aggiornare il database con i nuovi dati del file JSON? (I calciatori già acquistati rimarranno nelle rose).",
+      )
+    ) {
+      // Troviamo tutti gli ID dei giocatori già acquistati nelle rose
+      const idsAcquistati = new Set();
+      partecipanti.forEach((p) =>
+        p.rosa.forEach((g) => idsAcquistati.add(g.id)),
+      );
+
+      // Filtriamo il nuovo JSON escludendo i già acquistati
+      const nuoviSvincolati = GIOCATORI_INITIAL.filter(
+        (g) => !idsAcquistati.has(g.id),
+      );
+
+      salvaSuFirebase(
+        nuoviSvincolati,
+        partecipanti,
+        isConfigMode,
+        giocatoreInAsta,
+        offertaCorrente,
+      );
+      alert("Database sincronizzato con successo col nuovo file JSON!");
     }
-    return () => clearInterval(intervalloRef.current);
-  }, [timerAttivo, timer]);
+  };
+
+  useEffect(() => {
+    if (giocatoreInAsta && timer > 0) {
+      const intervallo = setInterval(
+        () => setTimer((t) => (t <= 1 ? 0 : t - 1)),
+        1000,
+      );
+      return () => clearInterval(intervallo);
+    }
+  }, [giocatoreInAsta, offertaCorrente]);
 
   const resettaTutto = () => {
     if (
@@ -155,17 +186,23 @@ export default function App() {
     salvaSuFirebase(giocatori, partecipanti, isConfigMode, g, 1);
   };
 
-  const faiOfferta = (valore) => {
-    if (valore > offertaCorrente) {
-      setTimer(10);
-      setTimerAttivo(true);
-      salvaSuFirebase(
-        giocatori,
-        partecipanti,
-        isConfigMode,
-        giocatoreInAsta,
-        valore,
-      );
+  const faiOfferta = async (incremento = 1) => {
+    if (!giocatoreInAsta || timer === 0) return;
+    const mioIdAttuale = "1";
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const sfDoc = await transaction.get(docRef);
+        if (!sfDoc.exists()) return;
+        const prezzoCloud = sfDoc.data().offertaCorrente || 0;
+        transaction.update(docRef, {
+          offertaCorrente: prezzoCloud + incremento,
+          ultimoOfferenteId: mioIdAttuale,
+          timer: 10,
+        });
+      });
+    } catch (err) {
+      console.error("Collisione di rete, rilancio fallito: ", err);
     }
   };
 
@@ -177,18 +214,28 @@ export default function App() {
 
   const alfabetoOrdinato = getAlfabetoCircolare(letteraInizio);
 
+  // FIXED: Ricerca e ordinamento protetti contro valori undefined o proprietà difformi
   const ottieniListaOrdinata = (listaCalciatori) => {
+    const query = ricercaNome.toLowerCase().trim();
+
     return listaCalciatori
-      .filter(
-        (g) =>
-          g.nome.toLowerCase().includes(ricercaNome.toLowerCase()) &&
-          (filtroRuolo === "TUTTI" || g.ruolo === filtroRuolo),
-      )
-      .sort(
-        (a, b) =>
-          alfabetoOrdinato.indexOf(a.nome.charAt(0).toUpperCase()) -
-          alfabetoOrdinato.indexOf(b.nome.charAt(0).toUpperCase()),
-      );
+      .filter((g) => {
+        const nomeG = (g.nome || g.name || "").toLowerCase();
+        const squadraG = (g.squadra || g.team || "").toLowerCase();
+        const ruoloG = g.ruolo || g.role?.code || "";
+
+        const matchNome = nomeG.includes(query) || squadraG.includes(query);
+        const matchRuolo = filtroRuolo === "TUTTI" || ruoloG === filtroRuolo;
+
+        return matchNome && matchRuolo;
+      })
+      .sort((a, b) => {
+        const charA = (a.nome || "").charAt(0).toUpperCase();
+        const charB = (b.nome || "").charAt(0).toUpperCase();
+        return (
+          alfabetoOrdinato.indexOf(charA) - alfabetoOrdinato.indexOf(charB)
+        );
+      });
   };
 
   const giocatoriFiltrati = ottieniListaOrdinata(giocatori);
@@ -265,6 +312,10 @@ export default function App() {
       <div className="header-container">
         <h1 className="main-title">⚽ Dashboard Asta Pro ⚽</h1>
         <div style={{ display: "flex", gap: "10px" }}>
+          {/* FIXED: Pulsante aggiunto per sincronizzare il nuovo JSON con Firebase */}
+          <button onClick={aggiornaDatabaseDaJSON} className="btn btn-blue">
+            🔄 Sincronizza JSON
+          </button>
           <button onClick={resettaTutto} className="btn btn-orange">
             ⚠️ Resetta Online
           </button>
@@ -279,10 +330,7 @@ export default function App() {
       {isConfigMode ? (
         <div
           className="card"
-          style={{
-            maxWidth: "700px",
-            margin: "0 auto 20px auto",
-          }}
+          style={{ maxWidth: "700px", margin: "0 auto 20px auto" }}
         >
           <h2>⚙️ Configura i Nomi delle 10 Squadre</h2>
           <div
@@ -342,25 +390,33 @@ export default function App() {
                   Offerta Corrente: {offertaCorrente} FM | Timer: {timer}s
                 </h4>
               </div>
-              <button
-                onClick={() => faiOfferta(offertaCorrente + 1)}
-                className="btn"
+
+              <div
+                style={{ display: "flex", gap: "10px", marginBottom: "15px" }}
               >
-                +1 FM
-              </button>
-              <button
-                onClick={() => setTimerAttivo(true)}
-                className="btn btn-green"
-              >
-                Avvia Tempo
-              </button>
-              <div style={{ marginTop: "15px" }}>
+                <button
+                  onClick={() => faiOfferta(1)}
+                  disabled={timer === 0}
+                  className="btn"
+                >
+                  +1 FM 🔨
+                </button>
+                <button
+                  onClick={() => faiOfferta(5)}
+                  disabled={timer === 0}
+                  className="btn btn-green"
+                >
+                  +5 FM 🚀
+                </button>
+              </div>
+
+              <div>
                 <select
                   value={acquirenteId}
                   onChange={(e) => setAcquirenteId(e.target.value)}
                   className="select-field"
                 >
-                  <option value="">Seleziona...</option>
+                  <option value="">Seleziona acquisto...</option>
                   {partecipanti.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.nome} ({p.crediti} FM)
@@ -466,11 +522,11 @@ export default function App() {
       </div>
 
       <div className="card" style={{ marginTop: "20px" }}>
-        <h2>🔍 Database Giocatori Online</h2>
+        <h2>🔍 Database Giocatori Online ({giocatoriFiltrati.length})</h2>
         <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
           <input
             type="text"
-            placeholder="Cerca..."
+            placeholder="Cerca per nome o squadra..."
             value={ricercaNome}
             onChange={(e) => setRicercaNome(e.target.value)}
             className="input-field"
