@@ -2,9 +2,9 @@ import React, { useState, useEffect } from "react";
 import { doc, setDoc, onSnapshot, runTransaction } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import datiJson from "./giocatori.json";
+import MobileController from "./MobileController";
 import "./App.css";
 
-// FIXED: Normalizzazione robusta per supportare sia la struttura standard che il JSON grezzo
 const parsePlayer = (player) => ({
   id: player.id,
   nome: player.nome || player.name || "Sconosciuto",
@@ -35,23 +35,27 @@ export default function App() {
   const [giocatoreInAsta, setGiocatoreInAsta] = useState(null);
   const [offertaCorrente, setOffertaCorrente] = useState(0);
 
+  // Stati per la gestione dello STOP e Ultimo Acquisto
+  const [isPaused, setIsPaused] = useState(false);
+  const [stopChiamatoDa, setStopChiamatoDa] = useState(null);
+  const [ultimoAcquisto, setUltimoAcquisto] = useState(null);
+
   const [acquirenteId, setAcquirenteId] = useState("");
   const [timer, setTimer] = useState(10);
-  const [timerAttivo, setTimerAttivo] = useState(false);
   const [ricercaNome, setRicercaNome] = useState("");
   const [filtroRuolo, setFiltroRuolo] = useState("TUTTI");
   const [letteraInizio, setLetteraInizio] = useState("A");
 
   const docRef = doc(db, "asta_fantacalcio", "sessione_asta");
+  const isMobileView =
+    new URLSearchParams(window.location.search).get("mobile") === "true";
 
-  // Listener in tempo reale con normalizzazione dati in lettura
+  // Listener Firestore in tempo reale
   useEffect(() => {
     const unsub = onSnapshot(docRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        // FIXED: Sincronizziamo e normalizziamo i giocatori letti da Firebase
-        const listaG = (data.giocatori || GIOCATORI_INITIAL).map(parsePlayer);
-        setGiocatori(listaG);
+        setGiocatori((data.giocatori || GIOCATORI_INITIAL).map(parsePlayer));
         setPartecipanti(data.partecipanti || PARTECIPANTI_INITIAL);
         setIsConfigMode(
           data.isConfigMode !== undefined ? data.isConfigMode : true,
@@ -60,10 +64,22 @@ export default function App() {
           data.giocatoreInAsta ? parsePlayer(data.giocatoreInAsta) : null,
         );
         setOffertaCorrente(data.offertaCorrente || 0);
+        setIsPaused(data.isPaused || false);
+        setStopChiamatoDa(data.stopChiamatoDa || null);
+        setUltimoAcquisto(data.ultimoAcquisto || null);
 
         if (data.timer !== undefined) setTimer(data.timer);
       } else {
-        salvaSuFirebase(GIOCATORI_INITIAL, PARTECIPANTI_INITIAL, true, null, 0);
+        salvaSuFirebase(
+          GIOCATORI_INITIAL,
+          PARTECIPANTI_INITIAL,
+          true,
+          null,
+          0,
+          false,
+          null,
+          null,
+        );
       }
     });
     return () => unsub();
@@ -75,6 +91,9 @@ export default function App() {
     configMode,
     gInAsta,
     offerta,
+    paused = false,
+    stopDa = null,
+    ultimoAcq = ultimoAcquisto,
   ) => {
     try {
       await setDoc(docRef, {
@@ -83,61 +102,67 @@ export default function App() {
         isConfigMode: configMode,
         giocatoreInAsta: gInAsta,
         offertaCorrente: offerta,
+        isPaused: paused,
+        stopChiamatoDa: stopDa,
+        ultimoAcquisto: ultimoAcq,
+        timer: 10,
       });
     } catch (err) {
       console.error("Errore nel salvataggio online: ", err);
     }
   };
 
-  // FIXED: Funzione per aggiornare il DB Firebase col nuovo JSON senza resettare le rose!
-  const aggiornaDatabaseDaJSON = () => {
-    if (
-      window.confirm(
-        "Vuoi aggiornare il database con i nuovi dati del file JSON? (I calciatori già acquistati rimarranno nelle rose).",
-      )
-    ) {
-      // Troviamo tutti gli ID dei giocatori già acquistati nelle rose
-      const idsAcquistati = new Set();
-      partecipanti.forEach((p) =>
-        p.rosa.forEach((g) => idsAcquistati.add(g.id)),
-      );
-
-      // Filtriamo il nuovo JSON escludendo i già acquistati
-      const nuoviSvincolati = GIOCATORI_INITIAL.filter(
-        (g) => !idsAcquistati.has(g.id),
-      );
-
-      salvaSuFirebase(
-        nuoviSvincolati,
-        partecipanti,
-        isConfigMode,
-        giocatoreInAsta,
-        offertaCorrente,
-      );
-      alert("Database sincronizzato con successo col nuovo file JSON!");
-    }
-  };
-
+  // Timer: cammina solo se NON è in pausa
   useEffect(() => {
-    if (giocatoreInAsta && timer > 0) {
+    if (giocatoreInAsta && timer > 0 && !isPaused) {
       const intervallo = setInterval(
         () => setTimer((t) => (t <= 1 ? 0 : t - 1)),
         1000,
       );
       return () => clearInterval(intervallo);
     }
-  }, [giocatoreInAsta, offertaCorrente]);
+  }, [giocatoreInAsta, offertaCorrente, isPaused, timer]);
+
+  // Gestione Sblocco Automatico della Pausa dopo 30 secondi
+  useEffect(() => {
+    let timeoutId;
+    if (isPaused) {
+      timeoutId = setTimeout(async () => {
+        try {
+          await runTransaction(db, async (transaction) => {
+            const sfDoc = await transaction.get(docRef);
+            if (!sfDoc.exists()) return;
+            transaction.update(docRef, {
+              isPaused: false,
+              stopChiamatoDa: null,
+            });
+          });
+        } catch (err) {
+          console.error("Errore nello sblocco automatico della pausa:", err);
+        }
+      }, 30000); // 30 secondi
+    }
+    return () => clearTimeout(timeoutId);
+  }, [isPaused]);
 
   const resettaTutto = () => {
     if (
       window.confirm(
-        "Sei sicuro di resettare l'asta online? Cancellerai le rose di tutti i partecipanti.",
+        "Sei sicuro di resettare l'asta online? Cancellerai le rose di tutti.",
       )
     ) {
-      salvaSuFirebase(GIOCATORI_INITIAL, PARTECIPANTI_INITIAL, true, null, 0);
+      salvaSuFirebase(
+        GIOCATORI_INITIAL,
+        PARTECIPANTI_INITIAL,
+        true,
+        null,
+        0,
+        false,
+        null,
+        null,
+      );
       setAcquirenteId("");
       setTimer(10);
-      setTimerAttivo(false);
     }
   };
 
@@ -152,6 +177,8 @@ export default function App() {
       isConfigMode,
       giocatoreInAsta,
       offertaCorrente,
+      isPaused,
+      stopChiamatoDa,
     );
   };
 
@@ -163,6 +190,8 @@ export default function App() {
       false,
       giocatoreInAsta,
       offertaCorrente,
+      isPaused,
+      stopChiamatoDa,
     );
   };
 
@@ -174,6 +203,8 @@ export default function App() {
       true,
       giocatoreInAsta,
       offertaCorrente,
+      isPaused,
+      stopChiamatoDa,
     );
   };
 
@@ -181,15 +212,12 @@ export default function App() {
     if (isConfigMode)
       return alert("Salva la configurazione prima di iniziare!");
     setTimer(10);
-    setTimerAttivo(false);
     setAcquirenteId("");
-    salvaSuFirebase(giocatori, partecipanti, isConfigMode, g, 1);
+    salvaSuFirebase(giocatori, partecipanti, isConfigMode, g, 1, false, null);
   };
 
   const faiOfferta = async (incremento = 1) => {
     if (!giocatoreInAsta || timer === 0) return;
-    const mioIdAttuale = "1";
-
     try {
       await runTransaction(db, async (transaction) => {
         const sfDoc = await transaction.get(docRef);
@@ -197,50 +225,18 @@ export default function App() {
         const prezzoCloud = sfDoc.data().offertaCorrente || 0;
         transaction.update(docRef, {
           offertaCorrente: prezzoCloud + incremento,
-          ultimoOfferenteId: mioIdAttuale,
+          ultimoOfferenteId: "1",
           timer: 10,
+          isPaused: false, // Il rilancio sblocca la pausa!
+          stopChiamatoDa: null,
         });
       });
     } catch (err) {
-      console.error("Collisione di rete, rilancio fallito: ", err);
+      console.error("Errore durante il rilancio: ", err);
     }
   };
 
-  const getAlfabetoCircolare = (letteraPartenza) => {
-    const indice = ALFABETO.indexOf(letteraPartenza);
-    if (indice === -1) return ALFABETO;
-    return [...ALFABETO.slice(indice), ...ALFABETO.slice(0, indice)];
-  };
-
-  const alfabetoOrdinato = getAlfabetoCircolare(letteraInizio);
-
-  // FIXED: Ricerca e ordinamento protetti contro valori undefined o proprietà difformi
-  const ottieniListaOrdinata = (listaCalciatori) => {
-    const query = ricercaNome.toLowerCase().trim();
-
-    return listaCalciatori
-      .filter((g) => {
-        const nomeG = (g.nome || g.name || "").toLowerCase();
-        const squadraG = (g.squadra || g.team || "").toLowerCase();
-        const ruoloG = g.ruolo || g.role?.code || "";
-
-        const matchNome = nomeG.includes(query) || squadraG.includes(query);
-        const matchRuolo = filtroRuolo === "TUTTI" || ruoloG === filtroRuolo;
-
-        return matchNome && matchRuolo;
-      })
-      .sort((a, b) => {
-        const charA = (a.nome || "").charAt(0).toUpperCase();
-        const charB = (b.nome || "").charAt(0).toUpperCase();
-        return (
-          alfabetoOrdinato.indexOf(charA) - alfabetoOrdinato.indexOf(charB)
-        );
-      });
-  };
-
-  const giocatoriFiltrati = ottieniListaOrdinata(giocatori);
-
-  const assegnaGiocatore = () => {
+  const assegnaGiocatore = async () => {
     if (!acquirenteId || !giocatoreInAsta)
       return alert("Seleziona una squadra!");
     const acquirente = partecipanti.find(
@@ -249,12 +245,12 @@ export default function App() {
     if (acquirente.crediti < offertaCorrente)
       return alert("Crediti insufficienti!");
 
-    const ruoloG = giocatoreInAsta.ruolo;
-    const giaComprati = acquirente.rosa.filter(
-      (g) => g.ruolo === ruoloG,
-    ).length;
-    if (giaComprati >= LIMITI_RUOLO[ruoloG])
-      return alert("Limite raggiunto per questo ruolo!");
+    const dettaglioVincitore = {
+      calciatore: giocatoreInAsta.nome,
+      ruolo: giocatoreInAsta.ruolo,
+      vincitoreNome: acquirente.nome,
+      prezzo: offertaCorrente,
+    };
 
     const fantaSquadreAggiornate = partecipanti.map((p) =>
       p.id === acquirente.id
@@ -267,63 +263,44 @@ export default function App() {
     );
 
     const rimasti = giocatori.filter((g) => g.id !== giocatoreInAsta.id);
-    const listaProssimi = ottieniListaOrdinata(rimasti);
-
     setTimer(10);
-    setTimerAttivo(false);
     setAcquirenteId("");
 
-    if (listaProssimi.length > 0) {
-      salvaSuFirebase(
-        rimasti,
-        fantaSquadreAggiornate,
-        isConfigMode,
-        listaProssimi[0],
-        1,
-      );
-    } else {
-      salvaSuFirebase(rimasti, fantaSquadreAggiornate, isConfigMode, null, 0);
-      alert("Asta conclusa! Tutti i giocatori inseriti sono stati venduti.");
-    }
+    await salvaSuFirebase(
+      rimasti,
+      fantaSquadreAggiornate,
+      isConfigMode,
+      null,
+      0,
+      false,
+      null,
+      dettaglioVincitore,
+    );
   };
 
-  const esportaInExcel = () => {
-    let csvContent =
-      "data:text/csv;charset=utf-8,Squadra;Giocatore;Ruolo;Club;Prezzo d'Acquisto\n";
-    partecipanti.forEach((squadra) => {
-      if (squadra.rosa.length === 0)
-        csvContent += `${squadra.nome};Nessun acquisto;-;-;-\n`;
-      else
-        squadra.rosa.forEach(
-          (g) =>
-            (csvContent += `${squadra.nome};${g.nome};${g.ruolo};${g.squadra};${g.prezzo}\n`),
-        );
-    });
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csvContent));
-    link.setAttribute("download", "resoconto_asta_fantacalcio.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  if (isMobileView) {
+    return (
+      <MobileController
+        partecipanti={partecipanti}
+        giocatoreInAsta={giocatoreInAsta}
+        offertaCorrente={offertaCorrente}
+        timer={timer}
+        isPaused={isPaused}
+        stopChiamatoDa={stopChiamatoDa}
+        ultimoAcquisto={ultimoAcquisto}
+        docRef={docRef}
+      />
+    );
+  }
 
   return (
     <div className="container">
       <div className="header-container">
         <h1 className="main-title">⚽ Dashboard Asta Pro ⚽</h1>
         <div style={{ display: "flex", gap: "10px" }}>
-          {/* FIXED: Pulsante aggiunto per sincronizzare il nuovo JSON con Firebase */}
-          <button onClick={aggiornaDatabaseDaJSON} className="btn btn-blue">
-            🔄 Sincronizza JSON
-          </button>
           <button onClick={resettaTutto} className="btn btn-orange">
             ⚠️ Resetta Online
           </button>
-          {!isConfigMode && (
-            <button onClick={esportaInExcel} className="btn btn-green">
-              📥 Esporta Excel
-            </button>
-          )}
         </div>
       </div>
 
@@ -387,7 +364,10 @@ export default function App() {
               </h3>
               <div className="alert-box">
                 <h4>
-                  Offerta Corrente: {offertaCorrente} FM | Timer: {timer}s
+                  Offerta: {offertaCorrente} FM |{" "}
+                  {isPaused
+                    ? `⏸️ PAUSA STOP (${stopChiamatoDa})`
+                    : `Timer: ${timer}s`}
                 </h4>
               </div>
 
@@ -441,161 +421,44 @@ export default function App() {
 
         <div className="card">
           <h2>👥 10 Squadre e Rose Online</h2>
-          {partecipanti.map((p) => {
-            const count = (r) => p.rosa.filter((g) => g.ruolo === r).length;
-            const isIncompleta =
-              count("P") < LIMITI_RUOLO.P ||
-              count("D") < LIMITI_RUOLO.D ||
-              count("C") < LIMITI_RUOLO.C ||
-              count("A") < LIMITI_RUOLO.A;
-
-            return (
-              <div
-                key={p.id}
-                className="team-row"
-                style={{ display: "block", padding: "12px 10px" }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span>
-                    {p.nome} ({p.crediti} FM)
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      color: "#666",
-                      marginTop: "4px",
-                    }}
-                  >
-                    P({count("P")}/{LIMITI_RUOLO.P}) D({count("D")}/
-                    {LIMITI_RUOLO.D}) C({count("C")}/{LIMITI_RUOLO.C}) A(
-                    {count("A")}/{LIMITI_RUOLO.A}){" "}
-                    {isIncompleta ? "🔴 Incompleta" : "🟢 Completa"}
-                  </span>
-                </div>
-                <div
-                  style={{
-                    fontSize: "11px",
-                    color: "#94a3b8",
-                    marginTop: "8px",
-                    borderTop: "1px solid #334155",
-                    paddingTop: "6px",
-                    lineHeight: "1.5",
-                  }}
-                >
-                  {p.rosa.length > 0 ? (
-                    p.rosa.map((g, idx) => (
-                      <span
-                        key={idx}
-                        style={{ marginRight: "6px", display: "inline-block" }}
-                      >
-                        <span
-                          style={{
-                            color: COLORI_RUOLO[g.ruolo] || "#fff",
-                            fontWeight: "600",
-                          }}
-                        >
-                          [{g.ruolo}] {g.nome}
-                        </span>
-                        <span style={{ color: "#10b981", fontWeight: "bold" }}>
-                          {" "}
-                          ({g.prezzo})
-                        </span>
-                        {idx < p.rosa.length - 1 ? " • " : ""}
-                      </span>
-                    ))
-                  ) : (
-                    <span style={{ color: "#475569", fontStyle: "italic" }}>
-                      Nessun giocatore acquistato
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {partecipanti.map((p) => (
+            <div
+              key={p.id}
+              className="team-row"
+              style={{ display: "block", padding: "12px 10px" }}
+            >
+              <span>
+                {p.nome} ({p.crediti} FM)
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
       <div className="card" style={{ marginTop: "20px" }}>
-        <h2>🔍 Database Giocatori Online ({giocatoriFiltrati.length})</h2>
-        <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
-          <input
-            type="text"
-            placeholder="Cerca per nome o squadra..."
-            value={ricercaNome}
-            onChange={(e) => setRicercaNome(e.target.value)}
-            className="input-field"
-            style={{ flex: 1 }}
-          />
-          <select
-            value={filtroRuolo}
-            onChange={(e) => setFiltroRuolo(e.target.value)}
-            className="select-field"
+        <h2>🔍 Database Giocatori Online</h2>
+        {giocatori.map((g) => (
+          <div
+            key={g.id}
+            className="player-row"
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              padding: "10px 0",
+            }}
           >
-            <option value="TUTTI">Tutti</option>
-            <option value="P">P</option>
-            <option value="D">D</option>
-            <option value="C">C</option>
-            <option value="A">A</option>
-          </select>
-        </div>
-        <div
-          style={{
-            display: "flex",
-            gap: "10px",
-            marginBottom: "10px",
-            alignItems: "center",
-          }}
-        >
-          <span>Inizia l'ordine alfabetico dalla lettera:</span>
-          <select
-            value={letteraInizio}
-            onChange={(e) => setLetteraInizio(e.target.value)}
-            className="select-field"
-          >
-            {ALFABETO.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {giocatoriFiltrati.length === 0 ? (
-          <div className="alert-box">
-            Nessun giocatore corrisponde ai filtri.
-          </div>
-        ) : (
-          giocatoriFiltrati.map((g) => (
-            <div
-              key={g.id}
-              className="player-row"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "10px 0",
-                borderBottom: "1px solid #334155",
-              }}
+            <span>
+              {g.nome} - {g.squadra} ({g.ruolo})
+            </span>
+            <button
+              onClick={() => chiamaGiocatore(g)}
+              disabled={isConfigMode}
+              className="btn-call btn-blue"
             >
-              <span>
-                {g.nome} - {g.squadra} ({g.ruolo})
-              </span>
-              <button
-                onClick={() => chiamaGiocatore(g)}
-                disabled={isConfigMode}
-                className="btn-call btn-blue"
-              >
-                Chiama 🔨
-              </button>
-            </div>
-          ))
-        )}
+              Chiama 🔨
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );
