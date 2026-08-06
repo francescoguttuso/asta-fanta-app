@@ -629,7 +629,7 @@ export default function App() {
     <div className="container">
       <div className="header-container">
         <h1 className="main-title">⚽ FantaRiggio Asta Pro (Server) ⚽</h1>
-        <div style={{ display: "flex", gap: "10px" }}>
+        <div className="header-actions">
           <button onClick={esportaInExcel} className="btn btn-green">
             📊 Esporta CSV Pulito
           </button>
@@ -647,19 +647,9 @@ export default function App() {
       </nav>
 
       {isConfigMode ? (
-        <div
-          className="card"
-          style={{ maxWidth: "700px", margin: "0 auto 20px auto" }}
-        >
+        <div className="card config-card">
           <h2>⚙️ Configurazione Iniziale Squadre</h2>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "10px",
-              margin: "15px 0",
-            }}
-          >
+          <div className="config-grid">
             {partecipanti.map((p) => (
               <div
                 key={p.id}
@@ -695,20 +685,12 @@ export default function App() {
         </div>
       )}
 
-      <div className="grid-2-cols">
-        <div className="card">
+      <div className="auction-layout">
+        <div className="card auction-card">
           <h2>📢 Banditore Asta Live</h2>
           {giocatoreInAsta ? (
             <div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "15px",
-                  margin: "10px 0",
-                }}
-              >
+              <div className="auction-player-nav">
                 <button
                   onClick={() => cambiaGiocatoreManuale("indietro")}
                   className="btn btn-grey"
@@ -797,9 +779,7 @@ export default function App() {
                 </button>
               )}
 
-              <div
-                style={{ display: "flex", gap: "10px", marginBottom: "15px" }}
-              >
+              <div className="bid-actions">
                 <button
                   onClick={() => faiOfferta(1)}
                   disabled={!isTimerStarted || timer === 0 || isPaused}
@@ -865,7 +845,7 @@ export default function App() {
           )}
         </div>
 
-        <div className="card">
+        <div className="card teams-card">
           <h2>👥 Rose e Crediti Residui</h2>
           {partecipanti.map((p) => {
             const contiRuoli = {
@@ -920,23 +900,13 @@ export default function App() {
             );
           })}
         </div>
-      </div>
-
-      <div className="card" style={{ marginTop: "20px" }}>
+        <div className="card players-card">
         <h2>
           🔍 Elenco Giocatori Disponibili ({giocatoriFiltrati.length} /{" "}
           {giocatori.length})
         </h2>
 
-        <div
-          style={{
-            display: "flex",
-            gap: "15px",
-            margin: "15px 0",
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
-        >
+        <div className="role-filters">
           <span style={{ fontWeight: "bold", fontSize: "0.9rem" }}>
             Filtra Ruoli:
           </span>
@@ -965,14 +935,7 @@ export default function App() {
           ))}
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "5px",
-            marginBottom: "20px",
-          }}
-        >
+        <div className="letter-filters">
           <button
             onClick={() => setFiltroLettera("TUTTE")}
             className={`btn ${
@@ -1000,19 +963,13 @@ export default function App() {
           ))}
         </div>
 
-        <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+        <div className="player-list">
           {giocatoriFiltrati.map((g) => (
             <div
               key={g.id}
               className="player-row"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "10px 0",
-                borderBottom: "1px solid #1e293b",
-              }}
             >
-              <span>
+              <span className="player-name">
                 {g.nome} - {g.squadra} ({g.ruolo})
               </span>
               <button
@@ -1024,6 +981,7 @@ export default function App() {
               </button>
             </div>
           ))}
+        </div>
         </div>
       </div>
     </div>

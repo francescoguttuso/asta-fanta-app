@@ -162,7 +162,7 @@ export default function MobileController({
     : 2;
 
   return (
-    <div className="container" style={{ padding: "10px" }}>
+    <div className="container mobile-container">
       <h2 style={{ textAlign: "center", fontSize: "1.4rem" }}>
         📱 Controller Fanta Squadra
       </h2>
@@ -240,7 +240,7 @@ export default function MobileController({
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+          <div className="mobile-bid-actions">
             <button
               onClick={() => faiOffertaMobile(1)}
               disabled={!mioId || !isTimerStarted || timer === 0 || isPaused}
