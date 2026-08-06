@@ -22,6 +22,7 @@ const PARTECIPANTI_INITIAL = Array.from({ length: 10 }, (_, i) => ({
   nome: `Fanta Squadra ${i + 1}`,
   crediti: 500,
   rosa: [],
+  stopDisponibili: 2, // 👈 2 stop a disposizione per ogni squadra
 }));
 
 const LIMITI_RUOLI = { P: 3, D: 8, C: 8, A: 6 };
@@ -263,7 +264,6 @@ export default function App() {
   };
 
   const esportaInExcel = () => {
-    // Generazione del CSV formattato esattamente come richiesto (senza intestazione, campi separati da virgola)
     let csvContent = "data:text/csv;charset=utf-8,";
 
     partecipanti.forEach((p) => {
@@ -404,9 +404,9 @@ export default function App() {
           offertaCorrente: nuovoPrezzo,
           ultimoOfferenteId: adminId,
           timer: 10,
-          isPaused: false,
-          stopChiamatoDa: null,
-          stopIniziatoAt: null,
+          isPaused: false,        // 👈 Sblocca lo stop se c'è un'offerta
+          stopChiamatoDa: null,   // 👈 Resetta lo stop
+          stopIniziatoAt: null,   // 👈 Resetta il tempo dello stop
           storicoOfferte: nuovoStorico,
         });
       });

@@ -75,9 +75,9 @@ export default function MobileController({
           offertaCorrente: nuovoPrezzo,
           ultimoOfferenteId: mioId,
           timer: 10,
-          isPaused: false,
-          stopChiamatoDa: null,
-          stopIniziatoAt: null,
+          isPaused: false,        // 👈 Sblocca lo stop automaticamente
+          stopChiamatoDa: null,   // 👈 Resetta chi aveva chiamato lo stop
+          stopIniziatoAt: null,   // 👈 Resetta il tempo dello stop
           storicoOfferte: nuovoStorico,
         });
       });
@@ -90,18 +90,36 @@ export default function MobileController({
     if (!mioId) return alert("Seleziona prima la tua squadra!");
     if (!giocatoreInAsta || !isTimerStarted || isPaused) return;
 
-    const nomeSquadra =
-      partecipanti.find((p) => p.id === parseInt(mioId))?.nome || "Squadra";
+    const utenteCorrente = partecipanti.find((p) => p.id === parseInt(mioId));
+    if (!utenteCorrente) return;
+
+    const stopRimanenti = utenteCorrente.stopDisponibili ?? 2;
+    if (stopRimanenti <= 0) {
+      alert("⛔ Hai esaurito i 2 stop a tua disposizione!");
+      return;
+    }
 
     try {
       await runTransaction(db, async (transaction) => {
         const sfDoc = await transaction.get(docRef);
         if (!sfDoc.exists()) return;
 
+        const partecipantiCloud = sfDoc.data().partecipanti || partecipanti;
+        const partecipantiAggiornati = partecipantiCloud.map((p) => {
+          if (p.id === parseInt(mioId)) {
+            return {
+              ...p,
+              stopDisponibili: Math.max(0, (p.stopDisponibili ?? 2) - 1),
+            };
+          }
+          return p;
+        });
+
         transaction.update(docRef, {
           isPaused: true,
-          stopChiamatoDa: nomeSquadra,
+          stopChiamatoDa: utenteCorrente.nome,
           stopIniziatoAt: Date.now(),
+          partecipanti: partecipantiAggiornati,
         });
       });
     } catch (err) {
@@ -110,6 +128,9 @@ export default function MobileController({
   };
 
   const utenteSelezionato = partecipanti.find((p) => p.id === parseInt(mioId));
+  const stopRimanentiSelezionato = utenteSelezionato
+    ? utenteSelezionato.stopDisponibili ?? 2
+    : 2;
 
   return (
     <div className="container" style={{ padding: "10px" }}>
@@ -132,7 +153,7 @@ export default function MobileController({
           <option value="">-- Scegli Squadra --</option>
           {partecipanti.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.nome} ({p.crediti} FM)
+              {p.nome} ({p.crediti} FM) - 🛑 {p.stopDisponibili ?? 2}/2
             </option>
           ))}
         </select>
@@ -144,7 +165,8 @@ export default function MobileController({
           style={{ marginBottom: "15px", background: "#1e293b" }}
         >
           <h4 style={{ margin: "0 0 5px 0", color: "#38bdf8" }}>
-            I tuoi Crediti: {utenteSelezionato.crediti} FM
+            I tuoi Crediti: {utenteSelezionato.crediti} FM | Stop:{" "}
+            {stopRimanentiSelezionato}/2
           </h4>
           <p style={{ fontSize: "0.85rem", color: "#94a3b8", margin: 0 }}>
             Rosa ({utenteSelezionato.rosa.length}):{" "}
@@ -210,11 +232,16 @@ export default function MobileController({
 
           <button
             onClick={fermaAstaMobile}
-            disabled={!mioId || !isTimerStarted || isPaused}
+            disabled={
+              !mioId ||
+              !isTimerStarted ||
+              isPaused ||
+              stopRimanentiSelezionato <= 0
+            }
             className="btn btn-orange"
             style={{ width: "100%", padding: "12px", fontSize: "1.1rem" }}
           >
-            🛑 CHIEDI STOP (30s)
+            🛑 CHIEDI STOP (30s) - Rimasti: {stopRimanentiSelezionato}/2
           </button>
         </div>
       ) : (
