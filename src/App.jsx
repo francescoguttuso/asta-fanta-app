@@ -263,14 +263,17 @@ export default function App() {
   };
 
   const esportaInExcel = () => {
-    let csvContent = "data:text/csv;charset=utf-8,Squadra;Crediti Residui;Giocatore;Ruolo;Prezzo\n";
+    // Generazione del CSV formattato esattamente come richiesto (senza intestazione, campi separati da virgola)
+    let csvContent = "data:text/csv;charset=utf-8,";
 
     partecipanti.forEach((p) => {
-      if (p.rosa.length === 0) {
-        csvContent += `"${p.nome}";${p.crediti};"Nessun acquisto";"-";0\n`;
-      } else {
+      if (p.rosa && p.rosa.length > 0) {
         p.rosa.forEach((g) => {
-          csvContent += `"${p.nome}";${p.crediti};"${g.nome}";"${g.ruolo}";${g.prezzo}\n`;
+          const nomeSquadra = p.nome;
+          const codiceCalciatore = g.id;
+          const prezzoAcquisto = g.prezzo;
+
+          csvContent += `${nomeSquadra},${codiceCalciatore},${prezzoAcquisto}\n`;
         });
       }
     });
@@ -278,7 +281,7 @@ export default function App() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "report_aste_fantacalcio.csv");
+    link.setAttribute("download", "fantariggio_rosters.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -518,7 +521,7 @@ export default function App() {
         <h1 className="main-title">⚽ Dashboard Asta Pro (Server) ⚽</h1>
         <div style={{ display: "flex", gap: "10px" }}>
           <button onClick={esportaInExcel} className="btn btn-green">
-            📊 Esporta Excel
+            📊 Esporta CSV Pulito
           </button>
           <button onClick={resettaTutto} className="btn btn-orange">
             ⚠️ Resetta Sessione
@@ -526,7 +529,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Navbar fluttuante in stile FantaCalcio */}
       <nav className="fanta-floating-nav">
         <span>🏠 Dashboard</span>
         <span>👥 Rose</span>
@@ -887,7 +889,7 @@ export default function App() {
         </div>
 
         <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-          {giocatoriFiltrati.link?.map ? null : giocatoriFiltrati.map((g) => (
+          {giocatoriFiltrati.map((g) => (
             <div
               key={g.id}
               className="player-row"
