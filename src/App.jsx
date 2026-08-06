@@ -27,7 +27,7 @@ const PARTECIPANTI_INITIAL = Array.from({ length: 10 }, (_, i) => ({
   nome: `Fanta Squadra ${i + 1}`,
   crediti: 500,
   rosa: [],
-  stopDisponibili: 2, // 👈 2 stop a disposizione per ogni squadra
+  stopDisponibili: 2,
 }));
 
 const LIMITI_RUOLI = { P: 3, D: 8, C: 8, A: 6 };
@@ -131,6 +131,7 @@ export default function App() {
     try {
       await setDoc(docRef, {
         giocatori: nuoviG,
+        partecipanti: (nuevosP) => nuoviP, // fix safe ref
         partecipanti: nuoviP,
         isConfigMode: configMode,
         giocatoreInAsta: gInAsta,
@@ -152,7 +153,6 @@ export default function App() {
 
   useEffect(() => {
     if (!giocatoreInAsta || !isTimerStarted || isPaused) return;
-
     if (!timerEndsAt) return;
 
     const aggiornaTimer = () => {
@@ -181,8 +181,6 @@ export default function App() {
       const trascorsiMs = Date.now() - stopIniziatoAt;
       const rimastiMs = Math.max(0, STOP_DURATION_MS - trascorsiMs);
 
-      // La pagina server è l'unica autorità che fa ripartire l'asta.
-      // I controller mobile visualizzano soltanto la pausa sincronizzata.
       if (!isMobileView) {
         timeout = setTimeout(async () => {
           try {
@@ -200,8 +198,7 @@ export default function App() {
 
               const timerRimanenteMs = Math.max(
                 0,
-                sessione.timerRimanenteMs ??
-                  (sessione.timer || 0) * 1000,
+                sessione.timerRimanenteMs ?? (sessione.timer || 0) * 1000,
               );
 
               transaction.update(docRef, {
@@ -211,9 +208,7 @@ export default function App() {
                 timerRimanenteMs: null,
                 timer: Math.ceil(timerRimanenteMs / 1000),
                 timerEndsAt:
-                  timerRimanenteMs > 0
-                    ? Date.now() + timerRimanenteMs
-                    : null,
+                  timerRimanenteMs > 0 ? Date.now() + timerRimanenteMs : null,
               });
             });
           } catch (e) {
@@ -302,7 +297,9 @@ export default function App() {
         "Attenzione! Vuoi resettare l'intera sessione d'asta e ricaricare i giocatori dal file JSON?",
       )
     ) {
-      const giocatoriFresiDalJson = (datiJson.players || datiJson).map(parsePlayer);
+      const giocatoriFresiDalJson = (datiJson.players || datiJson).map(
+        parsePlayer,
+      );
       salvaSuFirebase(
         giocatoriFresiDalJson,
         PARTECIPANTI_INITIAL,
@@ -466,9 +463,9 @@ export default function App() {
           ultimoOfferenteId: adminId,
           timer: 10,
           timerEndsAt: Date.now() + AUCTION_DURATION_MS,
-          isPaused: false,        // 👈 Sblocca lo stop se c'è un'offerta
-          stopChiamatoDa: null,   // 👈 Resetta lo stop
-          stopIniziatoAt: null,   // 👈 Resetta il tempo dello stop
+          isPaused: false,
+          stopChiamatoDa: null,
+          stopIniziatoAt: null,
           storicoOfferte: nuovoStorico,
         });
       });
@@ -477,6 +474,7 @@ export default function App() {
     }
   };
 
+  // 🛠️ FUNZIONE AGGIORNATA PER LO SCORRIMENTO ALFABETICO AUTOMATICO
   const assegnaGiocatore = async () => {
     if (!giocatoreInAsta) return;
 
@@ -519,23 +517,67 @@ export default function App() {
     const partecipantiAggiornati = partecipanti.map((p) =>
       p.id === vincitore.id
         ? {
-          ...p,
-          crediti: p.crediti - offertaCorrente,
-          rosa: [...p.rosa, { ...giocatoreInAsta, prezzo: offertaCorrente }],
-        }
+            ...p,
+            crediti: p.crediti - offertaCorrente,
+            rosa: [...p.rosa, { ...giocatoreInAsta, prezzo: offertaCorrente }],
+          }
         : p,
     );
 
+    // 1. Rimuoviamo il giocatore appena assegnato dalla lista
     const giocatoriRimasti = giocatori.filter(
       (g) => g.id !== giocatoreInAsta.id,
     );
+
+    // 2. Troviamo il prossimo giocatore in ordine alfabetico rispettando i filtri di ruolo attivi
+    let prossimoGiocatore = null;
+    if (giocatoriRimasti.length > 0) {
+      // Ordiniamo alfabeticamente tutti i giocatori rimasti
+      const ordinatiAlfabeticamente = [...giocatoriRimasti].sort((a, b) =>
+        a.nome.localeCompare(b.nome),
+      );
+
+      // Cerchiamo a partire dalla lettera corrente del filtro o scorrendo in avanti ciclicamente
+      let letteraDiPartenza =
+        filtroLettera === "TUTTE"
+          ? ordinatiAlfabeticamente[0].nome[0].toUpperCase()
+          : filtroLettera;
+
+      // Funzione di supporto per trovare il primo giocatore valido dalla lettera corrente in poi
+      const trovaConLetteraCiclicaocratico = (startLetter) => {
+        const indiceLetteraIniziale = ALFABETO.indexOf(startLetter);
+        for (let i = 0; i < ALFABETO.length; i++) {
+          const indexCorrente = (indiceLetteraIniziale + i) % ALFABETO.length;
+          const letteraCercata = ALFABETO[indexCorrente];
+
+          const candidato = ordinatiAlfabeticamente.find((g) => {
+            const rispettaLettera = g.nome
+              .toUpperCase()
+              .startsWith(letteraCercata);
+            const rispettaRuolo = filtriRuoliAttivi[g.ruolo];
+            return rispettaLettera && rispettaRuolo;
+          });
+
+          if (candidato) {
+            // Aggiorniamo anche il filtro visivo della lettera per allinearlo automaticamente
+            if (filtroLettera !== "TUTTE") {
+              setFiltroLettera(letteraCercata);
+            }
+            return candidato;
+          }
+        }
+        return ordinatiAlfabeticamente[0]; // Fallback sul primo disponibile in assoluto
+      };
+
+      prossimoGiocatore = trovaConLetteraCiclicaocratico(letteraDiPartenza);
+    }
 
     setTimer(10);
     await salvaSuFirebase(
       giocatoriRimasti,
       partecipantiAggiornati,
       isConfigMode,
-      null,
+      prossimoGiocatore, // 👈 Imposta automaticamente il prossimo giocatore pronto per l'asta
       0,
       false,
       null,
@@ -926,8 +968,9 @@ export default function App() {
         >
           <button
             onClick={() => setFiltroLettera("TUTTE")}
-            className={`btn ${filtroLettera === "TUTTE" ? "btn-blue" : "btn-grey"
-              }`}
+            className={`btn ${
+              filtroLettera === "TUTTE" ? "btn-blue" : "btn-grey"
+            }`}
             style={{ padding: "5px 10px", fontSize: "0.8rem" }}
           >
             TUTTE
@@ -936,8 +979,9 @@ export default function App() {
             <button
               key={lettera}
               onClick={() => setFiltroLettera(lettera)}
-              className={`btn ${filtroLettera === lettera ? "btn-blue" : "btn-grey"
-                }`}
+              className={`btn ${
+                filtroLettera === lettera ? "btn-blue" : "btn-grey"
+              }`}
               style={{
                 padding: "5px 8px",
                 fontSize: "0.8rem",
@@ -955,6 +999,7 @@ export default function App() {
               key={g.id}
               className="player-row"
               style={{
+                className: "player-row",
                 display: "flex",
                 justifyContent: "space-between",
                 padding: "10px 0",
