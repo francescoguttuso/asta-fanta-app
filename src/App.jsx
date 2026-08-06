@@ -20,7 +20,16 @@ const parsePlayer = (player) => ({
       : player.ruolo || player.role?.code || "D",
 });
 
-const GIOCATORI_INITIAL = (datiJson.players || datiJson).map(parsePlayer);
+// 📌 ORDINAMENTO ALFABETICO COMPLETO: Confronta l'intera stringa lettera per lettera in italiano
+const ordinaGiocatoriAlfabeticamente = (lista) => {
+  return [...lista].sort((a, b) =>
+    a.nome.localeCompare(b.nome, "it", { sensitivity: "base", numeric: true }),
+  );
+};
+
+const GIOCATORI_INITIAL = ordinaGiocatoriAlfabeticamente(
+  (datiJson.players || datiJson).map(parsePlayer),
+);
 
 const PARTECIPANTI_INITIAL = Array.from({ length: 10 }, (_, i) => ({
   id: i + 1,
@@ -68,7 +77,11 @@ export default function App() {
     const unsub = onSnapshot(docRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        setGiocatori((data.giocatori || GIOCATORI_INITIAL).map(parsePlayer));
+        const giocatoriParsed = (data.giocatori || GIOCATORI_INITIAL).map(
+          parsePlayer,
+        );
+        setGiocatori(ordinaGiocatoriAlfabeticamente(giocatoriParsed));
+
         setPartecipanti(data.partecipanti || PARTECIPANTI_INITIAL);
         setIsConfigMode(
           data.isConfigMode !== undefined ? data.isConfigMode : true,
@@ -130,8 +143,7 @@ export default function App() {
   ) => {
     try {
       await setDoc(docRef, {
-        giocatori: nuoviG,
-        partecipanti: (nuevosP) => nuoviP, // fix safe ref
+        giocatori: ordinaGiocatoriAlfabeticamente(nuoviG),
         partecipanti: nuoviP,
         isConfigMode: configMode,
         giocatoreInAsta: gInAsta,
@@ -265,14 +277,15 @@ export default function App() {
   const cambiaGiocatoreManuale = (direzione) => {
     if (!giocatoreInAsta || isConfigMode) return;
 
-    const indiceAttuale = giocatori.findIndex(
+    const listaCorrente = giocatoriFiltrati;
+    const indiceAttuale = listaCorrente.findIndex(
       (g) => g.id === giocatoreInAsta.id,
     );
     const nuovoIndice =
       direzione === "avanti" ? indiceAttuale + 1 : indiceAttuale - 1;
 
-    if (nuovoIndice >= 0 && nuovoIndice < giocatori.length) {
-      const prossimo = giocatori[nuovoIndice];
+    if (nuovoIndice >= 0 && nuovoIndice < listaCorrente.length) {
+      const prossimo = listaCorrente[nuovoIndice];
       setTimer(10);
       salvaSuFirebase(
         giocatori,
@@ -297,8 +310,8 @@ export default function App() {
         "Attenzione! Vuoi resettare l'intera sessione d'asta e ricaricare i giocatori dal file JSON?",
       )
     ) {
-      const giocatoriFresiDalJson = (datiJson.players || datiJson).map(
-        parsePlayer,
+      const giocatoriFresiDalJson = ordinaGiocatoriAlfabeticamente(
+        (datiJson.players || datiJson).map(parsePlayer),
       );
       salvaSuFirebase(
         giocatoriFresiDalJson,
@@ -474,7 +487,6 @@ export default function App() {
     }
   };
 
-  // 🛠️ FUNZIONE AGGIORNATA PER LO SCORRIMENTO ALFABETICO AUTOMATICO
   const assegnaGiocatore = async () => {
     if (!giocatoreInAsta) return;
 
@@ -524,27 +536,21 @@ export default function App() {
         : p,
     );
 
-    // 1. Rimuoviamo il giocatore appena assegnato dalla lista
     const giocatoriRimasti = giocatori.filter(
       (g) => g.id !== giocatoreInAsta.id,
     );
 
-    // 2. Troviamo il prossimo giocatore in ordine alfabetico rispettando i filtri di ruolo attivi
     let prossimoGiocatore = null;
     if (giocatoriRimasti.length > 0) {
-      // Ordiniamo alfabeticamente tutti i giocatori rimasti
-      const ordinatiAlfabeticamente = [...giocatoriRimasti].sort((a, b) =>
-        a.nome.localeCompare(b.nome),
-      );
+      const ordinatiAlfabeticamente =
+        ordinaGiocatoriAlfabeticamente(giocatoriRimasti);
 
-      // Cerchiamo a partire dalla lettera corrente del filtro o scorrendo in avanti ciclicamente
       let letteraDiPartenza =
         filtroLettera === "TUTTE"
           ? ordinatiAlfabeticamente[0].nome[0].toUpperCase()
           : filtroLettera;
 
-      // Funzione di supporto per trovare il primo giocatore valido dalla lettera corrente in poi
-      const trovaConLetteraCiclicaocratico = (startLetter) => {
+      const trovaConLetteraCiclica = (startLetter) => {
         const indiceLetteraIniziale = ALFABETO.indexOf(startLetter);
         for (let i = 0; i < ALFABETO.length; i++) {
           const indexCorrente = (indiceLetteraIniziale + i) % ALFABETO.length;
@@ -559,17 +565,16 @@ export default function App() {
           });
 
           if (candidato) {
-            // Aggiorniamo anche il filtro visivo della lettera per allinearlo automaticamente
             if (filtroLettera !== "TUTTE") {
               setFiltroLettera(letteraCercata);
             }
             return candidato;
           }
         }
-        return ordinatiAlfabeticamente[0]; // Fallback sul primo disponibile in assoluto
+        return ordinatiAlfabeticamente[0];
       };
 
-      prossimoGiocatore = trovaConLetteraCiclicaocratico(letteraDiPartenza);
+      prossimoGiocatore = trovaConLetteraCiclica(letteraDiPartenza);
     }
 
     setTimer(10);
@@ -577,7 +582,7 @@ export default function App() {
       giocatoriRimasti,
       partecipantiAggiornati,
       isConfigMode,
-      prossimoGiocatore, // 👈 Imposta automaticamente il prossimo giocatore pronto per l'asta
+      prossimoGiocatore,
       0,
       false,
       null,
@@ -593,13 +598,15 @@ export default function App() {
     (p) => p.id === parseInt(ultimoOfferenteId),
   );
 
-  const giocatoriFiltrati = giocatori.filter((g) => {
-    const rispettaLettera =
-      filtroLettera === "TUTTE" ||
-      g.nome.toUpperCase().startsWith(filtroLettera);
-    const rispettaRuolo = filtriRuoliAttivi[g.ruolo];
-    return rispettaLettera && rispettaRuolo;
-  });
+  const giocatoriFiltrati = ordinaGiocatoriAlfabeticamente(giocatori).filter(
+    (g) => {
+      const rispettaLettera =
+        filtroLettera === "TUTTE" ||
+        g.nome.toUpperCase().startsWith(filtroLettera);
+      const rispettaRuolo = filtriRuoliAttivi[g.ruolo];
+      return rispettaLettera && rispettaRuolo;
+    },
+  );
 
   if (isMobileView) {
     return (
@@ -999,7 +1006,6 @@ export default function App() {
               key={g.id}
               className="player-row"
               style={{
-                className: "player-row",
                 display: "flex",
                 justifyContent: "space-between",
                 padding: "10px 0",
