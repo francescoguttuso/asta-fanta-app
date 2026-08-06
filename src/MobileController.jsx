@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { runTransaction } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 
+const LIMITI_RUOLI = { P: 3, D: 8, C: 8, A: 6 };
+
 export default function MobileController({
   partecipanti,
   giocatoreInAsta,
@@ -12,43 +14,43 @@ export default function MobileController({
   stopChiamatoDa,
   stopIniziatoAt,
   ultimoAcquisto,
-  storicoOfferte = [],
+  storicoOfferte,
   docRef,
 }) {
-  const [selectedSquadraId, setSelectedSquadraId] = useState("");
-  const [stopTimerVisivo, setStopTimerVisivo] = useState(30);
+  const [mioId, setMioId] = useState("");
+  const [stopTimerVisivoClient, setStopTimerVisivoClient] = useState(30);
 
-  const miaSquadra = partecipanti.find(
-    (p) => p.id === parseInt(selectedSquadraId),
-  );
-
-  // Countdown visivo di 30 secondi + Vibrazione negli ultimi 4 secondi
   useEffect(() => {
     let interval = null;
     if (isPaused && stopIniziatoAt) {
       interval = setInterval(() => {
         const trascorsi = Math.floor((Date.now() - stopIniziatoAt) / 1000);
         const rimasti = Math.max(0, 30 - trascorsi);
-        setStopTimerVisivo(rimasti);
-
-        // Se mancano 4 secondi o meno, attiva la vibrazione sul dispositivo mobile
-        if (rimasti <= 4 && rimasti > 0) {
-          if (navigator.vibrate) {
-            navigator.vibrate(200); // Vibra per 200 millisecondi ad ogni secondo che passa
-          }
-        }
+        setStopTimerVisivoClient(rimasti);
       }, 1000);
     }
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [isPaused, stopIniziatoAt]);
 
-  const rilancia = async (incremento = 1) => {
-    if (!selectedSquadraId) return alert("Seleziona prima la tua squadra!");
-    if (!giocatoreInAsta || !isTimerStarted || timer === 0) return;
+  const faiOffertaMobile = async (incremento = 1) => {
+    if (!mioId) return alert("Seleziona prima la tua squadra!");
+    if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) return;
 
-    const nuovoPrezzo = offertaCorrente + incremento;
-    if (miaSquadra && miaSquadra.crediti < nuovoPrezzo) {
-      return alert("Crediti insufficienti!");
+    const utenteCorrente = partecipanti.find((p) => p.id === parseInt(mioId));
+    if (utenteCorrente) {
+      const ruoloCorrente = giocatoreInAsta.ruolo;
+      const quantitaInRosa = utenteCorrente.rosa.filter(
+        (g) => g.ruolo === ruoloCorrente,
+      ).length;
+
+      if (quantitaInRosa >= (LIMITI_RUOLI[ruoloCorrente] || 0)) {
+        alert(
+          `⛔ Impossibile rilanciare: hai già completato il reparto dei ${ruoloCorrente} (${LIMITI_RUOLI[ruoloCorrente]}/${LIMITI_RUOLI[ruoloCorrente]})!`,
+        );
+        return;
+      }
     }
 
     try {
@@ -58,18 +60,20 @@ export default function MobileController({
 
         const prezzoCloud = sfDoc.data().offertaCorrente || 0;
         const vecchioStorico = sfDoc.data().storicoOfferte || [];
-        const rilancioCloud = prezzoCloud + incremento;
+        const nuovoPrezzo = prezzoCloud + incremento;
+        const nomeSquadra =
+          partecipanti.find((p) => p.id === parseInt(mioId))?.nome || "Squadra";
 
         const nuovaEntrata = {
-          nome: miaSquadra.nome,
-          importo: rilancioCloud,
+          nome: nomeSquadra,
+          importo: nuovoPrezzo,
           ora: new Date().toLocaleTimeString(),
         };
         const nuovoStorico = [nuovaEntrata, ...vecchioStorico].slice(0, 5);
 
         transaction.update(docRef, {
-          offertaCorrente: rilancioCloud,
-          ultimoOfferenteId: selectedSquadraId,
+          offertaCorrente: nuovoPrezzo,
+          ultimoOfferenteId: mioId,
           timer: 10,
           isPaused: false,
           stopChiamatoDa: null,
@@ -78,17 +82,16 @@ export default function MobileController({
         });
       });
     } catch (err) {
-      console.error("Errore durante il rilancio mobile: ", err);
+      console.error("Errore rilancio mobile: ", err);
     }
   };
 
-  const chiamaStop = async () => {
-    if (!selectedSquadraId) return alert("Seleziona prima la tua squadra!");
-    if (isPaused) return;
+  const fermaAstaMobile = async () => {
+    if (!mioId) return alert("Seleziona prima la tua squadra!");
+    if (!giocatoreInAsta || !isTimerStarted || isPaused) return;
 
-    if (offertaCorrente <= 30) {
-      return alert("Puoi chiamare lo STOP solo per offerte superiori a 30 FM!");
-    }
+    const nomeSquadra =
+      partecipanti.find((p) => p.id === parseInt(mioId))?.nome || "Squadra";
 
     try {
       await runTransaction(db, async (transaction) => {
@@ -97,216 +100,150 @@ export default function MobileController({
 
         transaction.update(docRef, {
           isPaused: true,
-          stopChiamatoDa: miaSquadra.nome,
+          stopChiamatoDa: nomeSquadra,
           stopIniziatoAt: Date.now(),
         });
       });
     } catch (err) {
-      console.error("Errore durante la chiamata dello STOP: ", err);
+      console.error("Errore attivazione STOP: ", err);
     }
   };
 
+  const utenteSelezionato = partecipanti.find((p) => p.id === parseInt(mioId));
+
   return (
-    <div
-      className="container"
-      style={{ padding: "15px", maxWidth: "500px", margin: "0 auto" }}
-    >
-      <h2 style={{ textAlign: "center", color: "#38bdf8" }}>
-        📱 FantaAsta Mobile
+    <div className="container" style={{ padding: "10px" }}>
+      <h2 style={{ textAlign: "center", fontSize: "1.4rem" }}>
+        📱 Controller Fanta Squadra
       </h2>
 
-      {/* SELEZIONE SQUADRA */}
       <div className="card" style={{ marginBottom: "15px" }}>
         <label
-          style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}
+          style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}
         >
-          Chi sei?
+          Seleziona la tua Squadra:
         </label>
         <select
-          value={selectedSquadraId}
-          onChange={(e) => setSelectedSquadraId(e.target.value)}
+          value={mioId}
+          onChange={(e) => setMioId(e.target.value)}
           className="input-field"
           style={{ width: "100%", padding: "10px", fontSize: "1rem" }}
         >
-          <option value="">-- Seleziona la tua Squadra --</option>
+          <option value="">-- Scegli Squadra --</option>
           {partecipanti.map((p) => (
             <option key={p.id} value={p.id}>
               {p.nome} ({p.crediti} FM)
             </option>
           ))}
         </select>
-
-        {miaSquadra && (
-          <div
-            style={{
-              marginTop: "10px",
-              fontSize: "0.9rem",
-              color: "#10b981",
-              fontWeight: "bold",
-            }}
-          >
-            Crediti Residui: {miaSquadra.crediti} FM | Giocatori in rosa:{" "}
-            {miaSquadra.rosa.length}
-          </div>
-        )}
       </div>
 
-      {/* BANDITORE LIVE MOBILE */}
-      <div className="card">
-        <h3>📢 Calciatore in Asta</h3>
-        {giocatoreInAsta ? (
-          <div>
-            <h2 style={{ color: "#38bdf8", margin: "10px 0" }}>
-              {giocatoreInAsta.nome} ({giocatoreInAsta.squadra})
-            </h2>
+      {utenteSelezionato && (
+        <div
+          className="card"
+          style={{ marginBottom: "15px", background: "#1e293b" }}
+        >
+          <h4 style={{ margin: "0 0 5px 0", color: "#38bdf8" }}>
+            I tuoi Crediti: {utenteSelezionato.crediti} FM
+          </h4>
+          <p style={{ fontSize: "0.85rem", color: "#94a3b8", margin: 0 }}>
+            Rosa ({utenteSelezionato.rosa.length}):{" "}
+            {utenteSelezionato.rosa
+              .map((g) => `${g.nome} (${g.prezzo}FM)`)
+              .join(", ") || "Nessun acquisto"}
+          </p>
+        </div>
+      )}
+
+      {giocatoreInAsta ? (
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "#38bdf8", margin: "5px 0" }}>
+            {giocatoreInAsta.nome} ({giocatoreInAsta.squadra}) - [
+            {giocatoreInAsta.ruolo}]
+          </h3>
+
+          <div className="alert-box" style={{ margin: "10px 0" }}>
+            <h4 style={{ fontSize: "1.4rem", margin: 0 }}>
+              Offerta:{" "}
+              <span style={{ color: "#10b981" }}>{offertaCorrente} FM</span>
+            </h4>
             <div
               style={{
+                marginTop: "8px",
                 fontSize: "1.1rem",
                 fontWeight: "bold",
-                color: "#94a3b8",
               }}
             >
-              Ruolo: [{giocatoreInAsta.ruolo}]
-            </div>
-
-            <div
-              className="alert-box"
-              style={{ textAlign: "center", margin: "15px 0" }}
-            >
-              <div
-                style={{
-                  fontSize: "1.8rem",
-                  fontWeight: "bold",
-                  color: "#10b981",
-                }}
-              >
-                {offertaCorrente} FM
-              </div>
-
-              <div style={{ marginTop: "10px", fontSize: "1.1rem" }}>
-                {!isTimerStarted ? (
-                  <span style={{ color: "#fbbf24", fontWeight: "bold" }}>
-                    ⏳ ATTENDI AVVIO SERVER
-                  </span>
-                ) : isPaused ? (
-                  <div style={{ color: "#f87171", fontWeight: "bold" }}>
-                    🛑 PAUSA STOP: {stopChiamatoDa}
-                    <div style={{ fontSize: "1.3rem", marginTop: "5px" }}>
-                      ⏱️ Ripresa tra: {stopTimerVisivo}s
-                    </div>
+              {!isTimerStarted ? (
+                <span style={{ color: "#fbbf24" }}>⏳ IN ATTESA DI AVVIO</span>
+              ) : isPaused ? (
+                <div style={{ color: "#f87171" }}>
+                  🛑 STOP DA: <strong>{stopChiamatoDa}</strong>
+                  <div style={{ fontSize: "1.2rem", marginTop: "3px" }}>
+                    ⏱️ Ripresa tra: {stopTimerVisivoClient}s
                   </div>
-                ) : (
-                  <span>⏱️ Tempo: {timer}s</span>
-                )}
-              </div>
-            </div>
-
-            {/* PULSANTI RILANCIO */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "10px",
-                marginBottom: "15px",
-              }}
-            >
-              <button
-                onClick={() => rilancia(1)}
-                disabled={!isTimerStarted || timer === 0 || !selectedSquadraId}
-                className="btn btn-green"
-                style={{ padding: "15px", fontSize: "1.2rem" }}
-              >
-                +1 FM 🔨
-              </button>
-              <button
-                onClick={() => rilancia(5)}
-                disabled={!isTimerStarted || timer === 0 || !selectedSquadraId}
-                className="btn"
-                style={{ padding: "15px", fontSize: "1.2rem" }}
-              >
-                +5 FM 🚀
-              </button>
-            </div>
-
-            <button
-              onClick={chiamaStop}
-              disabled={
-                isPaused ||
-                !isTimerStarted ||
-                timer === 0 ||
-                !selectedSquadraId ||
-                offertaCorrente <= 30
-              }
-              className="btn btn-orange"
-              style={{
-                width: "100%",
-                padding: "12px",
-                fontSize: "1.1rem",
-                fontWeight: "bold",
-                opacity: offertaCorrente <= 30 ? 0.5 : 1,
-              }}
-            >
-              🛑 CHIAMA STOP (Pausa 30s)
-            </button>
-            {offertaCorrente <= 30 && (
-              <small
-                style={{
-                  display: "block",
-                  textAlign: "center",
-                  marginTop: "5px",
-                  color: "#94a3b8",
-                }}
-              >
-                ⚠️ Lo STOP è disponibile solo per offerte superiori a 30 FM
-              </small>
-            )}
-
-            {/* STORICO ULTIME 5 OFFERTE MOBILE */}
-            <div
-              style={{
-                marginTop: "15px",
-                padding: "10px",
-                backgroundColor: "#0f172a",
-                borderRadius: "6px",
-                borderLeft: "4px solid #38bdf8",
-                fontSize: "0.85rem",
-              }}
-            >
-              <strong
-                style={{
-                  color: "#94a3b8",
-                  display: "block",
-                  marginBottom: "5px",
-                }}
-              >
-                📜 Ultime Offerte:
-              </strong>
-              {storicoOfferte.length > 0 ? (
-                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                  {storicoOfferte.map((off, idx) => (
-                    <li
-                      key={idx}
-                      style={{
-                        padding: "2px 0",
-                        color: idx === 0 ? "#10b981" : "#e2e8f0",
-                        fontWeight: idx === 0 ? "bold" : "normal",
-                      }}
-                    >
-                      {off.nome}: <strong>{off.importo} FM</strong> ({off.ora})
-                    </li>
-                  ))}
-                </ul>
+                </div>
               ) : (
-                <span style={{ color: "#64748b" }}>Nessuna offerta</span>
+                <span>⏱️ Timer: {timer}s</span>
               )}
             </div>
           </div>
-        ) : (
-          <div
-            style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}
-          >
-            In attesa che l'amministratore selezioni un calciatore...
+
+          <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+            <button
+              onClick={() => faiOffertaMobile(1)}
+              disabled={!mioId || !isTimerStarted || timer === 0 || isPaused}
+              className="btn"
+              style={{ flex: 1, padding: "12px", fontSize: "1.1rem" }}
+            >
+              +1 FM 🔨
+            </button>
+            <button
+              onClick={() => faiOffertaMobile(5)}
+              disabled={!mioId || !isTimerStarted || timer === 0 || isPaused}
+              className="btn btn-green"
+              style={{ flex: 1, padding: "12px", fontSize: "1.1rem" }}
+            >
+              +5 FM 🚀
+            </button>
           </div>
+
+          <button
+            onClick={fermaAstaMobile}
+            disabled={!mioId || !isTimerStarted || isPaused}
+            className="btn btn-orange"
+            style={{ width: "100%", padding: "12px", fontSize: "1.1rem" }}
+          >
+            🛑 CHIEDI STOP (30s)
+          </button>
+        </div>
+      ) : (
+        <div className="card" style={{ textAlign: "center", padding: "20px" }}>
+          <p style={{ color: "#94a3b8" }}>Nessun calciatore sul banditore.</p>
+        </div>
+      )}
+
+      {/* Storico Offerte */}
+      <div className="card" style={{ marginTop: "15px" }}>
+        <h4 style={{ margin: "0 0 10px 0" }}>📜 Ultime Offerte</h4>
+        {storicoOfferte.length === 0 ? (
+          <p style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
+            Nessuna offerta registrata.
+          </p>
+        ) : (
+          storicoOfferte.map((off, index) => (
+            <div
+              key={index}
+              style={{
+                fontSize: "0.85rem",
+                marginBottom: "4px",
+                color: "#cbd5e1",
+              }}
+            >
+              <strong>{off.nome}</strong>: {off.importo} FM{" "}
+              <span style={{ color: "#64748b" }}>({off.ora})</span>
+            </div>
+          ))
         )}
       </div>
     </div>

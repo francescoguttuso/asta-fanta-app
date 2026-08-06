@@ -24,6 +24,9 @@ const PARTECIPANTI_INITIAL = Array.from({ length: 10 }, (_, i) => ({
   rosa: [],
 }));
 
+const LIMITI_RUOLI = { P: 3, D: 8, C: 8, A: 6 };
+const ALFABETO = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
 export default function App() {
   const [giocatori, setGiocatori] = useState(GIOCATORI_INITIAL);
   const [partecipanti, setPartecipanti] = useState(PARTECIPANTI_INITIAL);
@@ -32,7 +35,6 @@ export default function App() {
   const [offertaCorrente, setOffertaCorrente] = useState(0);
 
   const [isTimerStarted, setIsTimerStarted] = useState(false);
-
   const [ultimoOfferenteId, setUltimoOfferenteId] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
   const [stopChiamatoDa, setStopChiamatoDa] = useState(null);
@@ -42,6 +44,15 @@ export default function App() {
   const [storicoOfferte, setStoricoOfferte] = useState([]);
   const [timer, setTimer] = useState(10);
   const [stopTimerVisivoServer, setStopTimerVisivoServer] = useState(30);
+
+  // NUOVI STATI PER FILTRI ALFABETICI E DI RUOLO
+  const [filtroLettera, setFiltroLettera] = useState("TUTTE");
+  const [filtriRuoliAttivi, setFiltriRuoliAttivi] = useState({
+    P: true,
+    D: true,
+    C: true,
+    A: true,
+  });
 
   const docRef = doc(db, "asta_fantacalcio", "sessione_asta");
   const isMobileView =
@@ -107,7 +118,6 @@ export default function App() {
     try {
       await setDoc(docRef, {
         giocatori: nuoviG,
-        partecipanti: (nuevosP) => nuotiP, // fallback strutturale
         partecipanti: nuoviP,
         isConfigMode: configMode,
         giocatoreInAsta: gInAsta,
@@ -220,7 +230,7 @@ export default function App() {
         partecipanti,
         isConfigMode,
         prossimo,
-        0, // Offerta di partenza a 0
+        0,
         false,
         null,
         false,
@@ -322,7 +332,7 @@ export default function App() {
       partecipanti,
       isConfigMode,
       g,
-      0, // Offerta di partenza a 0
+      0,
       false,
       null,
       false,
@@ -337,6 +347,22 @@ export default function App() {
     if (!giocatoreInAsta || !isTimerStarted || timer === 0) return;
     const adminId = "1";
     const adminNome = partecipanti.find((p) => p.id === 1)?.nome || "Admin";
+
+    // CONTROLLO REPARTO COMPLETO PER L'ADMIN (ID 1)
+    const offerente = partecipanti.find((p) => p.id === 1);
+    if (offerente) {
+      const ruoloCorrente = giocatoreInAsta.ruolo;
+      const quantitaInRosa = offerente.rosa.filter(
+        (g) => g.ruolo === ruoloCorrente,
+      ).length;
+
+      if (quantitaInRosa >= (LIMITI_RUOLI[ruoloCorrente] || 0)) {
+        alert(
+          `⛔ Impossibile offrire: hai già completato i ${ruoloCorrente} (${LIMITI_RUOLI[ruoloCorrente]}/${LIMITI_RUOLI[ruoloCorrente]})!`,
+        );
+        return;
+      }
+    }
 
     try {
       await runTransaction(db, async (transaction) => {
@@ -389,23 +415,19 @@ export default function App() {
       return;
     }
 
-    // --- VALIDAZIONE VINCOLI DI RUOLO ---
-    const ruoloCorrente = giocatoreInAsta.ruolo; // es. "P", "D", "C", "A"
-    const limitiRuoli = { P: 3, D: 8, C: 8, A: 6 };
-
+    // CONTROLLO DEFINITIVO VINCOLI DI RUOLO
+    const ruoloCorrente = giocatoreInAsta.ruolo;
     const quantitaInRosa = vincitore.rosa.filter(
       (g) => g.ruolo === ruoloCorrente,
     ).length;
 
-    if (quantitaInRosa >= (limitiRuoli[ruoloCorrente] || 0)) {
+    if (quantitaInRosa >= (LIMITI_RUOLI[ruoloCorrente] || 0)) {
       alert(
-        `❌ Limite raggiunto! ${vincitore.nome} ha già completato i ${ruoloCorrente} (${limitiRuoli[ruoloCorrente]}/${limitiRuoli[ruoloCorrente]}).`,
+        `❌ Limite raggiunto! ${vincitore.nome} ha già completato i ${ruoloCorrente} (${LIMITI_RUOLI[ruoloCorrente]}/${LIMITI_RUOLI[ruoloCorrente]}). Assegnazione bloccata.`,
       );
       return;
     }
-    // ------------------------------------
 
-    // Creazione del dettaglio dell'ultimo acquisto
     const dettaglioVincitore = {
       calciatore: giocatoreInAsta.nome,
       ruolo: giocatoreInAsta.ruolo,
@@ -447,6 +469,15 @@ export default function App() {
   const ultimoOfferente = partecipanti.find(
     (p) => p.id === parseInt(ultimoOfferenteId),
   );
+
+  // LOGICA FILTRAGGIO GIOCATORI DISPONIBILI
+  const giocatoriFiltrati = giocatori.filter((g) => {
+    const rispettaLettera =
+      filtroLettera === "TUTTE" ||
+      g.nome.toUpperCase().startsWith(filtroLettera);
+    const rispettaRuolo = filtriRuoliAttivi[g.ruolo];
+    return rispettaLettera && rispettaRuolo;
+  });
 
   if (isMobileView) {
     return (
@@ -698,68 +729,168 @@ export default function App() {
         {/* TABELLONE ROSE */}
         <div className="card">
           <h2>👥 Rose e Crediti Residui</h2>
-          {partecipanti.map((p) => (
-            <div
-              key={p.id}
-              className="team-row"
-              style={{
-                display: "block",
-                padding: "10px",
-                marginBottom: "8px",
-                borderBottom: "1px solid #334155",
-              }}
-            >
+          {partecipanti.map((p) => {
+            const contiRuoli = {
+              P: p.rosa.filter((g) => g.ruolo === "P").length,
+              D: p.rosa.filter((g) => g.ruolo === "D").length,
+              C: p.rosa.filter((g) => g.ruolo === "C").length,
+              A: p.rosa.filter((g) => g.ruolo === "A").length,
+            };
+            return (
               <div
+                key={p.id}
+                className="team-row"
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontWeight: "bold",
+                  display: "block",
+                  padding: "10px",
+                  marginBottom: "8px",
+                  borderBottom: "1px solid #334155",
                 }}
               >
-                <span>{p.nome}</span>
-                <span style={{ color: "#10b981" }}>{p.crediti} FM</span>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontWeight: "bold",
+                  }}
+                >
+                  <span>{p.nome}</span>
+                  <span style={{ color: "#10b981" }}>{p.crediti} FM</span>
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#38bdf8",
+                    marginTop: "4px",
+                  }}
+                >
+                  P: {contiRuoli.P}/3 | D: {contiRuoli.D}/8 | C: {contiRuoli.C}
+                  /8 | A: {contiRuoli.A}/6
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.85rem",
+                    color: "#94a3b8",
+                    marginTop: "4px",
+                  }}
+                >
+                  Rosa ({p.rosa.length}):{" "}
+                  {p.rosa.map((g) => `${g.nome} (${g.prezzo}FM)`).join(", ") ||
+                    "Nessun acquisto"}
+                </div>
               </div>
-              <div
-                style={{
-                  fontSize: "0.85rem",
-                  color: "#94a3b8",
-                  marginTop: "5px",
-                }}
-              >
-                Rosa ({p.rosa.length}):{" "}
-                {p.rosa.map((g) => `${g.nome} (${g.prezzo}FM)`).join(", ") ||
-                  "Nessun acquisto"}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* ELENCO GIOCATORI DISPONIBILI */}
+      {/* ELENCO GIOCATORI DISPONIBILI CON FILTRI */}
       <div className="card" style={{ marginTop: "20px" }}>
-        <h2>🔍 Elenco Giocatori Disponibili ({giocatori.length})</h2>
-        {giocatori.map((g) => (
-          <div
-            key={g.id}
-            className="player-row"
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              padding: "10px 0",
-            }}
-          >
-            <span>
-              {g.nome} - {g.squadra} ({g.ruolo})
-            </span>
-            <button
-              onClick={() => chiamaGiocatore(g)}
-              disabled={isConfigMode}
-              className="btn-call btn-blue"
+        <h2>
+          🔍 Elenco Giocatori Disponibili ({giocatoriFiltrati.length} /{" "}
+          {giocatori.length})
+        </h2>
+
+        {/* Filtri per Ruolo */}
+        <div
+          style={{
+            display: "flex",
+            gap: "15px",
+            margin: "15px 0",
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <span style={{ fontWeight: "bold", fontSize: "0.9rem" }}>
+            Filtra Ruoli:
+          </span>
+          {Object.keys(filtriRuoliAttivi).map((ruolo) => (
+            <label
+              key={ruolo}
+              style={{
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "5px",
+              }}
             >
-              Chiama 🔨
+              <input
+                type="checkbox"
+                checked={filtriRuoliAttivi[ruolo]}
+                onChange={() =>
+                  setFiltriRuoliAttivi((prev) => ({
+                    ...prev,
+                    [ruolo]: !prev[ruolo],
+                  }))
+                }
+              />
+              {ruolo}
+            </label>
+          ))}
+        </div>
+
+        {/* Filtri per Lettera Alfabetica */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "5px",
+            marginBottom: "20px",
+          }}
+        >
+          <button
+            onClick={() => setFiltroLettera("TUTTE")}
+            className={`btn ${
+              filtroLettera === "TUTTE" ? "btn-blue" : "btn-grey"
+            }`}
+            style={{ padding: "5px 10px", fontSize: "0.8rem" }}
+          >
+            TUTTE
+          </button>
+          {ALFABETO.map((lettera) => (
+            <button
+              key={lettera}
+              onClick={() => setFiltroLettera(lettera)}
+              className={`btn ${
+                filtroLettera === lettera ? "btn-blue" : "btn-grey"
+              }`}
+              style={{
+                padding: "5px 8px",
+                fontSize: "0.8rem",
+                minWidth: "30px",
+              }}
+            >
+              {lettera}
             </button>
-          </div>
-        ))}
+          ))}
+        </div>
+
+        {/* Lista dei Giocatori Filtrati */}
+        <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+          {giocatoriFiltrati.map((g) => (
+            <div
+              key={g.id}
+              className="player-row"
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                padding: "10px 0",
+                borderBottom: "1px solid #1e293b",
+              }}
+            >
+              <span>
+                {g.nome} - {g.squadra} ({g.ruolo})
+              </span>
+              <button
+                onClick={() => chiamaGiocatore(g)}
+                disabled={isConfigMode}
+                className="btn-call btn-blue"
+              >
+                Chiama 🔨
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
