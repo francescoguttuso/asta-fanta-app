@@ -35,7 +35,8 @@ export default function App() {
   const [giocatoreInAsta, setGiocatoreInAsta] = useState(null);
   const [offertaCorrente, setOffertaCorrente] = useState(0);
 
-  // Stati per la gestione dello STOP e Ultimo Acquisto
+  // Stati per STOP, Ultimo Offerente e Ultimo Acquisto
+  const [ultimoOfferenteId, setUltimoOfferenteId] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
   const [stopChiamatoDa, setStopChiamatoDa] = useState(null);
   const [ultimoAcquisto, setUltimoAcquisto] = useState(null);
@@ -64,6 +65,7 @@ export default function App() {
           data.giocatoreInAsta ? parsePlayer(data.giocatoreInAsta) : null,
         );
         setOffertaCorrente(data.offertaCorrente || 0);
+        setUltimoOfferenteId(data.ultimoOfferenteId || null);
         setIsPaused(data.isPaused || false);
         setStopChiamatoDa(data.stopChiamatoDa || null);
         setUltimoAcquisto(data.ultimoAcquisto || null);
@@ -76,6 +78,7 @@ export default function App() {
           true,
           null,
           0,
+          null,
           false,
           null,
           null,
@@ -91,6 +94,7 @@ export default function App() {
     configMode,
     gInAsta,
     offerta,
+    offerenteId = ultimoOfferenteId,
     paused = false,
     stopDa = null,
     ultimoAcq = ultimoAcquisto,
@@ -102,6 +106,7 @@ export default function App() {
         isConfigMode: configMode,
         giocatoreInAsta: gInAsta,
         offertaCorrente: offerta,
+        ultimoOfferenteId: offerenteId,
         isPaused: paused,
         stopChiamatoDa: stopDa,
         ultimoAcquisto: ultimoAcq,
@@ -112,7 +117,7 @@ export default function App() {
     }
   };
 
-  // Timer: cammina solo se NON è in pausa
+  // Timer standard: avanza solo se l'asta non è in pausa
   useEffect(() => {
     if (giocatoreInAsta && timer > 0 && !isPaused) {
       const intervallo = setInterval(
@@ -123,7 +128,7 @@ export default function App() {
     }
   }, [giocatoreInAsta, offertaCorrente, isPaused, timer]);
 
-  // Gestione Sblocco Automatico della Pausa dopo 30 secondi
+  // Sblocco automatico dello STOP dopo 30 secondi
   useEffect(() => {
     let timeoutId;
     if (isPaused) {
@@ -138,9 +143,9 @@ export default function App() {
             });
           });
         } catch (err) {
-          console.error("Errore nello sblocco automatico della pausa:", err);
+          console.error("Errore sblocco automatico pausa:", err);
         }
-      }, 30000); // 30 secondi
+      }, 30000);
     }
     return () => clearTimeout(timeoutId);
   }, [isPaused]);
@@ -157,6 +162,7 @@ export default function App() {
         true,
         null,
         0,
+        null,
         false,
         null,
         null,
@@ -177,6 +183,7 @@ export default function App() {
       isConfigMode,
       giocatoreInAsta,
       offertaCorrente,
+      ultimoOfferenteId,
       isPaused,
       stopChiamatoDa,
     );
@@ -190,6 +197,7 @@ export default function App() {
       false,
       giocatoreInAsta,
       offertaCorrente,
+      ultimoOfferenteId,
       isPaused,
       stopChiamatoDa,
     );
@@ -203,6 +211,7 @@ export default function App() {
       true,
       giocatoreInAsta,
       offertaCorrente,
+      ultimoOfferenteId,
       isPaused,
       stopChiamatoDa,
     );
@@ -213,11 +222,22 @@ export default function App() {
       return alert("Salva la configurazione prima di iniziare!");
     setTimer(10);
     setAcquirenteId("");
-    salvaSuFirebase(giocatori, partecipanti, isConfigMode, g, 1, false, null);
+    salvaSuFirebase(
+      giocatori,
+      partecipanti,
+      isConfigMode,
+      g,
+      1,
+      null,
+      false,
+      null,
+    );
   };
 
   const faiOfferta = async (incremento = 1) => {
     if (!giocatoreInAsta || timer === 0) return;
+    const adminId = "1"; // ID convenzionale per le offerte da dashboard server
+
     try {
       await runTransaction(db, async (transaction) => {
         const sfDoc = await transaction.get(docRef);
@@ -225,14 +245,14 @@ export default function App() {
         const prezzoCloud = sfDoc.data().offertaCorrente || 0;
         transaction.update(docRef, {
           offertaCorrente: prezzoCloud + incremento,
-          ultimoOfferenteId: "1",
+          ultimoOfferenteId: adminId,
           timer: 10,
-          isPaused: false, // Il rilancio sblocca la pausa!
+          isPaused: false,
           stopChiamatoDa: null,
         });
       });
     } catch (err) {
-      console.error("Errore durante il rilancio: ", err);
+      console.error("Errore rilancio server: ", err);
     }
   };
 
@@ -272,11 +292,17 @@ export default function App() {
       isConfigMode,
       null,
       0,
+      null,
       false,
       null,
       dettaglioVincitore,
     );
   };
+
+  // Identifichiamo il nome dell'ultimo offerente per la UI
+  const ultimoOfferente = partecipanti.find(
+    (p) => p.id === parseInt(ultimoOfferenteId),
+  );
 
   if (isMobileView) {
     return (
@@ -296,7 +322,7 @@ export default function App() {
   return (
     <div className="container">
       <div className="header-container">
-        <h1 className="main-title">⚽ Dashboard Asta Pro ⚽</h1>
+        <h1 className="main-title">⚽ Dashboard Asta Pro (Server) ⚽</h1>
         <div style={{ display: "flex", gap: "10px" }}>
           <button onClick={resettaTutto} className="btn btn-orange">
             ⚠️ Resetta Online
@@ -354,21 +380,47 @@ export default function App() {
       )}
 
       <div className="grid-2-cols">
+        {/* SCHEDA ASTA LIVE SERVER */}
         <div className="card">
-          <h2>📢 Asta Live</h2>
+          <h2>📢 Banditore Asta Live</h2>
           {giocatoreInAsta ? (
             <div>
-              <h3>
-                {giocatoreInAsta.nome} ({giocatoreInAsta.squadra}) -{" "}
-                {giocatoreInAsta.ruolo}
+              <h3 style={{ color: "#38bdf8" }}>
+                🏃 {giocatoreInAsta.nome} ({giocatoreInAsta.squadra}) - [
+                {giocatoreInAsta.ruolo}]
               </h3>
-              <div className="alert-box">
-                <h4>
-                  Offerta: {offertaCorrente} FM |{" "}
-                  {isPaused
-                    ? `⏸️ PAUSA STOP (${stopChiamatoDa})`
-                    : `Timer: ${timer}s`}
+
+              <div
+                className="alert-box"
+                style={{ textAlign: "center", margin: "15px 0" }}
+              >
+                <h4 style={{ fontSize: "1.6rem", margin: 0 }}>
+                  Offerta:{" "}
+                  <span style={{ color: "#10b981" }}>{offertaCorrente} FM</span>
                 </h4>
+
+                {/* Visualizzazione dell'ultimo offerente */}
+                <p
+                  style={{
+                    marginTop: "8px",
+                    fontWeight: "bold",
+                    color: "#fbbf24",
+                    fontSize: "1.1rem",
+                  }}
+                >
+                  🙋 Ultimo Rilancio:{" "}
+                  {ultimoOfferente ? ultimoOfferente.nome : "Base d'asta"}
+                </p>
+
+                <div style={{ marginTop: "5px" }}>
+                  {isPaused ? (
+                    <span style={{ color: "#f87171", fontWeight: "bold" }}>
+                      ⏸️ PAUSA STOP (30s) - Chiamato da {stopChiamatoDa}
+                    </span>
+                  ) : (
+                    <span>⏱️ Timer: {timer}s</span>
+                  )}
+                </div>
               </div>
 
               <div
@@ -390,53 +442,107 @@ export default function App() {
                 </button>
               </div>
 
-              <div>
+              <div style={{ display: "flex", gap: "10px" }}>
                 <select
                   value={acquirenteId}
                   onChange={(e) => setAcquirenteId(e.target.value)}
                   className="select-field"
+                  style={{ flex: 1 }}
                 >
-                  <option value="">Seleziona acquisto...</option>
+                  <option value="">Seleziona vincente...</option>
                   {partecipanti.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.nome} ({p.crediti} FM)
                     </option>
                   ))}
                 </select>
-                <button
-                  onClick={assegnaGiocatore}
-                  className="btn btn-green"
-                  style={{ marginLeft: "10px" }}
-                >
-                  Assegna
+                <button onClick={assegnaGiocatore} className="btn btn-green">
+                  🏆 Assegna
                 </button>
               </div>
             </div>
           ) : (
-            <div className="alert-box">
-              Nessun calciatore all'asta al momento.
+            <div
+              className="alert-box"
+              style={{ textAlign: "center", padding: "20px" }}
+            >
+              <p style={{ color: "#94a3b8" }}>
+                In attesa della chiamata di un nuovo calciatore...
+              </p>
+
+              {/* BANNER NOTIFICA AGGIUDICAZIONE */}
+              {ultimoAcquisto && (
+                <div
+                  style={{
+                    marginTop: "15px",
+                    borderTop: "2px dashed #334155",
+                    paddingTop: "15px",
+                  }}
+                >
+                  <span style={{ fontSize: "1.2rem" }}>
+                    🎉 <strong>COLPO AGGIUDICATO!</strong>
+                  </span>
+                  <h3 style={{ color: "#fbbf24", margin: "8px 0" }}>
+                    {ultimoAcquisto.calciatore} ({ultimoAcquisto.ruolo})
+                  </h3>
+                  <p style={{ fontSize: "1.1rem" }}>
+                    Vinto da{" "}
+                    <strong style={{ color: "#38bdf8" }}>
+                      {ultimoAcquisto.vincitoreNome}
+                    </strong>{" "}
+                    per{" "}
+                    <strong style={{ color: "#10b981" }}>
+                      {ultimoAcquisto.prezzo} FM
+                    </strong>
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
 
+        {/* SCHEDA RESOCONTO ROSE */}
         <div className="card">
-          <h2>👥 10 Squadre e Rose Online</h2>
+          <h2>👥 Rose e Crediti Residui</h2>
           {partecipanti.map((p) => (
             <div
               key={p.id}
               className="team-row"
-              style={{ display: "block", padding: "12px 10px" }}
+              style={{
+                display: "block",
+                padding: "10px",
+                marginBottom: "8px",
+                borderBottom: "1px solid #334155",
+              }}
             >
-              <span>
-                {p.nome} ({p.crediti} FM)
-              </span>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontWeight: "bold",
+                }}
+              >
+                <span>{p.nome}</span>
+                <span style={{ color: "#10b981" }}>{p.crediti} FM</span>
+              </div>
+              <div
+                style={{
+                  fontSize: "0.85rem",
+                  color: "#94a3b8",
+                  marginTop: "5px",
+                }}
+              >
+                Rosa ({p.rosa.length}):{" "}
+                {p.rosa.map((g) => `${g.nome} (${g.prezzo}FM)`).join(", ") ||
+                  "Vuota"}
+              </div>
             </div>
           ))}
         </div>
       </div>
 
       <div className="card" style={{ marginTop: "20px" }}>
-        <h2>🔍 Database Giocatori Online</h2>
+        <h2>🔍 Chiamata Calciatori</h2>
         {giocatori.map((g) => (
           <div
             key={g.id}

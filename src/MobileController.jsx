@@ -10,14 +10,40 @@ export default function MobileController({
   stopChiamatoDa,
   ultimoAcquisto,
   docRef,
+  stopIniziatoAt, // Passiamo il timestamp di inizio dello stop da Firebase
 }) {
   const [squadraId, setSquadraId] = useState("");
   const [stopUsati, setStopUsati] = useState(0);
+  const [tempoStopRimanente, setTempoStopRimanente] = useState(30);
 
   // Resetta gli STOP usati quando cambia il calciatore in asta
   useEffect(() => {
     setStopUsati(0);
   }, [giocatoreInAsta?.id]);
+
+  // Gestione del conto alla rovescia dei 30 secondi di STOP
+  useEffect(() => {
+    let intervallo;
+    if (isPaused && stopIniziatoAt) {
+      intervallo = setInterval(() => {
+        const secondiTrascorsi = Math.floor(
+          (Date.now() - stopIniziatoAt) / 1000,
+        );
+        const rimanenti = 30 - secondiTrascorsi;
+
+        if (rimanenti <= 0) {
+          setTempoStopRimanente(0);
+          clearInterval(intervallo);
+        } else {
+          setTempoStopRimanente(rimanenti);
+        }
+      }, 1000);
+    } else {
+      setTempoStopRimanente(30);
+    }
+
+    return () => clearInterval(intervallo);
+  }, [isPaused, stopIniziatoAt]);
 
   const miaSquadra = partecipanti.find((p) => p.id === parseInt(squadraId));
 
@@ -32,8 +58,9 @@ export default function MobileController({
           offertaCorrente: prezzoCloud + incremento,
           ultimoOfferenteId: squadraId,
           timer: 10,
-          isPaused: false, // Sblocca la pausa se qualcuno rilancia
+          isPaused: false, // Il rilancio sblocca lo STOP
           stopChiamatoDa: null,
+          stopIniziatoAt: null,
         });
       });
     } catch (err) {
@@ -51,9 +78,9 @@ export default function MobileController({
         if (!sfDoc.exists()) return;
 
         transaction.update(docRef, {
-          timer: 30,
           isPaused: true,
           stopChiamatoDa: miaSquadra?.nome || "Una squadra",
+          stopIniziatoAt: Date.now(), // Salviamo l'istante di attivazione
         });
       });
 
@@ -110,19 +137,29 @@ export default function MobileController({
               {offertaCorrente} FM
             </p>
 
-            {/* Banner Stato Timer / Pausa */}
+            {/* Display dello Stato Timer / Conteggio STOP */}
             <div style={{ marginBottom: "15px" }}>
               {isPaused ? (
                 <div
                   style={{
                     backgroundColor: "#b91c1c",
                     color: "#fff",
-                    padding: "8px",
+                    padding: "10px",
                     borderRadius: "5px",
                     fontWeight: "bold",
+                    fontSize: "1.1rem",
                   }}
                 >
-                  ⏸️ PAUSA STOP (30s) - {stopChiamatoDa}
+                  ⏸️ STOP IN CORSO: {tempoStopRimanente}s
+                  <div
+                    style={{
+                      fontSize: "0.85rem",
+                      fontWeight: "normal",
+                      marginTop: "4px",
+                    }}
+                  >
+                    Chiamato da: {stopChiamatoDa}
+                  </div>
                 </div>
               ) : (
                 <p style={{ fontSize: "1.1rem" }}>⏱️ Timer: {timer}s</p>
