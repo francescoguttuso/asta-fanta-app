@@ -24,10 +24,6 @@ const PARTECIPANTI_INITIAL = Array.from({ length: 10 }, (_, i) => ({
   rosa: [],
 }));
 
-const LIMITI_RUOLO = { P: 3, D: 8, C: 8, A: 6 };
-const ALFABETO = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-const COLORI_RUOLO = { P: "#60a5fa", D: "#34d399", C: "#fbbf24", A: "#f87171" };
-
 export default function App() {
   const [giocatori, setGiocatori] = useState(GIOCATORI_INITIAL);
   const [partecipanti, setPartecipanti] = useState(PARTECIPANTI_INITIAL);
@@ -35,17 +31,17 @@ export default function App() {
   const [giocatoreInAsta, setGiocatoreInAsta] = useState(null);
   const [offertaCorrente, setOffertaCorrente] = useState(0);
 
-  // Stati per STOP, Ultimo Offerente e Ultimo Acquisto
+  const [isTimerStarted, setIsTimerStarted] = useState(false);
+
   const [ultimoOfferenteId, setUltimoOfferenteId] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
   const [stopChiamatoDa, setStopChiamatoDa] = useState(null);
+  const [stopIniziatoAt, setStopIniziatoAt] = useState(null);
   const [ultimoAcquisto, setUltimoAcquisto] = useState(null);
 
-  const [acquirenteId, setAcquirenteId] = useState("");
+  const [storicoOfferte, setStoricoOfferte] = useState([]);
   const [timer, setTimer] = useState(10);
-  const [ricercaNome, setRicercaNome] = useState("");
-  const [filtroRuolo, setFiltroRuolo] = useState("TUTTI");
-  const [letteraInizio, setLetteraInizio] = useState("A");
+  const [stopTimerVisivoServer, setStopTimerVisivoServer] = useState(30);
 
   const docRef = doc(db, "asta_fantacalcio", "sessione_asta");
   const isMobileView =
@@ -65,10 +61,13 @@ export default function App() {
           data.giocatoreInAsta ? parsePlayer(data.giocatoreInAsta) : null,
         );
         setOffertaCorrente(data.offertaCorrente || 0);
+        setIsTimerStarted(data.isTimerStarted || false);
         setUltimoOfferenteId(data.ultimoOfferenteId || null);
         setIsPaused(data.isPaused || false);
         setStopChiamatoDa(data.stopChiamatoDa || null);
+        setStopIniziatoAt(data.stopIniziatoAt || null);
         setUltimoAcquisto(data.ultimoAcquisto || null);
+        setStoricoOfferte(data.storicoOfferte || []);
 
         if (data.timer !== undefined) setTimer(data.timer);
       } else {
@@ -78,10 +77,13 @@ export default function App() {
           true,
           null,
           0,
+          false,
           null,
           false,
           null,
           null,
+          null,
+          [],
         );
       }
     });
@@ -94,10 +96,13 @@ export default function App() {
     configMode,
     gInAsta,
     offerta,
+    timerStarted = isTimerStarted,
     offerenteId = ultimoOfferenteId,
     paused = false,
     stopDa = null,
+    stopTime = null,
     ultimoAcq = ultimoAcquisto,
+    storico = storicoOfferte,
   ) => {
     try {
       await setDoc(docRef, {
@@ -106,33 +111,47 @@ export default function App() {
         isConfigMode: configMode,
         giocatoreInAsta: gInAsta,
         offertaCorrente: offerta,
+        isTimerStarted: timerStarted,
         ultimoOfferenteId: offerenteId,
         isPaused: paused,
         stopChiamatoDa: stopDa,
+        stopIniziatoAt: stopTime,
         ultimoAcquisto: ultimoAcq,
-        timer: 10,
+        storicoOfferte: storico,
+        timer: timer,
       });
     } catch (err) {
-      console.error("Errore nel salvataggio online: ", err);
+      console.error("Errore nel salvataggio su Firestore: ", err);
     }
   };
 
-  // Timer standard: avanza solo se l'asta non è in pausa
+  // Timer countdown asta (si blocca automaticamente quando isPaused === true)
   useEffect(() => {
-    if (giocatoreInAsta && timer > 0 && !isPaused) {
+    if (giocatoreInAsta && isTimerStarted && timer > 0 && !isPaused) {
       const intervallo = setInterval(
         () => setTimer((t) => (t <= 1 ? 0 : t - 1)),
         1000,
       );
       return () => clearInterval(intervallo);
     }
-  }, [giocatoreInAsta, offertaCorrente, isPaused, timer]);
+  }, [giocatoreInAsta, isTimerStarted, offertaCorrente, isPaused, timer]);
 
-  // Sblocco automatico dello STOP dopo 30 secondi
+  // Gestione disattivazione automatica STOP dopo 30s + Timer visivo sul Server
   useEffect(() => {
-    let timeoutId;
-    if (isPaused) {
-      timeoutId = setTimeout(async () => {
+    let interval = null;
+    let timeout = null;
+
+    if (isPaused && stopIniziatoAt) {
+      interval = setInterval(() => {
+        const trascorsi = Math.floor((Date.now() - stopIniziatoAt) / 1000);
+        const rimasti = Math.max(0, 30 - trascorsi);
+        setStopTimerVisivoServer(rimasti);
+      }, 1000);
+
+      const trascorsiMs = Date.now() - stopIniziatoAt;
+      const rimastiMs = Math.max(0, 30000 - trascorsiMs);
+
+      timeout = setTimeout(async () => {
         try {
           await runTransaction(db, async (transaction) => {
             const sfDoc = await transaction.get(docRef);
@@ -140,20 +159,82 @@ export default function App() {
             transaction.update(docRef, {
               isPaused: false,
               stopChiamatoDa: null,
+              stopIniziatoAt: null,
             });
           });
-        } catch (err) {
-          console.error("Errore sblocco automatico pausa:", err);
+        } catch (e) {
+          console.error("Errore nello sblocco automatico dello STOP: ", e);
         }
-      }, 30000);
+      }, rimastiMs);
     }
-    return () => clearTimeout(timeoutId);
-  }, [isPaused]);
+
+    return () => {
+      if (interval) clearInterval(interval);
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [isPaused, stopIniziatoAt]);
+
+  // Assegnazione automatica a tempo scaduto
+  useEffect(() => {
+    if (
+      timer === 0 &&
+      giocatoreInAsta &&
+      ultimoOfferenteId &&
+      !isPaused &&
+      isTimerStarted
+    ) {
+      assegnaGiocatore();
+    }
+  }, [timer, giocatoreInAsta, ultimoOfferenteId, isPaused, isTimerStarted]);
+
+  const avviaTimerManualmente = async () => {
+    try {
+      await runTransaction(db, async (transaction) => {
+        const sfDoc = await transaction.get(docRef);
+        if (!sfDoc.exists()) return;
+        transaction.update(docRef, {
+          isTimerStarted: true,
+          timer: 10,
+        });
+      });
+    } catch (err) {
+      console.error("Errore nell'avvio del timer:", err);
+    }
+  };
+
+  const cambiaGiocatoreManuale = (direzione) => {
+    if (!giocatoreInAsta || isConfigMode) return;
+
+    const indiceAttuale = giocatori.findIndex(
+      (g) => g.id === giocatoreInAsta.id,
+    );
+    const nuovoIndice =
+      direzione === "avanti" ? indiceAttuale + 1 : indiceAttuale - 1;
+
+    if (nuovoIndice >= 0 && nuovoIndice < giocatori.length) {
+      const prossimo = giocatori[nuovoIndice];
+      setTimer(10);
+      salvaSuFirebase(
+        giocatori,
+        partecipanti,
+        isConfigMode,
+        prossimo,
+        1,
+        false,
+        null,
+        false,
+        null,
+        null,
+        ultimoAcquisto,
+        [],
+      );
+    }
+  };
 
   const resettaTutto = () => {
     if (
       window.confirm(
-        "Sei sicuro di resettare l'asta online? Cancellerai le rose di tutti.",
+        "Attenzione! Vuoi resettare l'intera sessione d'asta online?",
       )
     ) {
       salvaSuFirebase(
@@ -162,12 +243,14 @@ export default function App() {
         true,
         null,
         0,
+        false,
         null,
         false,
         null,
         null,
+        null,
+        [],
       );
-      setAcquirenteId("");
       setTimer(10);
     }
   };
@@ -183,9 +266,13 @@ export default function App() {
       isConfigMode,
       giocatoreInAsta,
       offertaCorrente,
+      isTimerStarted,
       ultimoOfferenteId,
       isPaused,
       stopChiamatoDa,
+      stopIniziatoAt,
+      ultimoAcquisto,
+      storicoOfferte,
     );
   };
 
@@ -197,9 +284,13 @@ export default function App() {
       false,
       giocatoreInAsta,
       offertaCorrente,
+      isTimerStarted,
       ultimoOfferenteId,
       isPaused,
       stopChiamatoDa,
+      stopIniziatoAt,
+      ultimoAcquisto,
+      storicoOfferte,
     );
   };
 
@@ -211,69 +302,103 @@ export default function App() {
       true,
       giocatoreInAsta,
       offertaCorrente,
+      isTimerStarted,
       ultimoOfferenteId,
       isPaused,
       stopChiamatoDa,
+      stopIniziatoAt,
+      ultimoAcquisto,
+      storicoOfferte,
     );
   };
 
   const chiamaGiocatore = (g) => {
     if (isConfigMode)
-      return alert("Salva la configurazione prima di iniziare!");
+      return alert("Completa e salva la configurazione prima di iniziare!");
     setTimer(10);
-    setAcquirenteId("");
     salvaSuFirebase(
       giocatori,
       partecipanti,
       isConfigMode,
       g,
       1,
+      false,
       null,
       false,
       null,
+      null,
+      ultimoAcquisto,
+      [],
     );
   };
 
   const faiOfferta = async (incremento = 1) => {
-    if (!giocatoreInAsta || timer === 0) return;
-    const adminId = "1"; // ID convenzionale per le offerte da dashboard server
+    if (!giocatoreInAsta || !isTimerStarted || timer === 0) return;
+    const adminId = "1";
+    const adminNome = partecipanti.find((p) => p.id === 1)?.nome || "Admin";
 
     try {
       await runTransaction(db, async (transaction) => {
         const sfDoc = await transaction.get(docRef);
         if (!sfDoc.exists()) return;
+
         const prezzoCloud = sfDoc.data().offertaCorrente || 0;
+        const vecchioStorico = sfDoc.data().storicoOfferte || [];
+        const nuovoPrezzo = prezzoCloud + incremento;
+
+        const nuovaEntrata = {
+          nome: adminNome,
+          importo: nuovoPrezzo,
+          ora: new Date().toLocaleTimeString(),
+        };
+        const nuovoStorico = [nuovaEntrata, ...vecchioStorico].slice(0, 5);
+
         transaction.update(docRef, {
-          offertaCorrente: prezzoCloud + incremento,
+          offertaCorrente: nuovoPrezzo,
           ultimoOfferenteId: adminId,
           timer: 10,
           isPaused: false,
           stopChiamatoDa: null,
+          stopIniziatoAt: null,
+          storicoOfferte: nuovoStorico,
         });
       });
     } catch (err) {
-      console.error("Errore rilancio server: ", err);
+      console.error("Errore nel rilancio server: ", err);
     }
   };
 
   const assegnaGiocatore = async () => {
-    if (!acquirenteId || !giocatoreInAsta)
-      return alert("Seleziona una squadra!");
-    const acquirente = partecipanti.find(
-      (p) => p.id === parseInt(acquirenteId),
+    if (!giocatoreInAsta) return;
+
+    if (!ultimoOfferenteId) {
+      alert(
+        "Impossibile assegnare: nessuna offerta ricevuta per questo calciatore.",
+      );
+      return;
+    }
+
+    const vincitore = partecipanti.find(
+      (p) => p.id === parseInt(ultimoOfferenteId),
     );
-    if (acquirente.crediti < offertaCorrente)
-      return alert("Crediti insufficienti!");
+    if (!vincitore) return;
+
+    if (vincitore.crediti < offertaCorrente) {
+      alert(
+        `Errore: ${vincitore.nome} non possiede crediti sufficienti (${offertaCorrente} FM richiesti)!`,
+      );
+      return;
+    }
 
     const dettaglioVincitore = {
       calciatore: giocatoreInAsta.nome,
       ruolo: giocatoreInAsta.ruolo,
-      vincitoreNome: acquirente.nome,
+      vincitoreNome: vincitore.nome,
       prezzo: offertaCorrente,
     };
 
-    const fantaSquadreAggiornate = partecipanti.map((p) =>
-      p.id === acquirente.id
+    const partecipantiAggiornati = partecipanti.map((p) =>
+      p.id === vincitore.id
         ? {
             ...p,
             crediti: p.crediti - offertaCorrente,
@@ -282,24 +407,30 @@ export default function App() {
         : p,
     );
 
-    const rimasti = giocatori.filter((g) => g.id !== giocatoreInAsta.id);
+    const giocatoriRimasti = giocatori.filter(
+      (g) => g.id !== giocatoreInAsta.id,
+    );
+    const prossimoGiocatore =
+      giocatoriRimasti.length > 0 ? giocatoriRimasti[0] : null;
+
     setTimer(10);
-    setAcquirenteId("");
 
     await salvaSuFirebase(
-      rimasti,
-      fantaSquadreAggiornate,
+      giocatoriRimasti,
+      partecipantiAggiornati,
       isConfigMode,
-      null,
-      0,
+      prossimoGiocatore,
+      prossimoGiocatore ? 1 : 0,
+      false,
       null,
       false,
       null,
+      null,
       dettaglioVincitore,
+      [],
     );
   };
 
-  // Identifichiamo il nome dell'ultimo offerente per la UI
   const ultimoOfferente = partecipanti.find(
     (p) => p.id === parseInt(ultimoOfferenteId),
   );
@@ -311,9 +442,12 @@ export default function App() {
         giocatoreInAsta={giocatoreInAsta}
         offertaCorrente={offertaCorrente}
         timer={timer}
+        isTimerStarted={isTimerStarted}
         isPaused={isPaused}
         stopChiamatoDa={stopChiamatoDa}
+        stopIniziatoAt={stopIniziatoAt}
         ultimoAcquisto={ultimoAcquisto}
+        storicoOfferte={storicoOfferte}
         docRef={docRef}
       />
     );
@@ -323,11 +457,9 @@ export default function App() {
     <div className="container">
       <div className="header-container">
         <h1 className="main-title">⚽ Dashboard Asta Pro (Server) ⚽</h1>
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button onClick={resettaTutto} className="btn btn-orange">
-            ⚠️ Resetta Online
-          </button>
-        </div>
+        <button onClick={resettaTutto} className="btn btn-orange">
+          ⚠️ Resetta Sessione
+        </button>
       </div>
 
       {isConfigMode ? (
@@ -335,7 +467,7 @@ export default function App() {
           className="card"
           style={{ maxWidth: "700px", margin: "0 auto 20px auto" }}
         >
-          <h2>⚙️ Configura i Nomi delle 10 Squadre</h2>
+          <h2>⚙️ Configurazione Iniziale Squadre</h2>
           <div
             style={{
               display: "grid",
@@ -368,27 +500,57 @@ export default function App() {
             className="btn btn-orange"
             style={{ width: "100%", padding: "12px" }}
           >
-            🔒 Salva e Sblocca Asta Online!
+            🔒 Avvia Asta Live
           </button>
         </div>
       ) : (
         <div style={{ textAlign: "center", marginBottom: "20px" }}>
           <button onClick={sbloccaNomiSquadre} className="btn btn-grey">
-            ✏️ Modifica Squadre Online
+            ✏️ Modifica Squadre
           </button>
         </div>
       )}
 
       <div className="grid-2-cols">
-        {/* SCHEDA ASTA LIVE SERVER */}
+        {/* PANEL ASTA LIVE SERVER */}
         <div className="card">
           <h2>📢 Banditore Asta Live</h2>
           {giocatoreInAsta ? (
             <div>
-              <h3 style={{ color: "#38bdf8" }}>
-                🏃 {giocatoreInAsta.nome} ({giocatoreInAsta.squadra}) - [
-                {giocatoreInAsta.ruolo}]
-              </h3>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "15px",
+                  margin: "10px 0",
+                }}
+              >
+                <button
+                  onClick={() => cambiaGiocatoreManuale("indietro")}
+                  className="btn btn-grey"
+                  style={{ padding: "5px 12px", fontSize: "1.2rem" }}
+                  title="Giocatore Precedente"
+                >
+                  ◀
+                </button>
+
+                <h3
+                  style={{ color: "#38bdf8", margin: 0, textAlign: "center" }}
+                >
+                  🏃 {giocatoreInAsta.nome} ({giocatoreInAsta.squadra}) - [
+                  {giocatoreInAsta.ruolo}]
+                </h3>
+
+                <button
+                  onClick={() => cambiaGiocatoreManuale("avanti")}
+                  className="btn btn-grey"
+                  style={{ padding: "5px 12px", fontSize: "1.2rem" }}
+                  title="Giocatore Successivo"
+                >
+                  ▶
+                </button>
+              </div>
 
               <div
                 className="alert-box"
@@ -399,7 +561,6 @@ export default function App() {
                   <span style={{ color: "#10b981" }}>{offertaCorrente} FM</span>
                 </h4>
 
-                {/* Visualizzazione dell'ultimo offerente */}
                 <p
                   style={{
                     marginTop: "8px",
@@ -408,57 +569,130 @@ export default function App() {
                     fontSize: "1.1rem",
                   }}
                 >
-                  🙋 Ultimo Rilancio:{" "}
-                  {ultimoOfferente ? ultimoOfferente.nome : "Base d'asta"}
+                  🙋 Miglior Offerente:{" "}
+                  {ultimoOfferente
+                    ? ultimoOfferente.nome
+                    : "In attesa di rilanci (Base 1 FM)"}
                 </p>
 
-                <div style={{ marginTop: "5px" }}>
-                  {isPaused ? (
-                    <span style={{ color: "#f87171", fontWeight: "bold" }}>
-                      ⏸️ PAUSA STOP (30s) - Chiamato da {stopChiamatoDa}
+                <div
+                  style={{
+                    marginTop: "10px",
+                    fontSize: "1.2rem",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {!isTimerStarted ? (
+                    <span style={{ color: "#fbbf24" }}>
+                      ⏳ IN ATTESA DI AVVIO SERVER
                     </span>
+                  ) : isPaused ? (
+                    <div style={{ color: "#f87171" }}>
+                      🛑 PAUSA STOP RICHIESTA DA:{" "}
+                      <strong>{stopChiamatoDa}</strong>
+                      <div style={{ fontSize: "1.4rem", marginTop: "5px" }}>
+                        ⏱️ Ripresa Asta tra: {stopTimerVisivoServer}s
+                      </div>
+                    </div>
                   ) : (
-                    <span>⏱️ Timer: {timer}s</span>
+                    <span>⏱️ Timer Asta: {timer}s</span>
                   )}
                 </div>
               </div>
+
+              {!isTimerStarted && (
+                <button
+                  onClick={avviaTimerManualmente}
+                  className="btn btn-blue"
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    fontSize: "1.1rem",
+                    marginBottom: "15px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  ▶️ AVVIA TIMER ASTA
+                </button>
+              )}
 
               <div
                 style={{ display: "flex", gap: "10px", marginBottom: "15px" }}
               >
                 <button
                   onClick={() => faiOfferta(1)}
-                  disabled={timer === 0}
+                  disabled={!isTimerStarted || timer === 0 || isPaused}
                   className="btn"
                 >
                   +1 FM 🔨
                 </button>
                 <button
                   onClick={() => faiOfferta(5)}
-                  disabled={timer === 0}
+                  disabled={!isTimerStarted || timer === 0 || isPaused}
                   className="btn btn-green"
                 >
                   +5 FM 🚀
                 </button>
               </div>
 
-              <div style={{ display: "flex", gap: "10px" }}>
-                <select
-                  value={acquirenteId}
-                  onChange={(e) => setAcquirenteId(e.target.value)}
-                  className="select-field"
-                  style={{ flex: 1 }}
+              <button
+                onClick={assegnaGiocatore}
+                disabled={!ultimoOfferenteId}
+                className="btn btn-green"
+                style={{ width: "100%", padding: "12px", fontSize: "1.1rem" }}
+              >
+                🏆 Assegna a {ultimoOfferente ? ultimoOfferente.nome : "..."} e
+                Passa al Prossimo ⏩
+              </button>
+
+              <div
+                style={{
+                  marginTop: "20px",
+                  padding: "10px",
+                  backgroundColor: "#0f172a",
+                  borderRadius: "6px",
+                  borderLeft: "4px solid #38bdf8",
+                  maxWidth: "280px",
+                  fontSize: "0.85rem",
+                }}
+              >
+                <strong
+                  style={{
+                    color: "#94a3b8",
+                    display: "block",
+                    marginBottom: "5px",
+                  }}
                 >
-                  <option value="">Seleziona vincente...</option>
-                  {partecipanti.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nome} ({p.crediti} FM)
-                    </option>
-                  ))}
-                </select>
-                <button onClick={assegnaGiocatore} className="btn btn-green">
-                  🏆 Assegna
-                </button>
+                  📜 Storico Offerte (Ultime 5):
+                </strong>
+                {storicoOfferte.length > 0 ? (
+                  <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                    {storicoOfferte.map((off, idx) => (
+                      <li
+                        key={idx}
+                        style={{
+                          padding: "3px 0",
+                          borderBottom:
+                            idx < storicoOfferte.length - 1
+                              ? "1px solid #1e293b"
+                              : "none",
+                          color: idx === 0 ? "#10b981" : "#e2e8f0",
+                          fontWeight: idx === 0 ? "bold" : "normal",
+                        }}
+                      >
+                        <span>{off.nome}</span>:{" "}
+                        <strong>{off.importo} FM</strong>{" "}
+                        <span style={{ color: "#64748b", fontSize: "0.75rem" }}>
+                          ({off.ora})
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span style={{ color: "#64748b" }}>
+                    Nessun rilancio effettuato
+                  </span>
+                )}
               </div>
             </div>
           ) : (
@@ -467,10 +701,9 @@ export default function App() {
               style={{ textAlign: "center", padding: "20px" }}
             >
               <p style={{ color: "#94a3b8" }}>
-                In attesa della chiamata di un nuovo calciatore...
+                Nessun calciatore attualmente sul banditore.
               </p>
 
-              {/* BANNER NOTIFICA AGGIUDICAZIONE */}
               {ultimoAcquisto && (
                 <div
                   style={{
@@ -480,7 +713,7 @@ export default function App() {
                   }}
                 >
                   <span style={{ fontSize: "1.2rem" }}>
-                    🎉 <strong>COLPO AGGIUDICATO!</strong>
+                    🎉 <strong>ULTIMO COLPO ASSEGNATO!</strong>
                   </span>
                   <h3 style={{ color: "#fbbf24", margin: "8px 0" }}>
                     {ultimoAcquisto.calciatore} ({ultimoAcquisto.ruolo})
@@ -501,7 +734,7 @@ export default function App() {
           )}
         </div>
 
-        {/* SCHEDA RESOCONTO ROSE */}
+        {/* TABELLONE ROSE */}
         <div className="card">
           <h2>👥 Rose e Crediti Residui</h2>
           {partecipanti.map((p) => (
@@ -534,15 +767,16 @@ export default function App() {
               >
                 Rosa ({p.rosa.length}):{" "}
                 {p.rosa.map((g) => `${g.nome} (${g.prezzo}FM)`).join(", ") ||
-                  "Vuota"}
+                  "Nessun acquisto"}
               </div>
             </div>
           ))}
         </div>
       </div>
 
+      {/* ELENCO GIOCATORI DISPONIBILI */}
       <div className="card" style={{ marginTop: "20px" }}>
-        <h2>🔍 Chiamata Calciatori</h2>
+        <h2>🔍 Elenco Giocatori Disponibili ({giocatori.length})</h2>
         {giocatori.map((g) => (
           <div
             key={g.id}
