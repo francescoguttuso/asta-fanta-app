@@ -22,7 +22,7 @@ export default function MobileController({
     (p) => p.id === parseInt(selectedSquadraId),
   );
 
-  // Countdown visivo di 30 secondi sincronizzato per TUTTI i dispositivi Mobile
+  // Countdown visivo di 30 secondi + Vibrazione negli ultimi 4 secondi
   useEffect(() => {
     let interval = null;
     if (isPaused && stopIniziatoAt) {
@@ -30,6 +30,13 @@ export default function MobileController({
         const trascorsi = Math.floor((Date.now() - stopIniziatoAt) / 1000);
         const rimasti = Math.max(0, 30 - trascorsi);
         setStopTimerVisivo(rimasti);
+
+        // Se mancano 4 secondi o meno, attiva la vibrazione sul dispositivo mobile
+        if (rimasti <= 4 && rimasti > 0) {
+          if (navigator.vibrate) {
+            navigator.vibrate(200); // Vibra per 200 millisecondi ad ogni secondo che passa
+          }
+        }
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -37,7 +44,7 @@ export default function MobileController({
 
   const rilancia = async (incremento = 1) => {
     if (!selectedSquadraId) return alert("Seleziona prima la tua squadra!");
-    if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) return;
+    if (!giocatoreInAsta || !isTimerStarted || timer === 0) return;
 
     const nuovoPrezzo = offertaCorrente + incremento;
     if (miaSquadra && miaSquadra.crediti < nuovoPrezzo) {
@@ -63,7 +70,7 @@ export default function MobileController({
         transaction.update(docRef, {
           offertaCorrente: rilancioCloud,
           ultimoOfferenteId: selectedSquadraId,
-          timer: 10, // Reset a 10s solo sul rilancio
+          timer: 10,
           isPaused: false,
           stopChiamatoDa: null,
           stopIniziatoAt: null,
@@ -79,7 +86,6 @@ export default function MobileController({
     if (!selectedSquadraId) return alert("Seleziona prima la tua squadra!");
     if (isPaused) return;
 
-    // Regola: STOP chiamabile solo sopra i 30 FM
     if (offertaCorrente <= 30) {
       return alert("Puoi chiamare lo STOP solo per offerte superiori a 30 FM!");
     }
@@ -92,7 +98,7 @@ export default function MobileController({
         transaction.update(docRef, {
           isPaused: true,
           stopChiamatoDa: miaSquadra.nome,
-          stopIniziatoAt: Date.now(), // Timestamp in ms per sincronizzare il timer di STOP
+          stopIniziatoAt: Date.now(),
         });
       });
     } catch (err) {
@@ -206,12 +212,7 @@ export default function MobileController({
             >
               <button
                 onClick={() => rilancia(1)}
-                disabled={
-                  !isTimerStarted ||
-                  timer === 0 ||
-                  isPaused ||
-                  !selectedSquadraId
-                }
+                disabled={!isTimerStarted || timer === 0 || !selectedSquadraId}
                 className="btn btn-green"
                 style={{ padding: "15px", fontSize: "1.2rem" }}
               >
@@ -219,12 +220,7 @@ export default function MobileController({
               </button>
               <button
                 onClick={() => rilancia(5)}
-                disabled={
-                  !isTimerStarted ||
-                  timer === 0 ||
-                  isPaused ||
-                  !selectedSquadraId
-                }
+                disabled={!isTimerStarted || timer === 0 || !selectedSquadraId}
                 className="btn"
                 style={{ padding: "15px", fontSize: "1.2rem" }}
               >

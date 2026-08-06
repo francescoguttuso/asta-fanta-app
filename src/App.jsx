@@ -107,6 +107,7 @@ export default function App() {
     try {
       await setDoc(docRef, {
         giocatori: nuoviG,
+        partecipanti: (nuevosP) => nuotiP, // fallback strutturale
         partecipanti: nuoviP,
         isConfigMode: configMode,
         giocatoreInAsta: gInAsta,
@@ -125,7 +126,7 @@ export default function App() {
     }
   };
 
-  // Timer countdown asta (si blocca automaticamente quando isPaused === true)
+  // Timer countdown asta
   useEffect(() => {
     if (giocatoreInAsta && isTimerStarted && timer > 0 && !isPaused) {
       const intervallo = setInterval(
@@ -136,7 +137,7 @@ export default function App() {
     }
   }, [giocatoreInAsta, isTimerStarted, offertaCorrente, isPaused, timer]);
 
-  // Gestione disattivazione automatica STOP dopo 30s + Timer visivo sul Server
+  // Gestione sblocco automatico STOP e timer visivo server
   useEffect(() => {
     let interval = null;
     let timeout = null;
@@ -219,7 +220,7 @@ export default function App() {
         partecipanti,
         isConfigMode,
         prossimo,
-        1,
+        0, // Offerta di partenza a 0
         false,
         null,
         false,
@@ -321,7 +322,7 @@ export default function App() {
       partecipanti,
       isConfigMode,
       g,
-      1,
+      0, // Offerta di partenza a 0
       false,
       null,
       false,
@@ -384,12 +385,27 @@ export default function App() {
     if (!vincitore) return;
 
     if (vincitore.crediti < offertaCorrente) {
-      alert(
-        `Errore: ${vincitore.nome} non possiede crediti sufficienti (${offertaCorrente} FM richiesti)!`,
-      );
+      alert(`Errore: ${vincitore.nome} non possiede crediti sufficienti!`);
       return;
     }
 
+    // --- VALIDAZIONE VINCOLI DI RUOLO ---
+    const ruoloCorrente = giocatoreInAsta.ruolo; // es. "P", "D", "C", "A"
+    const limitiRuoli = { P: 3, D: 8, C: 8, A: 6 };
+
+    const quantitaInRosa = vincitore.rosa.filter(
+      (g) => g.ruolo === ruoloCorrente,
+    ).length;
+
+    if (quantitaInRosa >= (limitiRuoli[ruoloCorrente] || 0)) {
+      alert(
+        `❌ Limite raggiunto! ${vincitore.nome} ha già completato i ${ruoloCorrente} (${limitiRuoli[ruoloCorrente]}/${limitiRuoli[ruoloCorrente]}).`,
+      );
+      return;
+    }
+    // ------------------------------------
+
+    // Creazione del dettaglio dell'ultimo acquisto
     const dettaglioVincitore = {
       calciatore: giocatoreInAsta.nome,
       ruolo: giocatoreInAsta.ruolo,
@@ -410,17 +426,14 @@ export default function App() {
     const giocatoriRimasti = giocatori.filter(
       (g) => g.id !== giocatoreInAsta.id,
     );
-    const prossimoGiocatore =
-      giocatoriRimasti.length > 0 ? giocatoriRimasti[0] : null;
 
     setTimer(10);
-
     await salvaSuFirebase(
       giocatoriRimasti,
       partecipantiAggiornati,
       isConfigMode,
-      prossimoGiocatore,
-      prossimoGiocatore ? 1 : 0,
+      null,
+      0,
       false,
       null,
       false,
@@ -530,7 +543,6 @@ export default function App() {
                   onClick={() => cambiaGiocatoreManuale("indietro")}
                   className="btn btn-grey"
                   style={{ padding: "5px 12px", fontSize: "1.2rem" }}
-                  title="Giocatore Precedente"
                 >
                   ◀
                 </button>
@@ -546,7 +558,6 @@ export default function App() {
                   onClick={() => cambiaGiocatoreManuale("avanti")}
                   className="btn btn-grey"
                   style={{ padding: "5px 12px", fontSize: "1.2rem" }}
-                  title="Giocatore Successivo"
                 >
                   ▶
                 </button>
@@ -572,7 +583,7 @@ export default function App() {
                   🙋 Miglior Offerente:{" "}
                   {ultimoOfferente
                     ? ultimoOfferente.nome
-                    : "In attesa di rilanci (Base 1 FM)"}
+                    : "In attesa di rilanci"}
                 </p>
 
                 <div
@@ -644,56 +655,6 @@ export default function App() {
                 🏆 Assegna a {ultimoOfferente ? ultimoOfferente.nome : "..."} e
                 Passa al Prossimo ⏩
               </button>
-
-              <div
-                style={{
-                  marginTop: "20px",
-                  padding: "10px",
-                  backgroundColor: "#0f172a",
-                  borderRadius: "6px",
-                  borderLeft: "4px solid #38bdf8",
-                  maxWidth: "280px",
-                  fontSize: "0.85rem",
-                }}
-              >
-                <strong
-                  style={{
-                    color: "#94a3b8",
-                    display: "block",
-                    marginBottom: "5px",
-                  }}
-                >
-                  📜 Storico Offerte (Ultime 5):
-                </strong>
-                {storicoOfferte.length > 0 ? (
-                  <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                    {storicoOfferte.map((off, idx) => (
-                      <li
-                        key={idx}
-                        style={{
-                          padding: "3px 0",
-                          borderBottom:
-                            idx < storicoOfferte.length - 1
-                              ? "1px solid #1e293b"
-                              : "none",
-                          color: idx === 0 ? "#10b981" : "#e2e8f0",
-                          fontWeight: idx === 0 ? "bold" : "normal",
-                        }}
-                      >
-                        <span>{off.nome}</span>:{" "}
-                        <strong>{off.importo} FM</strong>{" "}
-                        <span style={{ color: "#64748b", fontSize: "0.75rem" }}>
-                          ({off.ora})
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <span style={{ color: "#64748b" }}>
-                    Nessun rilancio effettuato
-                  </span>
-                )}
-              </div>
             </div>
           ) : (
             <div
@@ -712,7 +673,7 @@ export default function App() {
                     paddingTop: "15px",
                   }}
                 >
-                  <span style={{ fontSize: "1.2rem" }}>
+                  <span style={{ fontSize: "1.2rem", color: "#38bdf8" }}>
                     🎉 <strong>ULTIMO COLPO ASSEGNATO!</strong>
                   </span>
                   <h3 style={{ color: "#fbbf24", margin: "8px 0" }}>
