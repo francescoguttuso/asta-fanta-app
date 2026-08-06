@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Agents
+.agents/
+.playwright-mcp
+.playwright-cli
