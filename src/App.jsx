@@ -45,7 +45,6 @@ export default function App() {
   const [timer, setTimer] = useState(10);
   const [stopTimerVisivoServer, setStopTimerVisivoServer] = useState(30);
 
-  // NUOVI STATI PER FILTRI ALFABETICI E DI RUOLO
   const [filtroLettera, setFiltroLettera] = useState("TUTTE");
   const [filtriRuoliAttivi, setFiltriRuoliAttivi] = useState({
     P: true,
@@ -58,7 +57,6 @@ export default function App() {
   const isMobileView =
     new URLSearchParams(window.location.search).get("mobile") === "true";
 
-  // Listener Firestore in tempo reale
   useEffect(() => {
     const unsub = onSnapshot(docRef, (snapshot) => {
       if (snapshot.exists()) {
@@ -136,7 +134,6 @@ export default function App() {
     }
   };
 
-  // Timer countdown asta
   useEffect(() => {
     if (giocatoreInAsta && isTimerStarted && timer > 0 && !isPaused) {
       const intervallo = setInterval(
@@ -147,7 +144,6 @@ export default function App() {
     }
   }, [giocatoreInAsta, isTimerStarted, offertaCorrente, isPaused, timer]);
 
-  // Gestione sblocco automatico STOP e timer visivo server
   useEffect(() => {
     let interval = null;
     let timeout = null;
@@ -185,7 +181,6 @@ export default function App() {
     };
   }, [isPaused, stopIniziatoAt]);
 
-  // Assegnazione automatica a tempo scaduto
   useEffect(() => {
     if (
       timer === 0 &&
@@ -245,11 +240,12 @@ export default function App() {
   const resettaTutto = () => {
     if (
       window.confirm(
-        "Attenzione! Vuoi resettare l'intera sessione d'asta online?",
+        "Attenzione! Vuoi resettare l'intera sessione d'asta e ricaricare i giocatori dal file JSON?",
       )
     ) {
+      const giocatoriFresiDalJson = (datiJson.players || datiJson).map(parsePlayer);
       salvaSuFirebase(
-        GIOCATORI_INITIAL,
+        giocatoriFresiDalJson,
         PARTECIPANTI_INITIAL,
         true,
         null,
@@ -264,6 +260,28 @@ export default function App() {
       );
       setTimer(10);
     }
+  };
+
+  const esportaInExcel = () => {
+    let csvContent = "data:text/csv;charset=utf-8,Squadra;Crediti Residui;Giocatore;Ruolo;Prezzo\n";
+
+    partecipanti.forEach((p) => {
+      if (p.rosa.length === 0) {
+        csvContent += `"${p.nome}";${p.crediti};"Nessun acquisto";"-";0\n`;
+      } else {
+        p.rosa.forEach((g) => {
+          csvContent += `"${p.nome}";${p.crediti};"${g.nome}";"${g.ruolo}";${g.prezzo}\n`;
+        });
+      }
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "report_aste_fantacalcio.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleNomeSquadraChange = (id, nuovoNome) => {
@@ -348,7 +366,6 @@ export default function App() {
     const adminId = "1";
     const adminNome = partecipanti.find((p) => p.id === 1)?.nome || "Admin";
 
-    // CONTROLLO REPARTO COMPLETO PER L'ADMIN (ID 1)
     const offerente = partecipanti.find((p) => p.id === 1);
     if (offerente) {
       const ruoloCorrente = giocatoreInAsta.ruolo;
@@ -415,7 +432,6 @@ export default function App() {
       return;
     }
 
-    // CONTROLLO DEFINITIVO VINCOLI DI RUOLO
     const ruoloCorrente = giocatoreInAsta.ruolo;
     const quantitaInRosa = vincitore.rosa.filter(
       (g) => g.ruolo === ruoloCorrente,
@@ -438,10 +454,10 @@ export default function App() {
     const partecipantiAggiornati = partecipanti.map((p) =>
       p.id === vincitore.id
         ? {
-            ...p,
-            crediti: p.crediti - offertaCorrente,
-            rosa: [...p.rosa, { ...giocatoreInAsta, prezzo: offertaCorrente }],
-          }
+          ...p,
+          crediti: p.crediti - offertaCorrente,
+          rosa: [...p.rosa, { ...giocatoreInAsta, prezzo: offertaCorrente }],
+        }
         : p,
     );
 
@@ -470,7 +486,6 @@ export default function App() {
     (p) => p.id === parseInt(ultimoOfferenteId),
   );
 
-  // LOGICA FILTRAGGIO GIOCATORI DISPONIBILI
   const giocatoriFiltrati = giocatori.filter((g) => {
     const rispettaLettera =
       filtroLettera === "TUTTE" ||
@@ -501,9 +516,14 @@ export default function App() {
     <div className="container">
       <div className="header-container">
         <h1 className="main-title">⚽ Dashboard Asta Pro (Server) ⚽</h1>
-        <button onClick={resettaTutto} className="btn btn-orange">
-          ⚠️ Resetta Sessione
-        </button>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button onClick={esportaInExcel} className="btn btn-green">
+            📊 Esporta Excel
+          </button>
+          <button onClick={resettaTutto} className="btn btn-orange">
+            ⚠️ Resetta Sessione
+          </button>
+        </div>
       </div>
 
       {isConfigMode ? (
@@ -556,7 +576,6 @@ export default function App() {
       )}
 
       <div className="grid-2-cols">
-        {/* PANEL ASTA LIVE SERVER */}
         <div className="card">
           <h2>📢 Banditore Asta Live</h2>
           {giocatoreInAsta ? (
@@ -726,7 +745,6 @@ export default function App() {
           )}
         </div>
 
-        {/* TABELLONE ROSE */}
         <div className="card">
           <h2>👥 Rose e Crediti Residui</h2>
           {partecipanti.map((p) => {
@@ -784,14 +802,12 @@ export default function App() {
         </div>
       </div>
 
-      {/* ELENCO GIOCATORI DISPONIBILI CON FILTRI */}
       <div className="card" style={{ marginTop: "20px" }}>
         <h2>
           🔍 Elenco Giocatori Disponibili ({giocatoriFiltrati.length} /{" "}
           {giocatori.length})
         </h2>
 
-        {/* Filtri per Ruolo */}
         <div
           style={{
             display: "flex",
@@ -829,7 +845,6 @@ export default function App() {
           ))}
         </div>
 
-        {/* Filtri per Lettera Alfabetica */}
         <div
           style={{
             display: "flex",
@@ -840,9 +855,8 @@ export default function App() {
         >
           <button
             onClick={() => setFiltroLettera("TUTTE")}
-            className={`btn ${
-              filtroLettera === "TUTTE" ? "btn-blue" : "btn-grey"
-            }`}
+            className={`btn ${filtroLettera === "TUTTE" ? "btn-blue" : "btn-grey"
+              }`}
             style={{ padding: "5px 10px", fontSize: "0.8rem" }}
           >
             TUTTE
@@ -851,9 +865,8 @@ export default function App() {
             <button
               key={lettera}
               onClick={() => setFiltroLettera(lettera)}
-              className={`btn ${
-                filtroLettera === lettera ? "btn-blue" : "btn-grey"
-              }`}
+              className={`btn ${filtroLettera === lettera ? "btn-blue" : "btn-grey"
+                }`}
               style={{
                 padding: "5px 8px",
                 fontSize: "0.8rem",
@@ -865,7 +878,6 @@ export default function App() {
           ))}
         </div>
 
-        {/* Lista dei Giocatori Filtrati */}
         <div style={{ maxHeight: "400px", overflowY: "auto" }}>
           {giocatoriFiltrati.map((g) => (
             <div
