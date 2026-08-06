@@ -518,7 +518,7 @@ export default function App() {
   return (
     <div className="container">
       <div className="header-container">
-        <h1 className="main-title">⚽ Dashboard Asta Pro (Server) ⚽</h1>
+        <h1 className="main-title">⚽ FantaRiggio Asta Pro (Server) ⚽</h1>
         <div style={{ display: "flex", gap: "10px" }}>
           <button onClick={esportaInExcel} className="btn btn-green">
             📊 Esporta CSV Pulito
