@@ -22,13 +22,23 @@ export default function MobileController({
 
   useEffect(() => {
     let interval = null;
+
     if (isPaused && stopIniziatoAt) {
+      // 1. CALCOLO IMMEDIATO: Lo facciamo subito prima che parta l'intervallo
+      const trascorsiIniziali = Math.floor((Date.now() - stopIniziatoAt) / 1000);
+      setStopTimerVisivoClient(Math.max(0, 30 - trascorsiIniziali));
+
+      // 2. INTERVALLO: Continua ad aggiornare ogni secondo
       interval = setInterval(() => {
         const trascorsi = Math.floor((Date.now() - stopIniziatoAt) / 1000);
         const rimasti = Math.max(0, 30 - trascorsi);
         setStopTimerVisivoClient(rimasti);
       }, 1000);
+    } else {
+      // 3. RESET: Quando la pausa finisce, riportiamo il contatore visivo a 30
+      setStopTimerVisivoClient(30);
     }
+
     return () => {
       if (interval) clearInterval(interval);
     };
@@ -75,9 +85,9 @@ export default function MobileController({
           offertaCorrente: nuovoPrezzo,
           ultimoOfferenteId: mioId,
           timer: 10,
-          isPaused: false,        // 👈 Sblocca lo stop automaticamente
-          stopChiamatoDa: null,   // 👈 Resetta chi aveva chiamato lo stop
-          stopIniziatoAt: null,   // 👈 Resetta il tempo dello stop
+          isPaused: false,
+          stopChiamatoDa: null,
+          stopIniziatoAt: null,
           storicoOfferte: nuovoStorico,
         });
       });
