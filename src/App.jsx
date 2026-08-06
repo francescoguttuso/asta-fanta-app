@@ -526,6 +526,14 @@ export default function App() {
         </div>
       </div>
 
+      {/* Navbar fluttuante in stile FantaCalcio */}
+      <nav className="fanta-floating-nav">
+        <span>🏠 Dashboard</span>
+        <span>👥 Rose</span>
+        <span>📅 Calendario</span>
+        <span>🏆 Classifica</span>
+      </nav>
+
       {isConfigMode ? (
         <div
           className="card"
@@ -879,7 +887,7 @@ export default function App() {
         </div>
 
         <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-          {giocatoriFiltrati.map((g) => (
+          {giocatoriFiltrati.link?.map ? null : giocatoriFiltrati.map((g) => (
             <div
               key={g.id}
               className="player-row"

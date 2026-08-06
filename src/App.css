@@ -21,24 +21,41 @@
   min-height: 100vh;
 }
 
+/* --- NUOVO STILE HEADER ISPIRATO AL MODELLO --- */
 .header-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
-  border-bottom: 2px solid var(--border-color);
-  padding-bottom: 15px;
+  background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 50%, #2563eb 100%) !important;
+  border-radius: 0 0 24px 24px !important;
+  padding: 25px 30px !important;
+  margin-bottom: 30px !important;
+  box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.3) !important;
+  border-bottom: none !important;
+  position: relative;
 }
 
+/* Titolo principale nel nuovo header */
 .main-title {
-  margin: 0;
-  font-size: 2rem;
-  font-weight: 800;
-  letter-spacing: -0.05em;
-  background: linear-gradient(to right, #3b82f6, #10b981);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #ffffff !important;
+  background: none !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-size: 1.8rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em;
+}
+
+/* Container opzionale per menu fluttuante stile pillola */
+.fanta-floating-nav {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(30, 41, 59, 0.85);
+  backdrop-filter: blur(10px);
+  padding: 8px 20px;
+  border-radius: 50px;
+  gap: 20px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  width: fit-content;
+  margin: -15px auto 25px auto;
+  border: 1px solid var(--border-color);
 }
 
 .grid-2-cols {
@@ -89,10 +106,12 @@
 .player-grid::-webkit-scrollbar {
   width: 5px;
 }
+
 .card-teams::-webkit-scrollbar-track,
 .player-grid::-webkit-scrollbar-track {
   background: var(--bg-main);
 }
+
 .card-teams::-webkit-scrollbar-thumb,
 .player-grid::-webkit-scrollbar-thumb {
   background: var(--border-color);
@@ -159,12 +178,15 @@
   background-color: var(--accent-orange);
   color: #000;
 }
+
 .btn-green {
   background-color: var(--accent-neon);
 }
+
 .btn-blue {
   background-color: var(--accent-blue);
 }
+
 .btn-grey {
   background-color: #475569;
 }
