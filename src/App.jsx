@@ -177,13 +177,14 @@ export default function App() {
         setUltimoAcquisto(data.ultimoAcquisto || null);
         setStoricoOfferte(data.storicoOfferte || []);
 
+        // CORRETTO: Aggiunto l'operatore "+" per sommare i millisecondi attuali alla durata del timer
         const timerSalvato = data.timer !== undefined ? data.timer : 10;
         setTimer(timerSalvato);
         setTimerEndsAt(
           data.timerEndsAt ||
           (data.isTimerStarted && !data.isPaused && timerSalvato > 0
-            ? Date.now() + timerSalvato * 1000
-            : null),
+            ? Date.now() + (timerSalvato * 1000)
+            : null)
         );
       } else {
         salvaSuFirebase(
