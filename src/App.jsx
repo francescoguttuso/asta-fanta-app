@@ -73,59 +73,6 @@ export default function App() {
   const isMobileView =
     new URLSearchParams(window.location.search).get("mobile") === "true";
 
-  useEffect(() => {
-    const unsub = onSnapshot(docRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        const giocatoriParsed = (data.giocatori || GIOCATORI_INITIAL).map(
-          parsePlayer,
-        );
-        setGiocatori(ordinaGiocatoriAlfabeticamente(giocatoriParsed));
-
-        setPartecipanti(data.partecipanti || PARTECIPANTI_INITIAL);
-        setIsConfigMode(
-          data.isConfigMode !== undefined ? data.isConfigMode : true,
-        );
-        setGiocatoreInAsta(
-          data.giocatoreInAsta ? parsePlayer(data.giocatoreInAsta) : null,
-        );
-        setOffertaCorrente(data.offertaCorrente || 0);
-        setIsTimerStarted(data.isTimerStarted || false);
-        setUltimoOfferenteId(data.ultimoOfferenteId || null);
-        setIsPaused(data.isPaused || false);
-        setStopChiamatoDa(data.stopChiamatoDa || null);
-        setStopIniziatoAt(data.stopIniziatoAt || null);
-        setUltimoAcquisto(data.ultimoAcquisto || null);
-        setStoricoOfferte(data.storicoOfferte || []);
-
-        const timerSalvato = data.timer !== undefined ? data.timer : 10;
-        setTimer(timerSalvato);
-        setTimerEndsAt(
-          data.timerEndsAt ||
-            (data.isTimerStarted && !data.isPaused && timerSalvato > 0
-              ? Date.now() + timerSalvato * 1000
-              : null),
-        );
-      } else {
-        salvaSuFirebase(
-          GIOCATORI_INITIAL,
-          PARTECIPANTI_INITIAL,
-          true,
-          null,
-          0,
-          false,
-          null,
-          false,
-          null,
-          null,
-          null,
-          [],
-        );
-      }
-    });
-    return () => unsub();
-  }, []);
-
   const salvaSuFirebase = async (
     nuoviG,
     nuoviP,
@@ -162,6 +109,98 @@ export default function App() {
       console.error("Errore nel salvataggio su Firestore: ", err);
     }
   };
+
+  // 📂 Funzione di importazione e aggiornamento JSON locale
+  const gestisciCaricamentoJson = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const contenutoJson = JSON.parse(e.target.result);
+        const arrayGrezzo = contenutoJson.players || contenutoJson;
+        const nuoviGiocatoriParsed = ordinaGiocatoriAlfabeticamente(
+          arrayGrezzo.map(parsePlayer)
+        );
+
+        setGiocatori(nuoviGiocatoriParsed);
+        salvaSuFirebase(
+          nuoviGiocatoriParsed,
+          partecipanti,
+          isConfigMode,
+          giocatoreInAsta,
+          offertaCorrente,
+          isTimerStarted,
+          ultimoOfferenteId,
+          isPaused,
+          stopChiamatoDa,
+          stopIniziatoAt,
+          ultimoAcquisto,
+          storicoOfferte
+        );
+
+        alert("File JSON importato e aggiornato con successo!");
+      } catch (errore) {
+        console.error("Errore durante il parsing del JSON:", errore);
+        alert("Il file selezionato non è un JSON valido.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  useEffect(() => {
+    const unsub = onSnapshot(docRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        const giocatoriParsed = (data.giocatori || GIOCATORI_INITIAL).map(
+          parsePlayer,
+        );
+        setGiocatori(ordinaGiocatoriAlfabeticamente(giocatoriParsed));
+
+        setPartecipanti(data.partecipanti || PARTECIPANTI_INITIAL);
+        setIsConfigMode(
+          data.isConfigMode !== undefined ? data.isConfigMode : true,
+        );
+        setGiocatoreInAsta(
+          data.giocatoreInAsta ? parsePlayer(data.giocatoreInAsta) : null,
+        );
+        setOffertaCorrente(data.offertaCorrente || 0);
+        setIsTimerStarted(data.isTimerStarted || false);
+        setUltimoOfferenteId(data.ultimoOfferenteId || null);
+        setIsPaused(data.isPaused || false);
+        setStopChiamatoDa(data.stopChiamatoDa || null);
+        setStopIniziatoAt(data.stopIniziatoAt || null);
+        setUltimoAcquisto(data.ultimoAcquisto || null);
+        setStoricoOfferte(data.storicoOfferte || []);
+
+        const timerSalvato = data.timer !== undefined ? data.timer : 10;
+        setTimer(timerSalvato);
+        setTimerEndsAt(
+          data.timerEndsAt ||
+          (data.isTimerStarted && !data.isPaused && timerSalvato > 0
+            ? Date.now() + timerSalvato * 1000
+            : null),
+        );
+      } else {
+        salvaSuFirebase(
+          GIOCATORI_INITIAL,
+          PARTECIPANTI_INITIAL,
+          true,
+          null,
+          0,
+          false,
+          null,
+          false,
+          null,
+          null,
+          null,
+          [],
+        );
+      }
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     if (!giocatoreInAsta || !isTimerStarted || isPaused) return;
@@ -529,10 +568,10 @@ export default function App() {
     const partecipantiAggiornati = partecipanti.map((p) =>
       p.id === vincitore.id
         ? {
-            ...p,
-            crediti: p.crediti - offertaCorrente,
-            rosa: [...p.rosa, { ...giocatoreInAsta, prezzo: offertaCorrente }],
-          }
+          ...p,
+          crediti: p.crediti - offertaCorrente,
+          rosa: [...p.rosa, { ...giocatoreInAsta, prezzo: offertaCorrente }],
+        }
         : p,
     );
 
@@ -633,6 +672,18 @@ export default function App() {
           <button onClick={esportaInExcel} className="btn btn-green">
             📊 Esporta CSV Pulito
           </button>
+
+          {/* Pulsante integrato per aggiornare il file JSON */}
+          <label className="btn btn-blue" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
+            📂 Aggiorna JSON
+            <input
+              type="file"
+              accept=".json"
+              onChange={gestisciCaricamentoJson}
+              style={{ display: "none" }}
+            />
+          </label>
+
           <button onClick={resettaTutto} className="btn btn-orange">
             ⚠️ Resetta Sessione
           </button>
@@ -901,87 +952,85 @@ export default function App() {
           })}
         </div>
         <div className="card players-card">
-        <h2>
-          🔍 Elenco Giocatori Disponibili ({giocatoriFiltrati.length} /{" "}
-          {giocatori.length})
-        </h2>
+          <h2>
+            🔍 Elenco Giocatori Disponibili ({giocatoriFiltrati.length} /{" "}
+            {giocatori.length})
+          </h2>
 
-        <div className="role-filters">
-          <span style={{ fontWeight: "bold", fontSize: "0.9rem" }}>
-            Filtra Ruoli:
-          </span>
-          {Object.keys(filtriRuoliAttivi).map((ruolo) => (
-            <label
-              key={ruolo}
-              style={{
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "5px",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={filtriRuoliAttivi[ruolo]}
-                onChange={() =>
-                  setFiltriRuoliAttivi((prev) => ({
-                    ...prev,
-                    [ruolo]: !prev[ruolo],
-                  }))
-                }
-              />
-              {ruolo}
-            </label>
-          ))}
-        </div>
-
-        <div className="letter-filters">
-          <button
-            onClick={() => setFiltroLettera("TUTTE")}
-            className={`btn ${
-              filtroLettera === "TUTTE" ? "btn-blue" : "btn-grey"
-            }`}
-            style={{ padding: "5px 10px", fontSize: "0.8rem" }}
-          >
-            TUTTE
-          </button>
-          {ALFABETO.map((lettera) => (
-            <button
-              key={lettera}
-              onClick={() => setFiltroLettera(lettera)}
-              className={`btn ${
-                filtroLettera === lettera ? "btn-blue" : "btn-grey"
-              }`}
-              style={{
-                padding: "5px 8px",
-                fontSize: "0.8rem",
-                minWidth: "30px",
-              }}
-            >
-              {lettera}
-            </button>
-          ))}
-        </div>
-
-        <div className="player-list">
-          {giocatoriFiltrati.map((g) => (
-            <div
-              key={g.id}
-              className="player-row"
-            >
-              <span className="player-name">
-                {g.nome} - {g.squadra} ({g.ruolo})
-              </span>
-              <button
-                onClick={() => chiamaGiocatore(g)}
-                disabled={isConfigMode}
-                className="btn-call btn-blue"
+          <div className="role-filters">
+            <span style={{ fontWeight: "bold", fontSize: "0.9rem" }}>
+              Filtra Ruoli:
+            </span>
+            {Object.keys(filtriRuoliAttivi).map((ruolo) => (
+              <label
+                key={ruolo}
+                style={{
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "5px",
+                }}
               >
-                Chiama 🔨
+                <input
+                  type="checkbox"
+                  checked={filtriRuoliAttivi[ruolo]}
+                  onChange={() =>
+                    setFiltriRuoliAttivi((prev) => ({
+                      ...prev,
+                      [ruolo]: !prev[ruolo],
+                    }))
+                  }
+                />
+                {ruolo}
+              </label>
+            ))}
+          </div>
+
+          <div className="letter-filters">
+            <button
+              onClick={() => setFiltroLettera("TUTTE")}
+              className={`btn ${filtroLettera === "TUTTE" ? "btn-blue" : "btn-grey"
+                }`}
+              style={{ padding: "5px 10px", fontSize: "0.8rem" }}
+            >
+              TUTTE
+            </button>
+            {ALFABETO.map((lettera) => (
+              <button
+                key={lettera}
+                onClick={() => setFiltroLettera(lettera)}
+                className={`btn ${filtroLettera === lettera ? "btn-blue" : "btn-grey"
+                  }`}
+                style={{
+                  padding: "5px 8px",
+                  fontSize: "0.8rem",
+                  minWidth: "30px",
+                }}
+              >
+                {lettera}
               </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+
+          <div className="player-list">
+            {giocatoriFiltrati.map((g) => (
+              <div
+                key={g.id}
+                className="player-row"
+              >
+                <span className="player-name">
+                  {g.nome} - {g.squadra} ({g.ruolo})
+                </span>
+                <button
+                  onClick={() => chiamaGiocatore(g)}
+                  disabled={isConfigMode}
+                  className="btn-call btn-blue"
+                >
+                  Chiama 🔨
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
