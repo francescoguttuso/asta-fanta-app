@@ -56,6 +56,10 @@ export default function App() {
   const [stopIniziatoAt, setStopIniziatoAt] = useState(null);
   const [ultimoAcquisto, setUltimoAcquisto] = useState(null);
 
+  // Stati locali per la gestione dell'assegnazione manuale di emergenza
+  const [squadraManualeId, setSquadraManualeId] = useState("");
+  const [prezzoManuale, setPrezzoManuale] = useState("");
+
   const [storicoOfferte, setStoricoOfferte] = useState([]);
   const [timer, setTimer] = useState(10);
   const [timerEndsAt, setTimerEndsAt] = useState(null);
@@ -110,7 +114,6 @@ export default function App() {
     }
   };
 
-  // 📂 Funzione di importazione e aggiornamento JSON locale
   const gestisciCaricamentoJson = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -633,6 +636,101 @@ export default function App() {
     );
   };
 
+  // 🛠️ NUOVA FUNZIONE: Assegnazione manuale di emergenza da parte del server
+  const assegnaGiocatoreManualmente = async () => {
+    if (!giocatoreInAsta) return;
+    if (!squadraManualeId) {
+      alert("Seleziona una squadra a cui assegnare il giocatore!");
+      return;
+    }
+    const prezzoParsed = parseInt(prezzoManuale);
+    if (isNaN(prezzoParsed) || prezzoParsed < 0) {
+      alert("Inserisci un prezzo di acquisto valido!");
+      return;
+    }
+
+    const vincitore = partecipanti.find((p) => p.id === parseInt(squadraManualeId));
+    if (!vincitore) return;
+
+    if (vincitore.crediti < prezzoParsed) {
+      alert(`Attenzione: ${vincitore.nome} ha solo ${vincitore.crediti} FM e non può spendere ${prezzoParsed} FM!`);
+      return;
+    }
+
+    const ruoloCorrente = giocatoreInAsta.ruolo;
+    const quantitaInRosa = vincitore.rosa.filter((g) => g.ruolo === ruoloCorrente).length;
+
+    if (quantitaInRosa >= (LIMITI_RUOLI[ruoloCorrente] || 0)) {
+      alert(`❌ Limite raggiunto! ${vincitore.nome} ha già completato i ${ruoloCorrente} (${LIMITI_RUOLI[ruoloCorrente]}/${LIMITI_RUOLI[ruoloCorrente]}).`);
+      return;
+    }
+
+    const dettaglioVincitore = {
+      calciatore: giocatoreInAsta.nome,
+      ruolo: giocatoreInAsta.ruolo,
+      vincitoreNome: vincitore.nome,
+      prezzo: prezzoParsed,
+    };
+
+    const partecipantiAggiornati = partecipanti.map((p) =>
+      p.id === vincitore.id
+        ? {
+          ...p,
+          crediti: p.crediti - prezzoParsed,
+          rosa: [...p.rosa, { ...giocatoreInAsta, prezzo: prezzoParsed }],
+        }
+        : p
+    );
+
+    const giocatoriRimasti = giocatori.filter((g) => g.id !== giocatoreInAsta.id);
+
+    // Seleziona il prossimo giocatore in modo analogo alla normale assegnazione
+    let prossimoGiocatore = null;
+    if (giocatoriRimasti.length > 0) {
+      const ordinatiAlfabeticamente = ordinaGiocatoriAlfabeticamente(giocatoriRimasti);
+      let letteraDiPartenza = filtroLettera === "TUTTE" ? ordinatiAlfabeticamente[0].nome[0].toUpperCase() : filtroLettera;
+
+      const trovaConLetteraCiclica = (startLetter) => {
+        const indiceLetteraIniziale = ALFABETO.indexOf(startLetter);
+        for (let i = 0; i < ALFABETO.length; i++) {
+          const indexCorrente = (indiceLetteraIniziale + i) % ALFABETO.length;
+          const letteraCercata = ALFABETO[indexCorrente];
+          const candidato = ordinatiAlfabeticamente.find((g) => {
+            const rispettaLettera = g.nome.toUpperCase().startsWith(letteraCercata);
+            const rispettaRuolo = filtriRuoliAttivi[g.ruolo];
+            return rispettaLettera && rispettaRuolo;
+          });
+          if (candidato) {
+            if (filtroLettera !== "TUTTE") setFiltroLettera(letteraCercata);
+            return candidato;
+          }
+        }
+        return ordinatiAlfabeticamente[0];
+      };
+      prossimoGiocatore = trovaConLetteraCiclica(letteraDiPartenza);
+    }
+
+    // Reset degli input manuali di emergenza
+    setSquadraManualeId("");
+    setPrezzoManuale("");
+    setTimer(10);
+
+    await salvaSuFirebase(
+      giocatoriRimasti,
+      partecipantiAggiornati,
+      isConfigMode,
+      prossimoGiocatore,
+      0,
+      false,
+      null,
+      false,
+      null,
+      null,
+      dettaglioVincitore,
+      [],
+    );
+  };
+
   const ultimoOfferente = partecipanti.find(
     (p) => p.id === parseInt(ultimoOfferenteId),
   );
@@ -673,7 +771,6 @@ export default function App() {
             📊 Esporta CSV Pulito
           </button>
 
-          {/* Pulsante integrato per aggiornare il file JSON */}
           <label className="btn btn-blue" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
             📂 Aggiorna JSON
             <input
@@ -851,11 +948,47 @@ export default function App() {
                 onClick={assegnaGiocatore}
                 disabled={!ultimoOfferenteId}
                 className="btn btn-green"
-                style={{ width: "100%", padding: "12px", fontSize: "1.1rem" }}
+                style={{ width: "100%", padding: "12px", fontSize: "1.1rem", marginBottom: "15px" }}
               >
                 🏆 Assegna a {ultimoOfferente ? ultimoOfferente.nome : "..."} e
                 Passa al Prossimo ⏩
               </button>
+
+              {/* 🛠️ SEZIONE ASSEGNAZIONE MANUALE DI EMERGENZA */}
+              <div style={{ borderTop: "1px dashed #475569", paddingTop: "12px", marginTop: "10px" }}>
+                <p style={{ fontSize: "0.9rem", color: "#fbbf24", marginBottom: "8px", fontWeight: "bold" }}>
+                  ⚠️ Correzione / Assegnazione Manuale d'Emergenza:
+                </p>
+                <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                  <select
+                    value={squadraManualeId}
+                    onChange={(e) => setSquadraManualeId(e.target.value)}
+                    style={{ flex: 2, padding: "8px", borderRadius: "4px", background: "#1e293b", color: "#fff", border: "1px solid #475569" }}
+                  >
+                    <option value="">Seleziona Squadra...</option>
+                    {partecipanti.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nome} ({p.crediti} FM)
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    placeholder="Prezzo FM"
+                    value={prezzoManuale}
+                    onChange={(e) => setPrezzoManuale(e.target.value)}
+                    style={{ flex: 1, padding: "8px", borderRadius: "4px", background: "#1e293b", color: "#fff", border: "1px solid #475569" }}
+                  />
+                </div>
+                <button
+                  onClick={assegnaGiocatoreManualmente}
+                  className="btn btn-orange"
+                  style={{ width: "100%", padding: "8px", fontSize: "0.95rem" }}
+                >
+                  🔧 Forza Assegnazione Manuale
+                </button>
+              </div>
+
             </div>
           ) : (
             <div
