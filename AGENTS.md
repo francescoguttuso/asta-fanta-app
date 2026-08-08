@@ -2,7 +2,7 @@
 
 Contesto operativo per agenti AI che lavorano su **Asta Fanta App**.
 
-Aggiornato l'8 agosto 2026. Leggere anche `REFACTORING_KANBAN.md` prima di iniziare o proseguire il refactoring.
+Aggiornato il 9 agosto 2026. Leggere anche `REFACTORING_KANBAN.md` prima di iniziare o proseguire il refactoring.
 
 ## Progetto
 
@@ -56,7 +56,10 @@ src/
       components/
         AppHeader.jsx          # titolo e azioni import/export/reset
         AppNavigation.jsx      # navigazione tra le viste admin
+        AuctionPanel.jsx       # banditore, timer, offerte e assegnazioni
+        AvailablePlayers.jsx   # filtri ed elenco dei giocatori disponibili
         TeamConfiguration.jsx  # configurazione e modifica nomi squadre
+        TeamsSummary.jsx       # riepilogo crediti e rose della Dashboard
   utils/
     playerUtils.js      # normalizzazione, sort, filtri, conteggi e prossimo giocatore
   firebaseConfig.js     # inizializzazione Firebase/Firestore da import.meta.env
@@ -67,7 +70,7 @@ src/
   main.jsx              # entry point React con StrictMode
 ```
 
-`App.jsx` è il principale obiettivo del refactoring. La shell admin è già separata in componenti presentazionali; non riportarne il markup nel file principale e non aggiungere altra logica corposa mentre il refactoring è in corso.
+`App.jsx` è il principale obiettivo del refactoring. Shell e Dashboard admin sono già separate in componenti presentazionali; gli handler di feature restano nel parent. Non riportarne il markup nel file principale e non aggiungere altra logica corposa mentre il refactoring è in corso.
 
 ## Funzionamento attuale
 

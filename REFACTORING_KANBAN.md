@@ -2,8 +2,8 @@
 
 Documento operativo per il refactoring strutturale di **Asta Fanta App**.
 
-Ultimo aggiornamento: 8 agosto 2026
-Stato: refactoring in corso; RF-02 completata
+Ultimo aggiornamento: 9 agosto 2026
+Stato: refactoring in corso; RF-03 completata
 
 ## Obiettivo
 
@@ -122,14 +122,6 @@ Evitare barrel file (`index.js`) e directory con un solo wrapper privo di valore
 
 ### Da fare
 
-#### RF-03 — Estrarre i blocchi della Dashboard
-
-- Estrarre pannello banditore, filtri/elenco giocatori e riepilogo squadre.
-- Tenere nel parent gli handler di feature durante questo step.
-- Ridurre gli stili inline solo se lo spostamento è puramente meccanico; non ridisegnare la UI.
-
-Verifica: chiamata giocatore, navigazione, avvio timer, offerte admin e filtri.
-
 #### RF-04 — Estrarre le viste secondarie
 
 - Estrarre vista Rose e placeholder Calendario/Classifica.
@@ -174,7 +166,7 @@ Verifica: `npm run lint`, `npm run build`, stato Git limitato ai file previsti.
 
 ### In corso
 
-Nessuna card. Il prossimo step consigliato è **RF-03**.
+Nessuna card. Il prossimo step consigliato è **RF-04**.
 
 ### Completato
 
@@ -201,6 +193,15 @@ Nessuna card. Il prossimo step consigliato è **RF-03**.
 - Lasciata tutta la logica Firestore e di stato nel componente principale.
 - Verificati lint e build; restano i 3 warning già presenti nella baseline.
 - Eseguito uno smoke test desktop isolato da Firebase: header, navigazione, 10 campi squadra e passaggio Dashboard/Rose corretti; confronto visivo a 1440 px senza regressioni rilevate.
+
+#### RF-03 — Estrarre i blocchi della Dashboard
+
+- Creati `AuctionPanel`, `AvailablePlayers` e `TeamsSummary` sotto `src/features/auction/components/`.
+- Lasciati in `App.jsx` stato, timer, offerte, assegnazioni, chiamata giocatore e aggiornamento filtri; i componenti ricevono dati e callback esplicite.
+- Conservati classi CSS, testi, struttura DOM e stili esistenti senza ridisegnare la Dashboard.
+- `App.jsx` è stato ridotto da 1.081 a circa 800 righe.
+- Verificati lint e build; restano i 3 warning già presenti nella baseline.
+- Smoke test desktop eseguito con Firebase fittizio: rendering dei tre pannelli, conteggi, filtro ruolo, filtro lettera e navigazione Dashboard/Rose corretti; nessuna scrittura sui dati reali.
 
 ## Problemi e rischi preesistenti da non confondere con regressioni
 

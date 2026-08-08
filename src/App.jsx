@@ -4,7 +4,10 @@ import { db } from "./firebaseConfig";
 import MobileController from "./MobileController";
 import AppHeader from "./features/auction/components/AppHeader";
 import AppNavigation from "./features/auction/components/AppNavigation";
+import AuctionPanel from "./features/auction/components/AuctionPanel";
+import AvailablePlayers from "./features/auction/components/AvailablePlayers";
 import TeamConfiguration from "./features/auction/components/TeamConfiguration";
+import TeamsSummary from "./features/auction/components/TeamsSummary";
 import {
   ALPHABET,
   INITIAL_PARTICIPANTS,
@@ -454,6 +457,13 @@ export default function App() {
     );
   };
 
+  const cambiaFiltroRuolo = (ruolo) => {
+    setFiltriRuoliAttivi((filtriCorrenti) => ({
+      ...filtriCorrenti,
+      [ruolo]: !filtriCorrenti[ruolo],
+    }));
+  };
+
   const faiOfferta = async (incremento = 1) => {
     if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) return;
     const adminId = "1";
@@ -715,332 +725,41 @@ export default function App() {
       {/* 🛠️ Rendering condizionale in base alla vista selezionata */}
       {vistaCorrente === "dashboard" ? (
         <div className="auction-layout">
-          <div className="card auction-card">
-            <h2>📢 Banditore Asta Live</h2>
-            {giocatoreInAsta ? (
-              <div>
-                <div className="auction-player-nav">
-                  <button
-                    onClick={() => cambiaGiocatoreManuale("indietro")}
-                    className="btn btn-grey"
-                    style={{ padding: "5px 12px", fontSize: "1.2rem" }}
-                  >
-                    ◀
-                  </button>
+          <AuctionPanel
+            player={giocatoreInAsta}
+            currentBid={offertaCorrente}
+            lastBidder={ultimoOfferente}
+            lastBidderId={ultimoOfferenteId}
+            isTimerStarted={isTimerStarted}
+            isPaused={isPaused}
+            stopCalledBy={stopChiamatoDa}
+            stopTimer={stopTimerVisivoServer}
+            timer={timer}
+            participants={partecipanti}
+            manualTeamId={squadraManualeId}
+            manualPrice={prezzoManuale}
+            lastPurchase={ultimoAcquisto}
+            onPlayerChange={cambiaGiocatoreManuale}
+            onStartTimer={avviaTimerManualmente}
+            onBid={faiOfferta}
+            onAssign={assegnaGiocatore}
+            onManualTeamChange={setSquadraManualeId}
+            onManualPriceChange={setPrezzoManuale}
+            onManualAssign={assegnaGiocatoreManualmente}
+          />
 
-                  <h3
-                    style={{ color: "#38bdf8", margin: 0, textAlign: "center" }}
-                  >
-                    🏃 {giocatoreInAsta.nome} ({giocatoreInAsta.squadra}) - [
-                    {giocatoreInAsta.ruolo}]
-                  </h3>
+          <TeamsSummary participants={partecipanti} />
 
-                  <button
-                    onClick={() => cambiaGiocatoreManuale("avanti")}
-                    className="btn btn-grey"
-                    style={{ padding: "5px 12px", fontSize: "1.2rem" }}
-                  >
-                    ▶
-                  </button>
-                </div>
-
-                <div
-                  className="alert-box"
-                  style={{ textAlign: "center", margin: "15px 0" }}
-                >
-                  <h4 style={{ fontSize: "1.6rem", margin: 0 }}>
-                    Offerta:{" "}
-                    <span style={{ color: "#10b981" }}>{offertaCorrente} FM</span>
-                  </h4>
-
-                  <p
-                    style={{
-                      marginTop: "8px",
-                      fontWeight: "bold",
-                      color: "#fbbf24",
-                      fontSize: "1.1rem",
-                    }}
-                  >
-                    🙋 Miglior Offerente:{" "}
-                    {ultimoOfferente
-                      ? ultimoOfferente.nome
-                      : "In attesa di rilanci"}
-                  </p>
-
-                  <div
-                    style={{
-                      marginTop: "10px",
-                      fontSize: "1.2rem",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {!isTimerStarted ? (
-                      <span style={{ color: "#fbbf24" }}>
-                        ⏳ IN ATTESA DI AVVIO SERVER
-                      </span>
-                    ) : isPaused ? (
-                      <div style={{ color: "#f87171" }}>
-                        🛑 PAUSA STOP RICHIESTA DA:{" "}
-                        <strong>{stopChiamatoDa}</strong>
-                        <div style={{ fontSize: "1.4rem", marginTop: "5px" }}>
-                          ⏱️ Ripresa Asta tra: {stopTimerVisivoServer}s
-                        </div>
-                      </div>
-                    ) : (
-                      <span>⏱️ Timer Asta: {timer}s</span>
-                    )}
-                  </div>
-                </div>
-
-                {!isTimerStarted && (
-                  <button
-                    onClick={avviaTimerManualmente}
-                    className="btn btn-blue"
-                    style={{
-                      width: "100%",
-                      padding: "12px",
-                      fontSize: "1.1rem",
-                      marginBottom: "15px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    ▶️ AVVIA TIMER ASTA
-                  </button>
-                )}
-
-                <div className="bid-actions">
-                  <button
-                    onClick={() => faiOfferta(1)}
-                    disabled={!isTimerStarted || timer === 0 || isPaused}
-                    className="btn"
-                  >
-                    +1 FM 🔨
-                  </button>
-                  <button
-                    onClick={() => faiOfferta(5)}
-                    disabled={!isTimerStarted || timer === 0 || isPaused}
-                    className="btn btn-green"
-                  >
-                    +5 FM 🚀
-                  </button>
-                </div>
-
-                <button
-                  onClick={assegnaGiocatore}
-                  disabled={!ultimoOfferenteId}
-                  className="btn btn-green"
-                  style={{ width: "100%", padding: "12px", fontSize: "1.1rem", marginBottom: "15px" }}
-                >
-                  🏆 Assegna a {ultimoOfferente ? ultimoOfferente.nome : "..."} e
-                  Passa al Prossimo ⏩
-                </button>
-
-                <div style={{ borderTop: "1px dashed #475569", paddingTop: "12px", marginTop: "10px" }}>
-                  <p style={{ fontSize: "0.9rem", color: "#fbbf24", marginBottom: "8px", fontWeight: "bold" }}>
-                    ⚠️ Correzione / Assegnazione Manuale d'Emergenza:
-                  </p>
-                  <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
-                    <select
-                      value={squadraManualeId}
-                      onChange={(e) => setSquadraManualeId(e.target.value)}
-                      style={{ flex: 2, padding: "8px", borderRadius: "4px", background: "#1e293b", color: "#fff", border: "1px solid #475569" }}
-                    >
-                      <option value="">Seleziona Squadra...</option>
-                      {partecipanti.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nome} ({p.crediti} FM)
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      placeholder="Prezzo FM"
-                      value={prezzoManuale}
-                      onChange={(e) => setPrezzoManuale(e.target.value)}
-                      style={{ flex: 1, padding: "8px", borderRadius: "4px", background: "#1e293b", color: "#fff", border: "1px solid #475569" }}
-                    />
-                  </div>
-                  <button
-                    onClick={assegnaGiocatoreManualmente}
-                    className="btn btn-orange"
-                    style={{ width: "100%", padding: "8px", fontSize: "0.95rem" }}
-                  >
-                    🔧 Forza Assegnazione Manuale
-                  </button>
-                </div>
-
-              </div>
-            ) : (
-              <div
-                className="alert-box"
-                style={{ textAlign: "center", padding: "20px" }}
-              >
-                <p style={{ color: "#94a3b8" }}>
-                  Nessun calciatore attualmente sul banditore.
-                </p>
-
-                {ultimoAcquisto && (
-                  <div
-                    style={{
-                      marginTop: "15px",
-                      borderTop: "2px dashed #334155",
-                      paddingTop: "15px",
-                    }}
-                  >
-                    <span style={{ fontSize: "1.2rem", color: "#38bdf8" }}>
-                      🎉 <strong>ULTIMO COLPO ASSEGNATO!</strong>
-                    </span>
-                    <h3 style={{ color: "#fbbf24", margin: "8px 0" }}>
-                      {ultimoAcquisto.calciatore} ({ultimoAcquisto.ruolo})
-                    </h3>
-                    <p style={{ fontSize: "1.1rem" }}>
-                      Vinto da{" "}
-                      <strong style={{ color: "#38bdf8" }}>
-                        {ultimoAcquisto.vincitoreNome}
-                      </strong>{" "}
-                      per{" "}
-                      <strong style={{ color: "#10b981" }}>
-                        {ultimoAcquisto.prezzo} FM
-                      </strong>
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="card teams-card">
-            <h2>👥 Rose e Crediti Residui</h2>
-            {partecipanti.map((p) => {
-              const contiRuoli = countRosterRoles(p.rosa, ROLE_LIMITS);
-              return (
-                <div
-                  key={p.id}
-                  className="team-row"
-                  style={{
-                    display: "block",
-                    padding: "10px",
-                    marginBottom: "8px",
-                    borderBottom: "1px solid #334155",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    <span>{p.nome}</span>
-                    <span style={{ color: "#10b981" }}>{p.crediti} FM</span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.8rem",
-                      color: "#38bdf8",
-                      marginTop: "4px",
-                    }}
-                  >
-                    P: {contiRuoli.P}/3 | D: {contiRuoli.D}/8 | C: {contiRuoli.C}
-                    /8 | A: {contiRuoli.A}/6
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.85rem",
-                      color: "#94a3b8",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Rosa ({p.rosa.length}):{" "}
-                    {p.rosa.map((g) => `${g.nome} (${g.prezzo}FM)`).join(", ") ||
-                      "Nessun acquisto"}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="card players-card">
-            <h2>
-              🔍 Elenco Giocatori Disponibili ({giocatoriFiltrati.length} /{" "}
-              {giocatori.length})
-            </h2>
-
-            <div className="role-filters">
-              <span style={{ fontWeight: "bold", fontSize: "0.9rem" }}>
-                Filtra Ruoli:
-              </span>
-              {Object.keys(filtriRuoliAttivi).map((ruolo) => (
-                <label
-                  key={ruolo}
-                  style={{
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "5px",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={filtriRuoliAttivi[ruolo]}
-                    onChange={() =>
-                      setFiltriRuoliAttivi((prev) => ({
-                        ...prev,
-                        [ruolo]: !prev[ruolo],
-                      }))
-                    }
-                  />
-                  {ruolo}
-                </label>
-              ))}
-            </div>
-
-            <div className="letter-filters">
-              <button
-                onClick={() => setFiltroLettera("TUTTE")}
-                className={`btn ${filtroLettera === "TUTTE" ? "btn-blue" : "btn-grey"
-                  }`}
-                style={{ padding: "5px 10px", fontSize: "0.8rem" }}
-              >
-                TUTTE
-              </button>
-              {ALPHABET.map((lettera) => (
-                <button
-                  key={lettera}
-                  onClick={() => setFiltroLettera(lettera)}
-                  className={`btn ${filtroLettera === lettera ? "btn-blue" : "btn-grey"
-                    }`}
-                  style={{
-                    padding: "5px 8px",
-                    fontSize: "0.8rem",
-                    minWidth: "30px",
-                  }}
-                >
-                  {lettera}
-                </button>
-              ))}
-            </div>
-
-            <div className="player-list">
-              {giocatoriFiltrati.map((g) => (
-                <div
-                  key={g.id}
-                  className="player-row"
-                >
-                  <span className="player-name">
-                    {g.nome} - {g.squadra} ({g.ruolo})
-                  </span>
-                  <button
-                    onClick={() => chiamaGiocatore(g)}
-                    disabled={isConfigMode}
-                    className="btn-call btn-blue"
-                  >
-                    Chiama 🔨
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+          <AvailablePlayers
+            players={giocatoriFiltrati}
+            totalPlayers={giocatori.length}
+            activeRoleFilters={filtriRuoliAttivi}
+            selectedLetter={filtroLettera}
+            isConfigMode={isConfigMode}
+            onRoleToggle={cambiaFiltroRuolo}
+            onLetterChange={setFiltroLettera}
+            onCallPlayer={chiamaGiocatore}
+          />
         </div>
       ) : vistaCorrente === "rose" ? (
         <div className="card" style={{ width: "100%", marginTop: "20px" }}>
