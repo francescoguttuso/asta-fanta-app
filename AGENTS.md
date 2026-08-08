@@ -2,7 +2,7 @@
 
 Contesto operativo per agenti AI che lavorano su **Asta Fanta App**.
 
-Aggiornato il 9 agosto 2026. Leggere anche `REFACTORING_KANBAN.md` prima di iniziare o proseguire il refactoring.
+Aggiornato il 9 agosto 2026. Il refactoring strutturale RF-00–RF-08 è completato; consultare `REFACTORING_KANBAN.md` per decisioni, verifiche e rischi rimasti.
 
 ## Progetto
 
@@ -41,7 +41,7 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
 ```
 
-Non leggere, stampare o committare segreti del file `.env`. Non inserire credenziali nel codice.
+Non leggere, stampare o committare segreti del file `.env`. Non inserire credenziali nel codice. Usare `.env.example` come template, senza aggiungervi valori reali.
 
 ## Struttura corrente
 
@@ -80,7 +80,7 @@ src/
   main.jsx              # entry point React con StrictMode
 ```
 
-`App.jsx` è il principale obiettivo del refactoring. Shell, Dashboard e viste secondarie admin sono separate in componenti presentazionali; stato condiviso, snapshot e timer sono isolati in `useAuctionSession`. Le operazioni Firestore e il calcolo condiviso dell'assegnazione sono in `auctionActions.js`; `App.jsx` mantiene orchestrazione, validazioni e messaggi della vista admin. La vista mobile è organizzata sotto `features/mobile/`, con logica nel controller e markup nei tre componenti dedicati. Non riportare markup o logica già estratti nei controller.
+`App.jsx` mantiene composizione, validazioni e orchestrazione admin. Shell, Dashboard e viste secondarie sono componenti presentazionali; stato condiviso, snapshot e timer sono isolati in `useAuctionSession`. Le operazioni Firestore e il calcolo condiviso dell'assegnazione sono in `auctionActions.js`. La vista mobile è sotto `features/mobile/`, con logica nel controller e markup nei tre componenti dedicati. Non riportare markup o logica già estratti nei controller.
 
 ## Funzionamento attuale
 
@@ -143,7 +143,7 @@ Le offerte e gli STOP usano le transazioni definite in `auctionActions.js`. Time
 
 ## Regole per le modifiche
 
-- Il refactoring corrente è strutturale: UI e comportamento devono restare invariati.
+- Preservare l'architettura semplice ottenuta dal refactoring: UI e comportamento non vanno cambiati incidentalmente durante spostamenti strutturali.
 - Preferire estrazioni meccaniche e piccoli componenti di feature con props esplicite.
 - Creare componenti UI generici solo quando esiste riuso reale.
 - Preferire funzioni pure per parse, sort, filtri, conteggi e scelta del prossimo giocatore.
@@ -159,14 +159,14 @@ Le offerte e gli STOP usano le transazioni definite in `auctionActions.js`. Time
 
 ## Verifica e problemi noti
 
-Baseline del 2026-08-08:
+Baseline finale del 2026-08-09:
 
 - `npm run lint` passa senza warning dopo RF-05.
-- `npm run build` passa; Vite segnala il chunk principale sopra 500 kB.
+- `npm run build` passa; Vite segnala il chunk principale di circa 802 kB sopra la soglia di 500 kB.
+- Smoke test read-only server/mobile passa con la sessione Firestore esistente e console senza errori; i flussi di scrittura richiedono una sessione di test.
 - Lint e build non hanno intercettato un riferimento non importato nel callback `onSnapshot`: dopo spostamenti di import usati in callback asincroni, eseguire anche uno smoke test browser mirato.
 - Assegnazione normale/manuale non è transazionale e può essere vulnerabile a più tab server.
 - Il credito disponibile è verificato in assegnazione, non durante ogni offerta.
-- Manca un `.env.example`; il README è ancora quello del template Vite.
 
 Questi problemi sono preesistenti: non mascherarli in un refactoring meccanico. Consultare il Kanban per piano, rischi e checklist completa.
 

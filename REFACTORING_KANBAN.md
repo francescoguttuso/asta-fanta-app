@@ -3,11 +3,11 @@
 Documento operativo per il refactoring strutturale di **Asta Fanta App**.
 
 Ultimo aggiornamento: 9 agosto 2026
-Stato: refactoring in corso; RF-07 completata
+Stato: refactoring strutturale completato
 
 ## Obiettivo
 
-Ridurre soprattutto `src/App.jsx` (attualmente circa 1.230 righe), separando UI, logica di feature, dati e utility in file facili da trovare. Il refactoring deve mantenere invariati comportamento, dati Firestore e UI.
+Ridurre soprattutto `src/App.jsx` (inizialmente circa 1.230 righe), separando UI, logica di feature, dati e utility in file facili da trovare. Il refactoring deve mantenere invariati comportamento, dati Firestore e UI.
 
 Il progetto è un MVP gestito da due sviluppatori: privilegiare codice diretto e leggibile, evitare architetture generiche, livelli superflui, nuove dipendenze o migrazioni non necessarie.
 
@@ -75,43 +75,39 @@ Verificata l'8 agosto 2026:
 - `giocatori.json` può avere un oggetto con `players` e campi inglesi; l'import runtime tollera anche un array e alcuni campi italiani.
 - Firebase è configurato esclusivamente con variabili `VITE_FIREBASE_*`; `.env` non va tracciato.
 
-## Struttura proposta
-
-La struttura è una destinazione indicativa, non un obbligo a creare tutti i file subito:
+## Struttura finale
 
 ```text
 src/
-  App.jsx                         # sceglie server o mobile, composizione minima
-  components/
-    ui/                           # solo componenti davvero condivisi (es. Button/Card), se utili
+  App.jsx                         # composizione, validazioni e azioni admin
+  App.css
   features/
     auction/
-      AdminAuctionPage.jsx        # orchestration della vista server
+      auctionActions.js
       components/
         AppHeader.jsx
         AppNavigation.jsx
         TeamConfiguration.jsx
         AuctionPanel.jsx
-        PlayerFilters.jsx
         AvailablePlayers.jsx
         TeamsSummary.jsx
         RostersView.jsx
         PlaceholderView.jsx
       hooks/
-        useAuctionSession.js       # snapshot, stato condiviso e timer
-      auctionActions.js            # azioni Firestore specifiche dell'asta, se l'estrazione resta chiara
+        useAuctionSession.js
     mobile/
       MobileController.jsx
-      components/                  # estrarre solo se MobileController resta troppo grande
+      components/
+        BidHistory.jsx
+        MobileAuctionPanel.jsx
+        TeamSelector.jsx
   data/
-    auctionDefaults.js             # partecipanti iniziali, limiti e alfabeto
-    giocatori.json
+    auctionDefaults.js
   utils/
-    playerUtils.js                 # parse, sort, filter e scelta prossimo giocatore
-    timerUtils.js
-    csvUtils.js                    # solo se l'export migliora davvero la leggibilità
+    playerUtils.js
   firebaseConfig.js
-  App.css
+  timerUtils.js
+  giocatori.json
   index.css
   main.jsx
 ```
@@ -122,18 +118,11 @@ Evitare barrel file (`index.js`) e directory con un solo wrapper privo di valore
 
 ### Da fare
 
-#### RF-08 — Pulizia finale e documentazione
-
-- Rimuovere import, helper e CSS certamente inutilizzati solo dopo il completamento degli spostamenti.
-- Aggiornare README con descrizione reale, setup `.env`, comandi e URL delle due viste.
-- Aggiornare `AGENTS.md` e questo Kanban con la struttura finale.
-- Eseguire smoke test finale server/mobile e annotare eventuali problemi preesistenti non risolti.
-
-Verifica: `npm run lint`, `npm run build`, stato Git limitato ai file previsti.
+Nessuna card pianificata. Le nuove feature e le correzioni funzionali vanno gestite separatamente dal refactoring concluso.
 
 ### In corso
 
-Nessuna card. Il prossimo step consigliato è **RF-08**.
+Nessuna card.
 
 ### Completato
 
@@ -209,6 +198,17 @@ Nessuna card. Il prossimo step consigliato è **RF-08**.
 - Ridotto il controller da circa 228 a 118 righe senza modificare classi CSS, testi o comportamento della vista.
 - Verificati lint e build. Smoke test mobile eseguito sulla sessione esistente: caricamento giocatore, 10 squadre, selezione squadra, crediti/rosa, STOP esauriti e storico corretti; console senza errori e nessuna scrittura Firestore effettuata.
 
+#### RF-08 — Pulizia finale e documentazione
+
+- Sostituito il README Vite con descrizione del progetto, feature, setup Firebase, comandi, struttura, URL delle viste e limiti noti.
+- Aggiunto `.env.example` con le sole chiavi Vite richieste; `.env` resta ignorato da Git.
+- Rimossi import e commenti boilerplate non usati e i gruppi CSS non più referenziati (`card-teams`, `player-grid`, `player-card`, badge, `filter-box` e `select-field`).
+- Ridotto `App.css` da 459 a 344 righe e il CSS di build da circa 6,64 a 4,58 kB senza regressioni visive rilevate.
+- Aggiornati `AGENTS.md` e questo Kanban con struttura e stato finali.
+- `npm run lint`, `npm run build` e `git diff --check` completati; resta soltanto il warning Vite preesistente sul chunk JavaScript sopra 500 kB.
+- Smoke test finale read-only sulla sessione esistente: caricamento server/mobile, banditore, squadre, rose, navigazione, placeholder, filtro ruolo e selezione mobile corretti; console senza errori.
+- Flussi che scrivono su Firestore (rinomina, timer, offerte, STOP, assegnazioni, import e reset) non ripetuti sulla sessione reale: richiedono una sessione o un emulatore di test.
+
 ## Problemi e rischi preesistenti da non confondere con regressioni
 
 Questi punti non vanno corretti durante gli spostamenti meccanici, salvo richiesta esplicita:
@@ -217,23 +217,24 @@ Questi punti non vanno corretti durante gli spostamenti meccanici, salvo richies
 - Auto-assegnazione allo scadere e sblocco automatico dello STOP dipendono dalla presenza di una vista server aperta.
 - L'identità mobile non è autenticata: un utente può selezionare qualsiasi squadra.
 - Il limite crediti non blocca l'offerta; viene controllato durante l'assegnazione.
-- Non sono presenti `.env.example`, test automatici o gestione esplicita dell'errore di `onSnapshot`.
+- Non sono presenti test automatici o gestione esplicita dell'errore di `onSnapshot`.
 - Il pulsante “Esporta CSV Pulito” genera correttamente un CSV, non un vero file Excel.
 - Calendario e Classifica sono soltanto placeholder.
-- Il README è ancora quello predefinito di Vite.
 
 ## Checklist di smoke test finale
 
-- [ ] Avvio con `.env` locale tramite `npm run dev`.
+- [x] Avvio con `.env` locale tramite `npm run dev`.
 - [ ] Configurazione e rinomina delle 10 squadre.
 - [ ] Blocco configurazione e chiamata di un calciatore.
 - [ ] Filtri lettera/ruolo e precedente/successivo.
 - [ ] Avvio timer e rilanci admin `+1`/`+5`.
-- [ ] Collegamento mobile con `/?mobile=true` e selezione squadra.
+- [x] Collegamento mobile con `/?mobile=true` e selezione squadra.
 - [ ] Rilanci concorrenti e storico massimo 5 elementi.
 - [ ] STOP mobile, decremento disponibilità e ripresa dopo 30 secondi.
 - [ ] Assegnazione automatica e manuale, crediti e rosa aggiornati.
 - [ ] Limiti P/D/C/A rispettati.
-- [ ] Vista Rose e placeholder di navigazione.
+- [x] Vista Rose e placeholder di navigazione.
 - [ ] Import JSON, export CSV e reset (usare una sessione di test).
-- [ ] Refresh di server e mobile durante un'asta in corso.
+- [x] Caricamento/refresh di server e mobile con sessione inattiva.
+
+Le voci non selezionate modificano Firestore o richiedono un'asta attiva e vanno verificate in una sessione di test, non sui dati condivisi correnti.
