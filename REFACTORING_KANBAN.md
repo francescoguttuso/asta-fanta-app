@@ -3,7 +3,7 @@
 Documento operativo per il refactoring strutturale di **Asta Fanta App**.
 
 Ultimo aggiornamento: 9 agosto 2026
-Stato: refactoring in corso; RF-05 completata
+Stato: refactoring in corso; RF-06 completata
 
 ## Obiettivo
 
@@ -122,15 +122,6 @@ Evitare barrel file (`index.js`) e directory con un solo wrapper privo di valore
 
 ### Da fare
 
-#### RF-06 — Raggruppare le azioni d'asta
-
-- Separare salvataggio sessione, offerte, STOP e assegnazioni solo nella misura in cui gli input rimangono espliciti.
-- Rimuovere la lunga firma posizionale di `salvaSuFirebase` usando un oggetto nominato o un updater leggibile.
-- Condividere la logica duplicata tra assegnazione normale e manuale senza costruire un framework di comandi.
-- Conservare le transazioni esistenti e l'ordine degli aggiornamenti.
-
-Verifica: offerta simultanea da due controller, assegnazione normale/manuale, crediti e limiti ruolo.
-
 #### RF-07 — Alleggerire il controller mobile (solo se utile)
 
 - Spostare il file sotto `features/mobile/`.
@@ -150,7 +141,7 @@ Verifica: `npm run lint`, `npm run build`, stato Git limitato ai file previsti.
 
 ### In corso
 
-Nessuna card. Il prossimo step consigliato è **RF-06**.
+Nessuna card. Il prossimo step consigliato è **RF-07**.
 
 ### Completato
 
@@ -206,6 +197,17 @@ Nessuna card. Il prossimo step consigliato è **RF-06**.
 - Ripristinato in `App.jsx` l'import di `ROLE_LIMITS`, già usato ma mancante nel commit precedente e quindi potenziale errore runtime nei flussi admin.
 - `App.jsx` è stato ridotto da 771 a circa 617 righe.
 - Verificati lint, build e rendering isolato delle viste server/mobile con Firebase fittizio. Refresh durante timer, offerte e STOP/ripresa richiedono ancora uno smoke test con un Firestore di test o emulatore; nessuna scrittura è stata effettuata sui dati reali.
+
+#### RF-06 — Raggruppare le azioni d'asta
+
+- Creato `src/features/auction/auctionActions.js` con azioni Firestore esplicite per salvataggio sessione, avvio timer, rilancio, richiesta STOP e ripresa.
+- Condivisa la stessa transazione di rilancio tra server e mobile, conservando payload, reset del timer e storico massimo di 5 offerte.
+- Sostituita la firma posizionale di `salvaSuFirebase` con `saveSession({ ... })`, usando proprietà nominate e mantenendo gli stessi default.
+- Estratto `buildPlayerAssignment` per condividere tra assegnazione normale e manuale aggiornamento crediti/rosa, rimozione del giocatore, ultimo acquisto e scelta del successivo.
+- Lasciate nei controller le validazioni e i messaggi specifici; l'assegnazione continua intenzionalmente a usare `setDoc` e non una nuova transazione.
+- `App.jsx` è stato ridotto da circa 617 a 541 righe; anche `MobileController.jsx` è stato alleggerito dalle transazioni inline.
+- Verificati `npm run lint`, `npm run build`, payload Firestore e dipendenze degli effect. I flussi concorrenti completi richiedono ancora un Firestore di test o emulatore e non sono stati eseguiti sui dati reali.
+- Dopo il primo smoke test utente, ripristinato l'import di `sortPlayersAlphabetically` ancora necessario allo snapshot; verificato nel browser che il banditore e la sessione Firestore esistente vengano caricati senza errori console.
 
 ## Problemi e rischi preesistenti da non confondere con regressioni
 

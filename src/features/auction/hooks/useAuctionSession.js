@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { doc, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../../../firebaseConfig";
 import {
   INITIAL_PARTICIPANTS,
@@ -13,6 +13,10 @@ import {
   normalizePlayer,
   sortPlayersAlphabetically,
 } from "../../../utils/playerUtils";
+import {
+  resumeAuctionAfterStop,
+  saveAuctionSession,
+} from "../auctionActions";
 
 const AUCTION_SESSION_REF = doc(
   db,
@@ -50,22 +54,22 @@ export default function useAuctionSession({ isMobileView }) {
     timerEndsAt,
   };
 
-  const salvaSuFirebase = useCallback(
-    async (
-      nuoviG,
-      nuoviP,
+  const saveSession = useCallback(
+    async ({
+      players,
+      participants,
       configMode,
-      gInAsta,
-      offerta,
+      playerInAuction,
+      currentBid,
       timerStarted,
-      offerenteId,
+      lastBidderId,
       paused = false,
-      stopDa = null,
-      stopTime = null,
-      ultimoAcq,
-      storico,
-      fineTimer,
-    ) => {
+      stopCalledBy = null,
+      stopStartedAt = null,
+      lastPurchase,
+      bidHistory,
+      endsAt,
+    }) => {
       const currentSession = currentSessionRef.current;
       const nextTimerStarted = withDefault(
         timerStarted,
@@ -73,29 +77,33 @@ export default function useAuctionSession({ isMobileView }) {
       );
 
       try {
-        await setDoc(AUCTION_SESSION_REF, {
-          giocatori: sortPlayersAlphabetically(nuoviG),
-          partecipanti: nuoviP,
-          isConfigMode: configMode,
-          giocatoreInAsta: gInAsta,
-          offertaCorrente: offerta,
-          isTimerStarted: nextTimerStarted,
-          ultimoOfferenteId: withDefault(
-            offerenteId,
+        await saveAuctionSession({
+          docRef: AUCTION_SESSION_REF,
+          players,
+          participants,
+          configMode,
+          playerInAuction,
+          currentBid,
+          timerStarted: nextTimerStarted,
+          lastBidderId: withDefault(
+            lastBidderId,
             currentSession.ultimoOfferenteId,
           ),
-          isPaused: paused,
-          stopChiamatoDa: stopDa,
-          stopIniziatoAt: stopTime,
-          ultimoAcquisto: withDefault(
-            ultimoAcq,
+          paused,
+          stopCalledBy,
+          stopStartedAt,
+          lastPurchase: withDefault(
+            lastPurchase,
             currentSession.ultimoAcquisto,
           ),
-          storicoOfferte: withDefault(storico, currentSession.storicoOfferte),
+          bidHistory: withDefault(
+            bidHistory,
+            currentSession.storicoOfferte,
+          ),
           timer: currentSession.timer,
           timerEndsAt:
             nextTimerStarted && !paused
-              ? withDefault(fineTimer, currentSession.timerEndsAt)
+              ? withDefault(endsAt, currentSession.timerEndsAt)
               : null,
         });
       } catch (err) {
@@ -139,25 +147,25 @@ export default function useAuctionSession({ isMobileView }) {
               : null),
         );
       } else {
-        salvaSuFirebase(
-          INITIAL_PLAYERS,
-          INITIAL_PARTICIPANTS,
-          true,
-          null,
-          0,
-          false,
-          null,
-          false,
-          null,
-          null,
-          null,
-          [],
-        );
+        saveSession({
+          players: INITIAL_PLAYERS,
+          participants: INITIAL_PARTICIPANTS,
+          configMode: true,
+          playerInAuction: null,
+          currentBid: 0,
+          timerStarted: false,
+          lastBidderId: null,
+          paused: false,
+          stopCalledBy: null,
+          stopStartedAt: null,
+          lastPurchase: null,
+          bidHistory: [],
+        });
       }
     });
 
     return unsubscribe;
-  }, [salvaSuFirebase]);
+  }, [saveSession]);
 
   useEffect(() => {
     if (!giocatoreInAsta || !isTimerStarted || isPaused || !timerEndsAt) {
@@ -192,34 +200,9 @@ export default function useAuctionSession({ isMobileView }) {
 
         timeout = setTimeout(async () => {
           try {
-            await runTransaction(db, async (transaction) => {
-              const sessionSnapshot = await transaction.get(
-                AUCTION_SESSION_REF,
-              );
-              if (!sessionSnapshot.exists()) return;
-
-              const sessione = sessionSnapshot.data();
-              if (
-                !sessione.isPaused ||
-                sessione.stopIniziatoAt !== stopIniziatoAt
-              ) {
-                return;
-              }
-
-              const timerRimanenteMs = Math.max(
-                0,
-                sessione.timerRimanenteMs ?? (sessione.timer || 0) * 1000,
-              );
-
-              transaction.update(AUCTION_SESSION_REF, {
-                isPaused: false,
-                stopChiamatoDa: null,
-                stopIniziatoAt: null,
-                timerRimanenteMs: null,
-                timer: Math.ceil(timerRimanenteMs / 1000),
-                timerEndsAt:
-                  timerRimanenteMs > 0 ? Date.now() + timerRimanenteMs : null,
-              });
+            await resumeAuctionAfterStop({
+              docRef: AUCTION_SESSION_REF,
+              stopStartedAt: stopIniziatoAt,
             });
           } catch (error) {
             console.error(
@@ -259,6 +242,6 @@ export default function useAuctionSession({ isMobileView }) {
     timer,
     setTimer,
     stopTimer,
-    salvaSuFirebase,
+    saveSession,
   };
 }

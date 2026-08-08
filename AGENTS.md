@@ -53,6 +53,7 @@ src/
     auctionDefaults.js  # giocatori/partecipanti iniziali, limiti, alfabeto e filtri ruolo
   features/
     auction/
+      auctionActions.js        # salvataggio, transazioni asta/STOP e calcolo assegnazione
       components/
         AppHeader.jsx          # titolo e azioni import/export/reset
         AppNavigation.jsx      # navigazione tra le viste admin
@@ -74,7 +75,7 @@ src/
   main.jsx              # entry point React con StrictMode
 ```
 
-`App.jsx` è il principale obiettivo del refactoring. Shell, Dashboard e viste secondarie admin sono separate in componenti presentazionali; stato condiviso, snapshot e timer sono isolati in `useAuctionSession`. Gli handler delle azioni d'asta restano nel parent fino a RF-06. Non riportare markup o logica già estratti nel file principale.
+`App.jsx` è il principale obiettivo del refactoring. Shell, Dashboard e viste secondarie admin sono separate in componenti presentazionali; stato condiviso, snapshot e timer sono isolati in `useAuctionSession`. Le operazioni Firestore e il calcolo condiviso dell'assegnazione sono in `auctionActions.js`; `App.jsx` mantiene orchestrazione, validazioni e messaggi della vista admin. Non riportare markup o logica già estratti nel file principale.
 
 ## Funzionamento attuale
 
@@ -133,7 +134,7 @@ participant = {
 
 `ultimoOfferenteId` può essere una stringa perché proviene dal valore di un `<select>` mobile. Il codice attuale usa `parseInt` durante i confronti. Non cambiare tipi o nomi dei campi persistiti senza una migrazione esplicita.
 
-Le offerte e gli STOP usano transazioni Firestore. Timer e STOP condivisi si basano su timestamp assoluti e vengono derivati da `useAuctionSession` per restare coerenti tra client. Auto-assegnazione e fine automatica dello STOP vengono eseguiti soltanto dalla vista server aperta.
+Le offerte e gli STOP usano le transazioni definite in `auctionActions.js`. Timer e STOP condivisi si basano su timestamp assoluti e vengono derivati da `useAuctionSession` per restare coerenti tra client. Auto-assegnazione e fine automatica dello STOP vengono eseguiti soltanto dalla vista server aperta.
 
 ## Regole per le modifiche
 
@@ -142,6 +143,7 @@ Le offerte e gli STOP usano transazioni Firestore. Timer e STOP condivisi si bas
 - Creare componenti UI generici solo quando esiste riuso reale.
 - Preferire funzioni pure per parse, sort, filtri, conteggi e scelta del prossimo giocatore.
 - Tenere in `useAuctionSession` stato condiviso, snapshot e timer; non spostarvi azioni d'asta non correlate.
+- Passare oggetti nominati alle azioni di `auctionActions.js`; mantenere espliciti gli input e i campi Firestore aggiornati.
 - Non introdurre Redux, Zustand, router, TypeScript, librerie UI o nuove dipendenze senza richiesta.
 - Non usare Context API solo per evitare prop drilling limitato.
 - Non dividere prematuramente `App.css`; preservare classi e markup durante gli spostamenti.
@@ -156,6 +158,7 @@ Baseline del 2026-08-08:
 
 - `npm run lint` passa senza warning dopo RF-05.
 - `npm run build` passa; Vite segnala il chunk principale sopra 500 kB.
+- Lint e build non hanno intercettato un riferimento non importato nel callback `onSnapshot`: dopo spostamenti di import usati in callback asincroni, eseguire anche uno smoke test browser mirato.
 - Assegnazione normale/manuale non è transazionale e può essere vulnerabile a più tab server.
 - Il credito disponibile è verificato in assegnazione, non durante ogni offerta.
 - Manca un `.env.example`; il README è ancora quello del template Vite.

@@ -1,11 +1,9 @@
 import React, { useState } from "react";
-import { runTransaction } from "firebase/firestore";
-import { db } from "./firebaseConfig";
 import { ROLE_LIMITS } from "./data/auctionDefaults";
 import {
-  AUCTION_DURATION_MS,
-  getRemainingMilliseconds,
-} from "./timerUtils";
+  placeBid,
+  requestAuctionStop,
+} from "./features/auction/auctionActions";
 
 export default function MobileController({
   partecipanti,
@@ -41,36 +39,11 @@ export default function MobileController({
     }
 
     try {
-      await runTransaction(db, async (transaction) => {
-        const sfDoc = await transaction.get(docRef);
-        if (!sfDoc.exists()) return;
-
-        const sessioneCloud = sfDoc.data();
-        if (sessioneCloud.isPaused || !sessioneCloud.isTimerStarted) return;
-
-        const prezzoCloud = sessioneCloud.offertaCorrente || 0;
-        const vecchioStorico = sessioneCloud.storicoOfferte || [];
-        const nuovoPrezzo = prezzoCloud + incremento;
-        const nomeSquadra =
-          partecipanti.find((p) => p.id === parseInt(mioId))?.nome || "Squadra";
-
-        const nuovaEntrata = {
-          nome: nomeSquadra,
-          importo: nuovoPrezzo,
-          ora: new Date().toLocaleTimeString(),
-        };
-        const nuovoStorico = [nuovaEntrata, ...vecchioStorico].slice(0, 5);
-
-        transaction.update(docRef, {
-          offertaCorrente: nuovoPrezzo,
-          ultimoOfferenteId: mioId,
-          timer: 10,
-          timerEndsAt: Date.now() + AUCTION_DURATION_MS,
-          isPaused: false,
-          stopChiamatoDa: null,
-          stopIniziatoAt: null,
-          storicoOfferte: nuovoStorico,
-        });
+      await placeBid({
+        docRef,
+        bidderId: mioId,
+        bidderName: utenteCorrente?.nome || "Squadra",
+        increment: incremento,
       });
     } catch (err) {
       console.error("Errore rilancio mobile: ", err);
@@ -91,39 +64,12 @@ export default function MobileController({
     }
 
     try {
-      await runTransaction(db, async (transaction) => {
-        const sfDoc = await transaction.get(docRef);
-        if (!sfDoc.exists()) return;
-
-        const sessioneCloud = sfDoc.data();
-        if (sessioneCloud.isPaused || !sessioneCloud.isTimerStarted) return;
-
-        const partecipantiCloud = sessioneCloud.partecipanti || partecipanti;
-        const timerRimanenteMs = sessioneCloud.timerEndsAt
-          ? getRemainingMilliseconds(sessioneCloud.timerEndsAt)
-          : Math.max(0, (sessioneCloud.timer ?? timer) * 1000);
-
-        if (timerRimanenteMs === 0) return;
-
-        const partecipantiAggiornati = partecipantiCloud.map((p) => {
-          if (p.id === parseInt(mioId)) {
-            return {
-              ...p,
-              stopDisponibili: Math.max(0, (p.stopDisponibili ?? 2) - 1),
-            };
-          }
-          return p;
-        });
-
-        transaction.update(docRef, {
-          isPaused: true,
-          stopChiamatoDa: utenteCorrente.nome,
-          stopIniziatoAt: Date.now(),
-          timerRimanenteMs,
-          timer: Math.ceil(timerRimanenteMs / 1000),
-          timerEndsAt: null,
-          partecipanti: partecipantiAggiornati,
-        });
+      await requestAuctionStop({
+        docRef,
+        participantId: parseInt(mioId),
+        participantName: utenteCorrente.nome,
+        participants: partecipanti,
+        timer,
       });
     } catch (err) {
       console.error("Errore attivazione STOP: ", err);

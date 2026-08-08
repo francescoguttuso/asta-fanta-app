@@ -1,0 +1,210 @@
+import { runTransaction, setDoc } from "firebase/firestore";
+import { db } from "../../firebaseConfig";
+import { ALPHABET } from "../../data/auctionDefaults";
+import {
+  AUCTION_DURATION_MS,
+  getRemainingMilliseconds,
+} from "../../timerUtils";
+import {
+  findNextPlayer,
+  sortPlayersAlphabetically,
+} from "../../utils/playerUtils";
+
+export const saveAuctionSession = async ({
+  docRef,
+  players,
+  participants,
+  configMode,
+  playerInAuction,
+  currentBid,
+  timerStarted,
+  lastBidderId,
+  paused,
+  stopCalledBy,
+  stopStartedAt,
+  lastPurchase,
+  bidHistory,
+  timer,
+  timerEndsAt,
+}) => {
+  await setDoc(docRef, {
+    giocatori: sortPlayersAlphabetically(players),
+    partecipanti: participants,
+    isConfigMode: configMode,
+    giocatoreInAsta: playerInAuction,
+    offertaCorrente: currentBid,
+    isTimerStarted: timerStarted,
+    ultimoOfferenteId: lastBidderId,
+    isPaused: paused,
+    stopChiamatoDa: stopCalledBy,
+    stopIniziatoAt: stopStartedAt,
+    ultimoAcquisto: lastPurchase,
+    storicoOfferte: bidHistory,
+    timer,
+    timerEndsAt,
+  });
+};
+
+export const startAuctionTimer = async ({ docRef }) => {
+  await runTransaction(db, async (transaction) => {
+    const sessionSnapshot = await transaction.get(docRef);
+    if (!sessionSnapshot.exists()) return;
+
+    transaction.update(docRef, {
+      isTimerStarted: true,
+      timer: 10,
+      timerEndsAt: Date.now() + AUCTION_DURATION_MS,
+    });
+  });
+};
+
+export const placeBid = async ({
+  docRef,
+  bidderId,
+  bidderName,
+  increment,
+}) => {
+  await runTransaction(db, async (transaction) => {
+    const sessionSnapshot = await transaction.get(docRef);
+    if (!sessionSnapshot.exists()) return;
+
+    const session = sessionSnapshot.data();
+    if (session.isPaused || !session.isTimerStarted) return;
+
+    const newBid = (session.offertaCorrente || 0) + increment;
+    const newHistoryEntry = {
+      nome: bidderName,
+      importo: newBid,
+      ora: new Date().toLocaleTimeString(),
+    };
+    const bidHistory = [
+      newHistoryEntry,
+      ...(session.storicoOfferte || []),
+    ].slice(0, 5);
+
+    transaction.update(docRef, {
+      offertaCorrente: newBid,
+      ultimoOfferenteId: bidderId,
+      timer: 10,
+      timerEndsAt: Date.now() + AUCTION_DURATION_MS,
+      isPaused: false,
+      stopChiamatoDa: null,
+      stopIniziatoAt: null,
+      storicoOfferte: bidHistory,
+    });
+  });
+};
+
+export const requestAuctionStop = async ({
+  docRef,
+  participantId,
+  participantName,
+  participants,
+  timer,
+}) => {
+  await runTransaction(db, async (transaction) => {
+    const sessionSnapshot = await transaction.get(docRef);
+    if (!sessionSnapshot.exists()) return;
+
+    const session = sessionSnapshot.data();
+    if (session.isPaused || !session.isTimerStarted) return;
+
+    const currentParticipants = session.partecipanti || participants;
+    const remainingTimerMs = session.timerEndsAt
+      ? getRemainingMilliseconds(session.timerEndsAt)
+      : Math.max(0, (session.timer ?? timer) * 1000);
+
+    if (remainingTimerMs === 0) return;
+
+    const updatedParticipants = currentParticipants.map((participant) =>
+      participant.id === participantId
+        ? {
+            ...participant,
+            stopDisponibili: Math.max(
+              0,
+              (participant.stopDisponibili ?? 2) - 1,
+            ),
+          }
+        : participant,
+    );
+
+    transaction.update(docRef, {
+      isPaused: true,
+      stopChiamatoDa: participantName,
+      stopIniziatoAt: Date.now(),
+      timerRimanenteMs: remainingTimerMs,
+      timer: Math.ceil(remainingTimerMs / 1000),
+      timerEndsAt: null,
+      partecipanti: updatedParticipants,
+    });
+  });
+};
+
+export const resumeAuctionAfterStop = async ({ docRef, stopStartedAt }) => {
+  await runTransaction(db, async (transaction) => {
+    const sessionSnapshot = await transaction.get(docRef);
+    if (!sessionSnapshot.exists()) return;
+
+    const session = sessionSnapshot.data();
+    if (!session.isPaused || session.stopIniziatoAt !== stopStartedAt) return;
+
+    const remainingTimerMs = Math.max(
+      0,
+      session.timerRimanenteMs ?? (session.timer || 0) * 1000,
+    );
+
+    transaction.update(docRef, {
+      isPaused: false,
+      stopChiamatoDa: null,
+      stopIniziatoAt: null,
+      timerRimanenteMs: null,
+      timer: Math.ceil(remainingTimerMs / 1000),
+      timerEndsAt:
+        remainingTimerMs > 0 ? Date.now() + remainingTimerMs : null,
+    });
+  });
+};
+
+export const buildPlayerAssignment = ({
+  players,
+  participants,
+  player,
+  winner,
+  price,
+  selectedLetter,
+  activeRoleFilters,
+}) => {
+  const lastPurchase = {
+    calciatore: player.nome,
+    ruolo: player.ruolo,
+    vincitoreNome: winner.nome,
+    prezzo: price,
+  };
+
+  const updatedParticipants = participants.map((participant) =>
+    participant.id === winner.id
+      ? {
+          ...participant,
+          crediti: participant.crediti - price,
+          rosa: [...participant.rosa, { ...player, prezzo: price }],
+        }
+      : participant,
+  );
+  const remainingPlayers = players.filter(
+    (availablePlayer) => availablePlayer.id !== player.id,
+  );
+  const { player: nextPlayer, letter: nextLetter } = findNextPlayer(
+    remainingPlayers,
+    selectedLetter,
+    activeRoleFilters,
+    ALPHABET,
+  );
+
+  return {
+    lastPurchase,
+    updatedParticipants,
+    remainingPlayers,
+    nextPlayer,
+    nextLetter,
+  };
+};

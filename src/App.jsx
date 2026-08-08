@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { runTransaction } from "firebase/firestore";
-import { db } from "./firebaseConfig";
 import MobileController from "./MobileController";
+import {
+  buildPlayerAssignment,
+  placeBid,
+  startAuctionTimer,
+} from "./features/auction/auctionActions";
 import AppHeader from "./features/auction/components/AppHeader";
 import AppNavigation from "./features/auction/components/AppNavigation";
 import AuctionPanel from "./features/auction/components/AuctionPanel";
@@ -12,16 +15,13 @@ import TeamConfiguration from "./features/auction/components/TeamConfiguration";
 import TeamsSummary from "./features/auction/components/TeamsSummary";
 import useAuctionSession from "./features/auction/hooks/useAuctionSession";
 import {
-  ALPHABET,
   INITIAL_PARTICIPANTS,
   INITIAL_PLAYERS,
   INITIAL_ROLE_FILTERS,
   ROLE_LIMITS,
 } from "./data/auctionDefaults";
-import { AUCTION_DURATION_MS } from "./timerUtils";
 import {
   filterPlayers,
-  findNextPlayer,
   normalizePlayers,
 } from "./utils/playerUtils";
 import "./App.css";
@@ -49,7 +49,7 @@ export default function App() {
     timer,
     setTimer,
     stopTimer,
-    salvaSuFirebase,
+    saveSession,
   } = useAuctionSession({ isMobileView });
 
   // 🛠️ Stato per la gestione della vista attiva (Dashboard o Rose)
@@ -76,20 +76,20 @@ export default function App() {
         const nuoviGiocatoriParsed = normalizePlayers(arrayGrezzo);
 
         setGiocatori(nuoviGiocatoriParsed);
-        salvaSuFirebase(
-          nuoviGiocatoriParsed,
-          partecipanti,
-          isConfigMode,
-          giocatoreInAsta,
-          offertaCorrente,
-          isTimerStarted,
-          ultimoOfferenteId,
-          isPaused,
-          stopChiamatoDa,
-          stopIniziatoAt,
-          ultimoAcquisto,
-          storicoOfferte
-        );
+        saveSession({
+          players: nuoviGiocatoriParsed,
+          participants: partecipanti,
+          configMode: isConfigMode,
+          playerInAuction: giocatoreInAsta,
+          currentBid: offertaCorrente,
+          timerStarted: isTimerStarted,
+          lastBidderId: ultimoOfferenteId,
+          paused: isPaused,
+          stopCalledBy: stopChiamatoDa,
+          stopStartedAt: stopIniziatoAt,
+          lastPurchase: ultimoAcquisto,
+          bidHistory: storicoOfferte,
+        });
 
         alert("File JSON importato e aggiornato con successo!");
       } catch (errore) {
@@ -102,15 +102,7 @@ export default function App() {
 
   const avviaTimerManualmente = async () => {
     try {
-      await runTransaction(db, async (transaction) => {
-        const sfDoc = await transaction.get(docRef);
-        if (!sfDoc.exists()) return;
-        transaction.update(docRef, {
-          isTimerStarted: true,
-          timer: 10,
-          timerEndsAt: Date.now() + AUCTION_DURATION_MS,
-        });
-      });
+      await startAuctionTimer({ docRef });
     } catch (err) {
       console.error("Errore nell'avvio del timer:", err);
     }
@@ -129,20 +121,20 @@ export default function App() {
     if (nuovoIndice >= 0 && nuovoIndice < listaCorrente.length) {
       const prossimo = listaCorrente[nuovoIndice];
       setTimer(10);
-      salvaSuFirebase(
-        giocatori,
-        partecipanti,
-        isConfigMode,
-        prossimo,
-        0,
-        false,
-        null,
-        false,
-        null,
-        null,
-        ultimoAcquisto,
-        [],
-      );
+      saveSession({
+        players: giocatori,
+        participants: partecipanti,
+        configMode: isConfigMode,
+        playerInAuction: prossimo,
+        currentBid: 0,
+        timerStarted: false,
+        lastBidderId: null,
+        paused: false,
+        stopCalledBy: null,
+        stopStartedAt: null,
+        lastPurchase: ultimoAcquisto,
+        bidHistory: [],
+      });
     }
   };
 
@@ -152,20 +144,20 @@ export default function App() {
         "Attenzione! Vuoi resettare l'intera sessione d'asta e ricaricare i giocatori dal file JSON?",
       )
     ) {
-      salvaSuFirebase(
-        INITIAL_PLAYERS,
-        INITIAL_PARTICIPANTS,
-        true,
-        null,
-        0,
-        false,
-        null,
-        false,
-        null,
-        null,
-        null,
-        [],
-      );
+      saveSession({
+        players: INITIAL_PLAYERS,
+        participants: INITIAL_PARTICIPANTS,
+        configMode: true,
+        playerInAuction: null,
+        currentBid: 0,
+        timerStarted: false,
+        lastBidderId: null,
+        paused: false,
+        stopCalledBy: null,
+        stopStartedAt: null,
+        lastPurchase: null,
+        bidHistory: [],
+      });
       setTimer(10);
     }
   };
@@ -199,76 +191,76 @@ export default function App() {
       p.id === id ? { ...p, nome: nuovoNome } : p,
     );
     setPartecipanti(aggiornati);
-    salvaSuFirebase(
-      giocatori,
-      aggiornati,
-      isConfigMode,
-      giocatoreInAsta,
-      offertaCorrente,
-      isTimerStarted,
-      ultimoOfferenteId,
-      isPaused,
-      stopChiamatoDa,
-      stopIniziatoAt,
-      ultimoAcquisto,
-      storicoOfferte,
-    );
+    saveSession({
+      players: giocatori,
+      participants: aggiornati,
+      configMode: isConfigMode,
+      playerInAuction: giocatoreInAsta,
+      currentBid: offertaCorrente,
+      timerStarted: isTimerStarted,
+      lastBidderId: ultimoOfferenteId,
+      paused: isPaused,
+      stopCalledBy: stopChiamatoDa,
+      stopStartedAt: stopIniziatoAt,
+      lastPurchase: ultimoAcquisto,
+      bidHistory: storicoOfferte,
+    });
   };
 
   const bloccaNomiSquadre = () => {
     setIsConfigMode(false);
-    salvaSuFirebase(
-      giocatori,
-      partecipanti,
-      false,
-      giocatoreInAsta,
-      offertaCorrente,
-      isTimerStarted,
-      ultimoOfferenteId,
-      isPaused,
-      stopChiamatoDa,
-      stopIniziatoAt,
-      ultimoAcquisto,
-      storicoOfferte,
-    );
+    saveSession({
+      players: giocatori,
+      participants: partecipanti,
+      configMode: false,
+      playerInAuction: giocatoreInAsta,
+      currentBid: offertaCorrente,
+      timerStarted: isTimerStarted,
+      lastBidderId: ultimoOfferenteId,
+      paused: isPaused,
+      stopCalledBy: stopChiamatoDa,
+      stopStartedAt: stopIniziatoAt,
+      lastPurchase: ultimoAcquisto,
+      bidHistory: storicoOfferte,
+    });
   };
 
   const sbloccaNomiSquadre = () => {
     setIsConfigMode(true);
-    salvaSuFirebase(
-      giocatori,
-      partecipanti,
-      true,
-      giocatoreInAsta,
-      offertaCorrente,
-      isTimerStarted,
-      ultimoOfferenteId,
-      isPaused,
-      stopChiamatoDa,
-      stopIniziatoAt,
-      ultimoAcquisto,
-      storicoOfferte,
-    );
+    saveSession({
+      players: giocatori,
+      participants: partecipanti,
+      configMode: true,
+      playerInAuction: giocatoreInAsta,
+      currentBid: offertaCorrente,
+      timerStarted: isTimerStarted,
+      lastBidderId: ultimoOfferenteId,
+      paused: isPaused,
+      stopCalledBy: stopChiamatoDa,
+      stopStartedAt: stopIniziatoAt,
+      lastPurchase: ultimoAcquisto,
+      bidHistory: storicoOfferte,
+    });
   };
 
   const chiamaGiocatore = (g) => {
     if (isConfigMode)
       return alert("Completa e salva la configurazione prima di iniziare!");
     setTimer(10);
-    salvaSuFirebase(
-      giocatori,
-      partecipanti,
-      isConfigMode,
-      g,
-      0,
-      false,
-      null,
-      false,
-      null,
-      null,
-      ultimoAcquisto,
-      [],
-    );
+    saveSession({
+      players: giocatori,
+      participants: partecipanti,
+      configMode: isConfigMode,
+      playerInAuction: g,
+      currentBid: 0,
+      timerStarted: false,
+      lastBidderId: null,
+      paused: false,
+      stopCalledBy: null,
+      stopStartedAt: null,
+      lastPurchase: ultimoAcquisto,
+      bidHistory: [],
+    });
   };
 
   const cambiaFiltroRuolo = (ruolo) => {
@@ -299,39 +291,63 @@ export default function App() {
     }
 
     try {
-      await runTransaction(db, async (transaction) => {
-        const sfDoc = await transaction.get(docRef);
-        if (!sfDoc.exists()) return;
-
-        const sessioneCloud = sfDoc.data();
-        if (sessioneCloud.isPaused || !sessioneCloud.isTimerStarted) return;
-
-        const prezzoCloud = sessioneCloud.offertaCorrente || 0;
-        const vecchioStorico = sessioneCloud.storicoOfferte || [];
-        const nuovoPrezzo = prezzoCloud + incremento;
-
-        const nuovaEntrata = {
-          nome: adminNome,
-          importo: nuovoPrezzo,
-          ora: new Date().toLocaleTimeString(),
-        };
-        const nuovoStorico = [nuovaEntrata, ...vecchioStorico].slice(0, 5);
-
-        transaction.update(docRef, {
-          offertaCorrente: nuovoPrezzo,
-          ultimoOfferenteId: adminId,
-          timer: 10,
-          timerEndsAt: Date.now() + AUCTION_DURATION_MS,
-          isPaused: false,
-          stopChiamatoDa: null,
-          stopIniziatoAt: null,
-          storicoOfferte: nuovoStorico,
-        });
+      await placeBid({
+        docRef,
+        bidderId: adminId,
+        bidderName: adminNome,
+        increment: incremento,
       });
     } catch (err) {
       console.error("Errore nel rilancio server: ", err);
     }
   };
+
+  const completaAssegnazione = useCallback(
+    async (vincitore, prezzo) => {
+      const {
+        lastPurchase,
+        updatedParticipants,
+        remainingPlayers,
+        nextPlayer,
+        nextLetter,
+      } = buildPlayerAssignment({
+        players: giocatori,
+        participants: partecipanti,
+        player: giocatoreInAsta,
+        winner: vincitore,
+        price: prezzo,
+        selectedLetter: filtroLettera,
+        activeRoleFilters: filtriRuoliAttivi,
+      });
+
+      setFiltroLettera(nextLetter);
+      setTimer(10);
+      await saveSession({
+        players: remainingPlayers,
+        participants: updatedParticipants,
+        configMode: isConfigMode,
+        playerInAuction: nextPlayer,
+        currentBid: 0,
+        timerStarted: false,
+        lastBidderId: null,
+        paused: false,
+        stopCalledBy: null,
+        stopStartedAt: null,
+        lastPurchase,
+        bidHistory: [],
+      });
+    },
+    [
+      giocatori,
+      partecipanti,
+      giocatoreInAsta,
+      filtroLettera,
+      filtriRuoliAttivi,
+      isConfigMode,
+      saveSession,
+      setTimer,
+    ],
+  );
 
   const assegnaGiocatore = useCallback(async () => {
     if (!giocatoreInAsta) return;
@@ -365,62 +381,13 @@ export default function App() {
       return;
     }
 
-    const dettaglioVincitore = {
-      calciatore: giocatoreInAsta.nome,
-      ruolo: giocatoreInAsta.ruolo,
-      vincitoreNome: vincitore.nome,
-      prezzo: offertaCorrente,
-    };
-
-    const partecipantiAggiornati = partecipanti.map((p) =>
-      p.id === vincitore.id
-        ? {
-          ...p,
-          crediti: p.crediti - offertaCorrente,
-          rosa: [...p.rosa, { ...giocatoreInAsta, prezzo: offertaCorrente }],
-        }
-        : p,
-    );
-
-    const giocatoriRimasti = giocatori.filter(
-      (g) => g.id !== giocatoreInAsta.id,
-    );
-
-    const { player: prossimoGiocatore, letter: prossimaLettera } =
-      findNextPlayer(
-        giocatoriRimasti,
-        filtroLettera,
-        filtriRuoliAttivi,
-        ALPHABET,
-      );
-    setFiltroLettera(prossimaLettera);
-
-    setTimer(10);
-    await salvaSuFirebase(
-      giocatoriRimasti,
-      partecipantiAggiornati,
-      isConfigMode,
-      prossimoGiocatore,
-      0,
-      false,
-      null,
-      false,
-      null,
-      null,
-      dettaglioVincitore,
-      [],
-    );
+    await completaAssegnazione(vincitore, offertaCorrente);
   }, [
     giocatoreInAsta,
     ultimoOfferenteId,
     partecipanti,
     offertaCorrente,
-    giocatori,
-    filtroLettera,
-    filtriRuoliAttivi,
-    isConfigMode,
-    salvaSuFirebase,
-    setTimer,
+    completaAssegnazione,
   ]);
 
   useEffect(() => {
@@ -472,52 +439,9 @@ export default function App() {
       return;
     }
 
-    const dettaglioVincitore = {
-      calciatore: giocatoreInAsta.nome,
-      ruolo: giocatoreInAsta.ruolo,
-      vincitoreNome: vincitore.nome,
-      prezzo: prezzoParsed,
-    };
-
-    const partecipantiAggiornati = partecipanti.map((p) =>
-      p.id === vincitore.id
-        ? {
-          ...p,
-          crediti: p.crediti - prezzoParsed,
-          rosa: [...p.rosa, { ...giocatoreInAsta, prezzo: prezzoParsed }],
-        }
-        : p
-    );
-
-    const giocatoriRimasti = giocatori.filter((g) => g.id !== giocatoreInAsta.id);
-
-    const { player: prossimoGiocatore, letter: prossimaLettera } =
-      findNextPlayer(
-        giocatoriRimasti,
-        filtroLettera,
-        filtriRuoliAttivi,
-        ALPHABET,
-      );
-    setFiltroLettera(prossimaLettera);
-
     setSquadraManualeId("");
     setPrezzoManuale("");
-    setTimer(10);
-
-    await salvaSuFirebase(
-      giocatoriRimasti,
-      partecipantiAggiornati,
-      isConfigMode,
-      prossimoGiocatore,
-      0,
-      false,
-      null,
-      false,
-      null,
-      null,
-      dettaglioVincitore,
-      [],
-    );
+    await completaAssegnazione(vincitore, prezzoParsed);
   };
 
   const ultimoOfferente = partecipanti.find(
