@@ -3,7 +3,7 @@
 Documento operativo per il refactoring strutturale di **Asta Fanta App**.
 
 Ultimo aggiornamento: 9 agosto 2026
-Stato: refactoring in corso; RF-04 completata
+Stato: refactoring in corso; RF-05 completata
 
 ## Obiettivo
 
@@ -122,15 +122,6 @@ Evitare barrel file (`index.js`) e directory con un solo wrapper privo di valore
 
 ### Da fare
 
-#### RF-05 — Isolare sincronizzazione sessione e timer
-
-- Introdurre `useAuctionSession` per snapshot Firestore, stato condiviso e timer derivato.
-- Rendere stabile il riferimento al documento Firestore.
-- Correggere i warning degli effect senza alterare quando avvengono salvataggi, auto-assegnazione e fine STOP.
-- Mantenere l'auto-assegnazione e l'auto-ripresa responsabili della sola vista server.
-
-Verifica: due tab (server e mobile), refresh durante timer, offerta che resetta il timer, STOP e ripresa.
-
 #### RF-06 — Raggruppare le azioni d'asta
 
 - Separare salvataggio sessione, offerte, STOP e assegnazioni solo nella misura in cui gli input rimangono espliciti.
@@ -159,7 +150,7 @@ Verifica: `npm run lint`, `npm run build`, stato Git limitato ai file previsti.
 
 ### In corso
 
-Nessuna card. Il prossimo step consigliato è **RF-05**.
+Nessuna card. Il prossimo step consigliato è **RF-06**.
 
 ### Completato
 
@@ -205,12 +196,21 @@ Nessuna card. Il prossimo step consigliato è **RF-05**.
 - Verificati lint e build; restano i 3 warning già presenti nella baseline.
 - Smoke test eseguito con Firebase fittizio: navigazione Dashboard, Rose, Calendario e Classifica e relativi contenuti corretti; nessuna scrittura sui dati reali.
 
+#### RF-05 — Isolare sincronizzazione sessione e timer
+
+- Creato `useAuctionSession` per stato condiviso, snapshot Firestore, salvataggio della sessione e timer derivati di asta e STOP.
+- Reso stabile il riferimento al documento `asta_fantacalcio/sessione_asta` a livello di modulo.
+- Condiviso il countdown STOP tra server e mobile, rimuovendo l'effect duplicato dal controller mobile.
+- Mantenuti auto-assegnazione e sblocco automatico dello STOP responsabili esclusivamente della vista server.
+- Stabilizzata l'assegnazione automatica con `useCallback`; `npm run lint` passa ora senza i 3 warning degli effect presenti nella baseline.
+- Ripristinato in `App.jsx` l'import di `ROLE_LIMITS`, già usato ma mancante nel commit precedente e quindi potenziale errore runtime nei flussi admin.
+- `App.jsx` è stato ridotto da 771 a circa 617 righe.
+- Verificati lint, build e rendering isolato delle viste server/mobile con Firebase fittizio. Refresh durante timer, offerte e STOP/ripresa richiedono ancora uno smoke test con un Firestore di test o emulatore; nessuna scrittura è stata effettuata sui dati reali.
+
 ## Problemi e rischi preesistenti da non confondere con regressioni
 
 Questi punti non vanno corretti durante gli spostamenti meccanici, salvo richiesta esplicita:
 
-- Oxlint segnala 3 dipendenze mancanti negli effect di `App.jsx`.
-- `docRef` e `salvaSuFirebase` vengono ricreati a ogni render; gli effect iniziali catturano la prima versione.
 - Assegnazione normale/manuale usa stato locale e `setDoc`, non una transazione: più tab server potrebbero creare conflitti.
 - Auto-assegnazione allo scadere e sblocco automatico dello STOP dipendono dalla presenza di una vista server aperta.
 - L'identità mobile non è autenticata: un utente può selezionare qualsiasi squadra.

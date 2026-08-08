@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { doc, setDoc, onSnapshot, runTransaction } from "firebase/firestore";
+import React, { useCallback, useEffect, useState } from "react";
+import { runTransaction } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import MobileController from "./MobileController";
 import AppHeader from "./features/auction/components/AppHeader";
@@ -10,97 +10,59 @@ import PlaceholderView from "./features/auction/components/PlaceholderView";
 import RostersView from "./features/auction/components/RostersView";
 import TeamConfiguration from "./features/auction/components/TeamConfiguration";
 import TeamsSummary from "./features/auction/components/TeamsSummary";
+import useAuctionSession from "./features/auction/hooks/useAuctionSession";
 import {
   ALPHABET,
   INITIAL_PARTICIPANTS,
   INITIAL_PLAYERS,
   INITIAL_ROLE_FILTERS,
+  ROLE_LIMITS,
 } from "./data/auctionDefaults";
-import {
-  AUCTION_DURATION_MS,
-  STOP_DURATION_MS,
-  getRemainingSeconds,
-} from "./timerUtils";
+import { AUCTION_DURATION_MS } from "./timerUtils";
 import {
   filterPlayers,
   findNextPlayer,
-  normalizePlayer,
   normalizePlayers,
-  sortPlayersAlphabetically,
 } from "./utils/playerUtils";
 import "./App.css";
 
 export default function App() {
-  const [giocatori, setGiocatori] = useState(INITIAL_PLAYERS);
-  const [partecipanti, setPartecipanti] = useState(INITIAL_PARTICIPANTS);
-  const [isConfigMode, setIsConfigMode] = useState(true);
-  const [giocatoreInAsta, setGiocatoreInAsta] = useState(null);
-  const [offertaCorrente, setOffertaCorrente] = useState(0);
+  const isMobileView =
+    new URLSearchParams(window.location.search).get("mobile") === "true";
+  const {
+    docRef,
+    giocatori,
+    setGiocatori,
+    partecipanti,
+    setPartecipanti,
+    isConfigMode,
+    setIsConfigMode,
+    giocatoreInAsta,
+    offertaCorrente,
+    isTimerStarted,
+    ultimoOfferenteId,
+    isPaused,
+    stopChiamatoDa,
+    stopIniziatoAt,
+    ultimoAcquisto,
+    storicoOfferte,
+    timer,
+    setTimer,
+    stopTimer,
+    salvaSuFirebase,
+  } = useAuctionSession({ isMobileView });
 
   // 🛠️ Stato per la gestione della vista attiva (Dashboard o Rose)
   const [vistaCorrente, setVistaCorrente] = useState("dashboard");
-
-  const [isTimerStarted, setIsTimerStarted] = useState(false);
-  const [ultimoOfferenteId, setUltimoOfferenteId] = useState(null);
-  const [isPaused, setIsPaused] = useState(false);
-  const [stopChiamatoDa, setStopChiamatoDa] = useState(null);
-  const [stopIniziatoAt, setStopIniziatoAt] = useState(null);
-  const [ultimoAcquisto, setUltimoAcquisto] = useState(null);
 
   // Stati locali per la gestione dell'assegnazione manuale di emergenza
   const [squadraManualeId, setSquadraManualeId] = useState("");
   const [prezzoManuale, setPrezzoManuale] = useState("");
 
-  const [storicoOfferte, setStoricoOfferte] = useState([]);
-  const [timer, setTimer] = useState(10);
-  const [timerEndsAt, setTimerEndsAt] = useState(null);
-  const [stopTimerVisivoServer, setStopTimerVisivoServer] = useState(30);
-
   const [filtroLettera, setFiltroLettera] = useState("TUTTE");
   const [filtriRuoliAttivi, setFiltriRuoliAttivi] = useState(
     INITIAL_ROLE_FILTERS,
   );
-
-  const docRef = doc(db, "asta_fantacalcio", "sessione_asta");
-  const isMobileView =
-    new URLSearchParams(window.location.search).get("mobile") === "true";
-
-  const salvaSuFirebase = async (
-    nuoviG,
-    nuoviP,
-    configMode,
-    gInAsta,
-    offerta,
-    timerStarted = isTimerStarted,
-    offerenteId = ultimoOfferenteId,
-    paused = false,
-    stopDa = null,
-    stopTime = null,
-    ultimoAcq = ultimoAcquisto,
-    storico = storicoOfferte,
-    fineTimer = timerEndsAt,
-  ) => {
-    try {
-      await setDoc(docRef, {
-        giocatori: sortPlayersAlphabetically(nuoviG),
-        partecipanti: nuoviP,
-        isConfigMode: configMode,
-        giocatoreInAsta: gInAsta,
-        offertaCorrente: offerta,
-        isTimerStarted: timerStarted,
-        ultimoOfferenteId: offerenteId,
-        isPaused: paused,
-        stopChiamatoDa: stopDa,
-        stopIniziatoAt: stopTime,
-        ultimoAcquisto: ultimoAcq,
-        storicoOfferte: storico,
-        timer: timer,
-        timerEndsAt: timerStarted && !paused ? fineTimer : null,
-      });
-    } catch (err) {
-      console.error("Errore nel salvataggio su Firestore: ", err);
-    }
-  };
 
   const gestisciCaricamentoJson = (event) => {
     const file = event.target.files[0];
@@ -137,154 +99,6 @@ export default function App() {
     };
     reader.readAsText(file);
   };
-
-  useEffect(() => {
-    const unsub = onSnapshot(docRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        const giocatoriParsed = (data.giocatori || INITIAL_PLAYERS).map(
-          normalizePlayer,
-        );
-        setGiocatori(sortPlayersAlphabetically(giocatoriParsed));
-
-        setPartecipanti(data.partecipanti || INITIAL_PARTICIPANTS);
-        setIsConfigMode(
-          data.isConfigMode !== undefined ? data.isConfigMode : true,
-        );
-        setGiocatoreInAsta(
-          data.giocatoreInAsta ? normalizePlayer(data.giocatoreInAsta) : null,
-        );
-        setOffertaCorrente(data.offertaCorrente || 0);
-        setIsTimerStarted(data.isTimerStarted || false);
-        setUltimoOfferenteId(data.ultimoOfferenteId || null);
-        setIsPaused(data.isPaused || false);
-        setStopChiamatoDa(data.stopChiamatoDa || null);
-        setStopIniziatoAt(data.stopIniziatoAt || null);
-        setUltimoAcquisto(data.ultimoAcquisto || null);
-        setStoricoOfferte(data.storicoOfferte || []);
-
-        const timerSalvato = data.timer !== undefined ? data.timer : 10;
-        setTimer(timerSalvato);
-        setTimerEndsAt(
-          data.timerEndsAt ||
-          (data.isTimerStarted && !data.isPaused && timerSalvato > 0
-            ? Date.now() + (timerSalvato * 1000)
-            : null)
-        );
-      } else {
-        salvaSuFirebase(
-          INITIAL_PLAYERS,
-          INITIAL_PARTICIPANTS,
-          true,
-          null,
-          0,
-          false,
-          null,
-          false,
-          null,
-          null,
-          null,
-          [],
-        );
-      }
-    });
-    return () => unsub();
-  }, []);
-
-  useEffect(() => {
-    if (!giocatoreInAsta || !isTimerStarted || isPaused) return;
-    if (!timerEndsAt) return;
-
-    const aggiornaTimer = () => {
-      setTimer(getRemainingSeconds(timerEndsAt));
-    };
-
-    aggiornaTimer();
-    const intervallo = setInterval(aggiornaTimer, 250);
-    return () => clearInterval(intervallo);
-  }, [giocatoreInAsta, isTimerStarted, isPaused, timerEndsAt]);
-
-  useEffect(() => {
-    let interval = null;
-    let timeout = null;
-
-    if (isPaused && stopIniziatoAt) {
-      const aggiornaTimerStop = () => {
-        const trascorsi = Math.floor((Date.now() - stopIniziatoAt) / 1000);
-        const rimasti = Math.max(0, 30 - trascorsi);
-        setStopTimerVisivoServer(rimasti);
-      };
-
-      aggiornaTimerStop();
-      interval = setInterval(aggiornaTimerStop, 1000);
-
-      const trascorsiMs = Date.now() - stopIniziatoAt;
-      const rimastiMs = Math.max(0, STOP_DURATION_MS - trascorsiMs);
-
-      if (!isMobileView) {
-        timeout = setTimeout(async () => {
-          try {
-            await runTransaction(db, async (transaction) => {
-              const sfDoc = await transaction.get(docRef);
-              if (!sfDoc.exists()) return;
-
-              const sessione = sfDoc.data();
-              if (
-                !sessione.isPaused ||
-                sessione.stopIniziatoAt !== stopIniziatoAt
-              ) {
-                return;
-              }
-
-              const timerRimanenteMs = Math.max(
-                0,
-                sessione.timerRimanenteMs ?? (sessione.timer || 0) * 1000,
-              );
-
-              transaction.update(docRef, {
-                isPaused: false,
-                stopChiamatoDa: null,
-                stopIniziatoAt: null,
-                timerRimanenteMs: null,
-                timer: Math.ceil(timerRimanenteMs / 1000),
-                timerEndsAt:
-                  timerRimanenteMs > 0 ? Date.now() + timerRimanenteMs : null,
-              });
-            });
-          } catch (e) {
-            console.error("Errore nello sblocco automatico dello STOP: ", e);
-          }
-        }, rimastiMs);
-      }
-    } else {
-      setStopTimerVisivoServer(30);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-      if (timeout) clearTimeout(timeout);
-    };
-  }, [isPaused, stopIniziatoAt, isMobileView]);
-
-  useEffect(() => {
-    if (
-      timer === 0 &&
-      giocatoreInAsta &&
-      ultimoOfferenteId &&
-      !isPaused &&
-      isTimerStarted &&
-      !isMobileView
-    ) {
-      assegnaGiocatore();
-    }
-  }, [
-    timer,
-    giocatoreInAsta,
-    ultimoOfferenteId,
-    isPaused,
-    isTimerStarted,
-    isMobileView,
-  ]);
 
   const avviaTimerManualmente = async () => {
     try {
@@ -519,7 +333,7 @@ export default function App() {
     }
   };
 
-  const assegnaGiocatore = async () => {
+  const assegnaGiocatore = useCallback(async () => {
     if (!giocatoreInAsta) return;
 
     if (!ultimoOfferenteId) {
@@ -596,7 +410,39 @@ export default function App() {
       dettaglioVincitore,
       [],
     );
-  };
+  }, [
+    giocatoreInAsta,
+    ultimoOfferenteId,
+    partecipanti,
+    offertaCorrente,
+    giocatori,
+    filtroLettera,
+    filtriRuoliAttivi,
+    isConfigMode,
+    salvaSuFirebase,
+    setTimer,
+  ]);
+
+  useEffect(() => {
+    if (
+      timer === 0 &&
+      giocatoreInAsta &&
+      ultimoOfferenteId &&
+      !isPaused &&
+      isTimerStarted &&
+      !isMobileView
+    ) {
+      assegnaGiocatore();
+    }
+  }, [
+    timer,
+    giocatoreInAsta,
+    ultimoOfferenteId,
+    isPaused,
+    isTimerStarted,
+    isMobileView,
+    assegnaGiocatore,
+  ]);
 
   const assegnaGiocatoreManualmente = async () => {
     if (!giocatoreInAsta) return;
@@ -694,8 +540,8 @@ export default function App() {
         isTimerStarted={isTimerStarted}
         isPaused={isPaused}
         stopChiamatoDa={stopChiamatoDa}
-        stopIniziatoAt={stopIniziatoAt}
         storicoOfferte={storicoOfferte}
+        stopTimer={stopTimer}
         docRef={docRef}
       />
     );
@@ -733,7 +579,7 @@ export default function App() {
             isTimerStarted={isTimerStarted}
             isPaused={isPaused}
             stopCalledBy={stopChiamatoDa}
-            stopTimer={stopTimerVisivoServer}
+            stopTimer={stopTimer}
             timer={timer}
             participants={partecipanti}
             manualTeamId={squadraManualeId}

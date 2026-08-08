@@ -47,7 +47,7 @@ Non leggere, stampare o committare segreti del file `.env`. Non inserire credenz
 
 ```text
 src/
-  App.jsx               # stato globale, Firestore, timer, azioni e composizione UI admin
+  App.jsx               # azioni d'asta e composizione delle viste admin/mobile
   MobileController.jsx  # selezione squadra, offerte e STOP della vista mobile
   data/
     auctionDefaults.js  # giocatori/partecipanti iniziali, limiti, alfabeto e filtri ruolo
@@ -62,6 +62,8 @@ src/
         RostersView.jsx        # dettaglio rose di tutti i partecipanti
         TeamConfiguration.jsx  # configurazione e modifica nomi squadre
         TeamsSummary.jsx       # riepilogo crediti e rose della Dashboard
+      hooks/
+        useAuctionSession.js   # stato condiviso, snapshot, salvataggio e timer asta/STOP
   utils/
     playerUtils.js      # normalizzazione, sort, filtri, conteggi e prossimo giocatore
   firebaseConfig.js     # inizializzazione Firebase/Firestore da import.meta.env
@@ -72,7 +74,7 @@ src/
   main.jsx              # entry point React con StrictMode
 ```
 
-`App.jsx` è il principale obiettivo del refactoring. Shell, Dashboard e viste secondarie admin sono già separate in componenti presentazionali; gli handler di feature restano nel parent. Non riportarne il markup nel file principale e non aggiungere altra logica corposa mentre il refactoring è in corso.
+`App.jsx` è il principale obiettivo del refactoring. Shell, Dashboard e viste secondarie admin sono separate in componenti presentazionali; stato condiviso, snapshot e timer sono isolati in `useAuctionSession`. Gli handler delle azioni d'asta restano nel parent fino a RF-06. Non riportare markup o logica già estratti nel file principale.
 
 ## Funzionamento attuale
 
@@ -131,7 +133,7 @@ participant = {
 
 `ultimoOfferenteId` può essere una stringa perché proviene dal valore di un `<select>` mobile. Il codice attuale usa `parseInt` durante i confronti. Non cambiare tipi o nomi dei campi persistiti senza una migrazione esplicita.
 
-Le offerte e gli STOP usano transazioni Firestore. Timer e STOP condivisi si basano su timestamp assoluti per restare coerenti tra client. Auto-assegnazione e fine automatica dello STOP vengono eseguiti soltanto dalla vista server aperta.
+Le offerte e gli STOP usano transazioni Firestore. Timer e STOP condivisi si basano su timestamp assoluti e vengono derivati da `useAuctionSession` per restare coerenti tra client. Auto-assegnazione e fine automatica dello STOP vengono eseguiti soltanto dalla vista server aperta.
 
 ## Regole per le modifiche
 
@@ -139,7 +141,7 @@ Le offerte e gli STOP usano transazioni Firestore. Timer e STOP condivisi si bas
 - Preferire estrazioni meccaniche e piccoli componenti di feature con props esplicite.
 - Creare componenti UI generici solo quando esiste riuso reale.
 - Preferire funzioni pure per parse, sort, filtri, conteggi e scelta del prossimo giocatore.
-- Usare un custom hook per la sessione Firestore solo quando riduce chiaramente `App.jsx`.
+- Tenere in `useAuctionSession` stato condiviso, snapshot e timer; non spostarvi azioni d'asta non correlate.
 - Non introdurre Redux, Zustand, router, TypeScript, librerie UI o nuove dipendenze senza richiesta.
 - Non usare Context API solo per evitare prop drilling limitato.
 - Non dividere prematuramente `App.css`; preservare classi e markup durante gli spostamenti.
@@ -152,7 +154,7 @@ Le offerte e gli STOP usano transazioni Firestore. Timer e STOP condivisi si bas
 
 Baseline del 2026-08-08:
 
-- `npm run lint` passa con 3 warning `react-hooks/exhaustive-deps` in `App.jsx`.
+- `npm run lint` passa senza warning dopo RF-05.
 - `npm run build` passa; Vite segnala il chunk principale sopra 500 kB.
 - Assegnazione normale/manuale non è transazionale e può essere vulnerabile a più tab server.
 - Il credito disponibile è verificato in assegnazione, non durante ogni offerta.

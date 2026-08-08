@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { runTransaction } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import { ROLE_LIMITS } from "./data/auctionDefaults";
@@ -15,36 +15,11 @@ export default function MobileController({
   isTimerStarted,
   isPaused,
   stopChiamatoDa,
-  stopIniziatoAt,
   storicoOfferte,
+  stopTimer,
   docRef,
 }) {
   const [mioId, setMioId] = useState("");
-  const [stopTimerVisivoClient, setStopTimerVisivoClient] = useState(30);
-
-  useEffect(() => {
-    let interval = null;
-
-    if (isPaused && stopIniziatoAt) {
-      // 1. CALCOLO IMMEDIATO: Lo facciamo subito prima che parta l'intervallo
-      const trascorsiIniziali = Math.floor((Date.now() - stopIniziatoAt) / 1000);
-      setStopTimerVisivoClient(Math.max(0, 30 - trascorsiIniziali));
-
-      // 2. INTERVALLO: Continua ad aggiornare ogni secondo
-      interval = setInterval(() => {
-        const trascorsi = Math.floor((Date.now() - stopIniziatoAt) / 1000);
-        const rimasti = Math.max(0, 30 - trascorsi);
-        setStopTimerVisivoClient(rimasti);
-      }, 1000);
-    } else {
-      // 3. RESET: Quando la pausa finisce, riportiamo il contatore visivo a 30
-      setStopTimerVisivoClient(30);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isPaused, stopIniziatoAt]);
 
   const faiOffertaMobile = async (incremento = 1) => {
     if (!mioId) return alert("Seleziona prima la tua squadra!");
@@ -230,7 +205,7 @@ export default function MobileController({
                 <div style={{ color: "#f87171" }}>
                   🛑 STOP DA: <strong>{stopChiamatoDa}</strong>
                   <div style={{ fontSize: "1.2rem", marginTop: "3px" }}>
-                    ⏱️ Ripresa tra: {stopTimerVisivoClient}s
+                    ⏱️ Ripresa tra: {stopTimer}s
                   </div>
                 </div>
               ) : (
