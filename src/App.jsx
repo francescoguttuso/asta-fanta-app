@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { doc, setDoc, onSnapshot, runTransaction } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import MobileController from "./MobileController";
+import AppHeader from "./features/auction/components/AppHeader";
+import AppNavigation from "./features/auction/components/AppNavigation";
+import TeamConfiguration from "./features/auction/components/TeamConfiguration";
 import {
   ALPHABET,
   INITIAL_PARTICIPANTS,
@@ -690,95 +693,24 @@ export default function App() {
 
   return (
     <div className="container">
-      <div className="header-container">
-        <h1 className="main-title">⚽ FantaRiggio Asta Pro (Server) ⚽</h1>
-        <div className="header-actions">
-          <button onClick={esportaInExcel} className="btn btn-green">
-            📊 Esporta CSV Pulito
-          </button>
+      <AppHeader
+        onExport={esportaInExcel}
+        onImport={gestisciCaricamentoJson}
+        onReset={resettaTutto}
+      />
 
-          <label className="btn btn-blue" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
-            📂 Aggiorna JSON
-            <input
-              type="file"
-              accept=".json"
-              onChange={gestisciCaricamentoJson}
-              style={{ display: "none" }}
-            />
-          </label>
+      <AppNavigation
+        currentView={vistaCorrente}
+        onViewChange={setVistaCorrente}
+      />
 
-          <button onClick={resettaTutto} className="btn btn-orange">
-            ⚠️ Resetta Sessione
-          </button>
-        </div>
-      </div>
-
-      {/* 🛠️ Barra di navigazione interattiva aggiornata */}
-      <nav className="fanta-floating-nav">
-        <span
-          onClick={() => setVistaCorrente("dashboard")}
-          style={{ cursor: "pointer", color: vistaCorrente === "dashboard" ? "#38bdf8" : "#94a3b8" }}
-        >
-          🏠 Dashboard
-        </span>
-        <span
-          onClick={() => setVistaCorrente("rose")}
-          style={{ cursor: "pointer", color: vistaCorrente === "rose" ? "#38bdf8" : "#94a3b8" }}
-        >
-          👥 Rose
-        </span>
-        <span
-          onClick={() => setVistaCorrente("calendario")}
-          style={{ cursor: "pointer", color: vistaCorrente === "calendario" ? "#38bdf8" : "#94a3b8" }}
-        >
-          📅 Calendario
-        </span>
-        <span
-          onClick={() => setVistaCorrente("classifica")}
-          style={{ cursor: "pointer", color: vistaCorrente === "classifica" ? "#38bdf8" : "#94a3b8" }}
-        >
-          🏆 Classifica
-        </span>
-      </nav>
-
-      {isConfigMode ? (
-        <div className="card config-card">
-          <h2>⚙️ Configurazione Iniziale Squadre</h2>
-          <div className="config-grid">
-            {partecipanti.map((p) => (
-              <div
-                key={p.id}
-                style={{ display: "flex", flexDirection: "column" }}
-              >
-                <label style={{ fontSize: "12px", fontWeight: "bold" }}>
-                  Squadra {p.id}
-                </label>
-                <input
-                  type="text"
-                  value={p.nome}
-                  onChange={(e) =>
-                    handleNomeSquadraChange(p.id, e.target.value)
-                  }
-                  className="input-field"
-                />
-              </div>
-            ))}
-          </div>
-          <button
-            onClick={bloccaNomiSquadre}
-            className="btn btn-orange"
-            style={{ width: "100%", padding: "12px" }}
-          >
-            🔒 Avvia Asta Live
-          </button>
-        </div>
-      ) : (
-        <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <button onClick={sbloccaNomiSquadre} className="btn btn-grey">
-            ✏️ Modifica Squadre
-          </button>
-        </div>
-      )}
+      <TeamConfiguration
+        isConfigMode={isConfigMode}
+        participants={partecipanti}
+        onTeamNameChange={handleNomeSquadraChange}
+        onLock={bloccaNomiSquadre}
+        onUnlock={sbloccaNomiSquadre}
+      />
 
       {/* 🛠️ Rendering condizionale in base alla vista selezionata */}
       {vistaCorrente === "dashboard" ? (

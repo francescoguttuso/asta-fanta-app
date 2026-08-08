@@ -47,10 +47,16 @@ Non leggere, stampare o committare segreti del file `.env`. Non inserire credenz
 
 ```text
 src/
-  App.jsx               # stato globale, Firestore, timer, azioni e quasi tutta la UI admin
+  App.jsx               # stato globale, Firestore, timer, azioni e composizione UI admin
   MobileController.jsx  # selezione squadra, offerte e STOP della vista mobile
   data/
     auctionDefaults.js  # giocatori/partecipanti iniziali, limiti, alfabeto e filtri ruolo
+  features/
+    auction/
+      components/
+        AppHeader.jsx          # titolo e azioni import/export/reset
+        AppNavigation.jsx      # navigazione tra le viste admin
+        TeamConfiguration.jsx  # configurazione e modifica nomi squadre
   utils/
     playerUtils.js      # normalizzazione, sort, filtri, conteggi e prossimo giocatore
   firebaseConfig.js     # inizializzazione Firebase/Firestore da import.meta.env
@@ -61,7 +67,7 @@ src/
   main.jsx              # entry point React con StrictMode
 ```
 
-`App.jsx` è il principale obiettivo del refactoring. Non aggiungere altra logica corposa al file mentre il refactoring è in corso.
+`App.jsx` è il principale obiettivo del refactoring. La shell admin è già separata in componenti presentazionali; non riportarne il markup nel file principale e non aggiungere altra logica corposa mentre il refactoring è in corso.
 
 ## Funzionamento attuale
 

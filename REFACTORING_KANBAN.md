@@ -3,7 +3,7 @@
 Documento operativo per il refactoring strutturale di **Asta Fanta App**.
 
 Ultimo aggiornamento: 8 agosto 2026
-Stato: refactoring in corso; RF-01 completata
+Stato: refactoring in corso; RF-02 completata
 
 ## Obiettivo
 
@@ -122,14 +122,6 @@ Evitare barrel file (`index.js`) e directory con un solo wrapper privo di valore
 
 ### Da fare
 
-#### RF-02 — Estrarre i componenti presentazionali della shell admin
-
-- Estrarre header, navigazione e configurazione squadre.
-- Conservare classi CSS, markup visibile, testi e handler.
-- Nessuna modifica alla logica Firestore.
-
-Verifica: lint, build e rapido confronto visivo desktop.
-
 #### RF-03 — Estrarre i blocchi della Dashboard
 
 - Estrarre pannello banditore, filtri/elenco giocatori e riepilogo squadre.
@@ -182,7 +174,7 @@ Verifica: `npm run lint`, `npm run build`, stato Git limitato ai file previsti.
 
 ### In corso
 
-Nessuna card. Il prossimo step consigliato è **RF-02**.
+Nessuna card. Il prossimo step consigliato è **RF-03**.
 
 ### Completato
 
@@ -201,6 +193,14 @@ Nessuna card. Il prossimo step consigliato è **RF-02**.
 - Rimossa da `App.jsx` la duplicazione della scelta del prossimo giocatore nelle assegnazioni normale e manuale.
 - Eliminato `src/database.js`, che non era importato e duplicava dati incompleti.
 - Verificati lint e build (restano i 3 warning già presenti nella baseline) e controllati con input mirati normalizzazione, ordinamento, conteggi e selezione ciclica.
+
+#### RF-02 — Estrarre i componenti presentazionali della shell admin
+
+- Creati `AppHeader`, `AppNavigation` e `TeamConfiguration` sotto `src/features/auction/components/`.
+- Mantenuti invariati testi, classi CSS, stili inline, struttura DOM visibile e handler di `App.jsx`.
+- Lasciata tutta la logica Firestore e di stato nel componente principale.
+- Verificati lint e build; restano i 3 warning già presenti nella baseline.
+- Eseguito uno smoke test desktop isolato da Firebase: header, navigazione, 10 campi squadra e passaggio Dashboard/Rose corretti; confronto visivo a 1440 px senza regressioni rilevate.
 
 ## Problemi e rischi preesistenti da non confondere con regressioni
 
