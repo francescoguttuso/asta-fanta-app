@@ -48,7 +48,6 @@ Non leggere, stampare o committare segreti del file `.env`. Non inserire credenz
 ```text
 src/
   App.jsx               # azioni d'asta e composizione delle viste admin/mobile
-  MobileController.jsx  # selezione squadra, offerte e STOP della vista mobile
   data/
     auctionDefaults.js  # giocatori/partecipanti iniziali, limiti, alfabeto e filtri ruolo
   features/
@@ -65,6 +64,12 @@ src/
         TeamsSummary.jsx       # riepilogo crediti e rose della Dashboard
       hooks/
         useAuctionSession.js   # stato condiviso, snapshot, salvataggio e timer asta/STOP
+    mobile/
+      MobileController.jsx     # selezione locale, validazioni e orchestrazione mobile
+      components/
+        BidHistory.jsx         # storico delle ultime offerte
+        MobileAuctionPanel.jsx # giocatore, timer, rilanci e richiesta STOP
+        TeamSelector.jsx       # selettore squadra e riepilogo crediti/rosa
   utils/
     playerUtils.js      # normalizzazione, sort, filtri, conteggi e prossimo giocatore
   firebaseConfig.js     # inizializzazione Firebase/Firestore da import.meta.env
@@ -75,7 +80,7 @@ src/
   main.jsx              # entry point React con StrictMode
 ```
 
-`App.jsx` è il principale obiettivo del refactoring. Shell, Dashboard e viste secondarie admin sono separate in componenti presentazionali; stato condiviso, snapshot e timer sono isolati in `useAuctionSession`. Le operazioni Firestore e il calcolo condiviso dell'assegnazione sono in `auctionActions.js`; `App.jsx` mantiene orchestrazione, validazioni e messaggi della vista admin. Non riportare markup o logica già estratti nel file principale.
+`App.jsx` è il principale obiettivo del refactoring. Shell, Dashboard e viste secondarie admin sono separate in componenti presentazionali; stato condiviso, snapshot e timer sono isolati in `useAuctionSession`. Le operazioni Firestore e il calcolo condiviso dell'assegnazione sono in `auctionActions.js`; `App.jsx` mantiene orchestrazione, validazioni e messaggi della vista admin. La vista mobile è organizzata sotto `features/mobile/`, con logica nel controller e markup nei tre componenti dedicati. Non riportare markup o logica già estratti nei controller.
 
 ## Funzionamento attuale
 

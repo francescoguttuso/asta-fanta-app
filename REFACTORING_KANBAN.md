@@ -3,7 +3,7 @@
 Documento operativo per il refactoring strutturale di **Asta Fanta App**.
 
 Ultimo aggiornamento: 9 agosto 2026
-Stato: refactoring in corso; RF-06 completata
+Stato: refactoring in corso; RF-07 completata
 
 ## Obiettivo
 
@@ -122,14 +122,6 @@ Evitare barrel file (`index.js`) e directory con un solo wrapper privo di valore
 
 ### Da fare
 
-#### RF-07 — Alleggerire il controller mobile (solo se utile)
-
-- Spostare il file sotto `features/mobile/`.
-- Estrarre selettore squadra, pannello offerta e storico soltanto se il file resta difficile da leggere.
-- Valutare la condivisione dell'azione di offerta con l'admin, mantenendo distinta la UI.
-
-Verifica: selezione squadra, offerte, STOP esauriti e aggiornamento rosa.
-
 #### RF-08 — Pulizia finale e documentazione
 
 - Rimuovere import, helper e CSS certamente inutilizzati solo dopo il completamento degli spostamenti.
@@ -141,7 +133,7 @@ Verifica: `npm run lint`, `npm run build`, stato Git limitato ai file previsti.
 
 ### In corso
 
-Nessuna card. Il prossimo step consigliato è **RF-07**.
+Nessuna card. Il prossimo step consigliato è **RF-08**.
 
 ### Completato
 
@@ -208,6 +200,14 @@ Nessuna card. Il prossimo step consigliato è **RF-07**.
 - `App.jsx` è stato ridotto da circa 617 a 541 righe; anche `MobileController.jsx` è stato alleggerito dalle transazioni inline.
 - Verificati `npm run lint`, `npm run build`, payload Firestore e dipendenze degli effect. I flussi concorrenti completi richiedono ancora un Firestore di test o emulatore e non sono stati eseguiti sui dati reali.
 - Dopo il primo smoke test utente, ripristinato l'import di `sortPlayersAlphabetically` ancora necessario allo snapshot; verificato nel browser che il banditore e la sessione Firestore esistente vengano caricati senza errori console.
+
+#### RF-07 — Alleggerire il controller mobile
+
+- Spostato `MobileController.jsx` sotto `src/features/mobile/` e aggiornato l'import della vista in `App.jsx`.
+- Estratti `TeamSelector`, `MobileAuctionPanel` e `BidHistory` come componenti presentazionali con props e callback esplicite.
+- Lasciate nel controller selezione locale, validazioni di ruolo/STOP e orchestrazione delle azioni condivise `placeBid` e `requestAuctionStop`.
+- Ridotto il controller da circa 228 a 118 righe senza modificare classi CSS, testi o comportamento della vista.
+- Verificati lint e build. Smoke test mobile eseguito sulla sessione esistente: caricamento giocatore, 10 squadre, selezione squadra, crediti/rosa, STOP esauriti e storico corretti; console senza errori e nessuna scrittura Firestore effettuata.
 
 ## Problemi e rischi preesistenti da non confondere con regressioni
 

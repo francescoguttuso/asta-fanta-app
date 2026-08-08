@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import MobileController from "./MobileController";
+import MobileController from "./features/mobile/MobileController";
 import {
   buildPlayerAssignment,
   placeBid,
