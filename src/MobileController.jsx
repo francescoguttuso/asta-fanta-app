@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { runTransaction } from "firebase/firestore";
 import { db } from "./firebaseConfig";
+import { ROLE_LIMITS } from "./data/auctionDefaults";
 import {
   AUCTION_DURATION_MS,
   getRemainingMilliseconds,
 } from "./timerUtils";
-
-const LIMITI_RUOLI = { P: 3, D: 8, C: 8, A: 6 };
 
 export default function MobileController({
   partecipanti,
@@ -58,9 +57,9 @@ export default function MobileController({
         (g) => g.ruolo === ruoloCorrente,
       ).length;
 
-      if (quantitaInRosa >= (LIMITI_RUOLI[ruoloCorrente] || 0)) {
+      if (quantitaInRosa >= (ROLE_LIMITS[ruoloCorrente] || 0)) {
         alert(
-          `⛔ Impossibile rilanciare: hai già completato il reparto dei ${ruoloCorrente} (${LIMITI_RUOLI[ruoloCorrente]}/${LIMITI_RUOLI[ruoloCorrente]})!`,
+          `⛔ Impossibile rilanciare: hai già completato il reparto dei ${ruoloCorrente} (${ROLE_LIMITS[ruoloCorrente]}/${ROLE_LIMITS[ruoloCorrente]})!`,
         );
         return;
       }

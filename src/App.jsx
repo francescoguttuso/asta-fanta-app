@@ -1,50 +1,32 @@
 import React, { useState, useEffect } from "react";
 import { doc, setDoc, onSnapshot, runTransaction } from "firebase/firestore";
 import { db } from "./firebaseConfig";
-import datiJson from "./giocatori.json";
 import MobileController from "./MobileController";
+import {
+  ALPHABET,
+  INITIAL_PARTICIPANTS,
+  INITIAL_PLAYERS,
+  INITIAL_ROLE_FILTERS,
+  ROLE_LIMITS,
+} from "./data/auctionDefaults";
 import {
   AUCTION_DURATION_MS,
   STOP_DURATION_MS,
   getRemainingSeconds,
 } from "./timerUtils";
+import {
+  countRosterRoles,
+  filterPlayers,
+  findNextPlayer,
+  normalizePlayer,
+  normalizePlayers,
+  sortPlayersAlphabetically,
+} from "./utils/playerUtils";
 import "./App.css";
 
-const parsePlayer = (player) => ({
-  id: player.id,
-  nome: player.nome || player.name || "Sconosciuto",
-  squadra: player.squadra || player.team || "N.D.",
-  ruolo:
-    typeof player.ruolo === "object"
-      ? player.ruolo.code
-      : player.ruolo || player.role?.code || "D",
-});
-
-// 📌 ORDINAMENTO ALFABETICO COMPLETO: Confronta l'intera stringa lettera per lettera in italiano
-const ordinaGiocatoriAlfabeticamente = (lista) => {
-  return [...lista].sort((a, b) =>
-    a.nome.localeCompare(b.nome, "it", { sensitivity: "base", numeric: true }),
-  );
-};
-
-const GIOCATORI_INITIAL = ordinaGiocatoriAlfabeticamente(
-  (datiJson.players || datiJson).map(parsePlayer),
-);
-
-const PARTECIPANTI_INITIAL = Array.from({ length: 10 }, (_, i) => ({
-  id: i + 1,
-  nome: `Fanta Squadra ${i + 1}`,
-  crediti: 500,
-  rosa: [],
-  stopDisponibili: 2,
-}));
-
-const LIMITI_RUOLI = { P: 3, D: 8, C: 8, A: 6 };
-const ALFABETO = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-
 export default function App() {
-  const [giocatori, setGiocatori] = useState(GIOCATORI_INITIAL);
-  const [partecipanti, setPartecipanti] = useState(PARTECIPANTI_INITIAL);
+  const [giocatori, setGiocatori] = useState(INITIAL_PLAYERS);
+  const [partecipanti, setPartecipanti] = useState(INITIAL_PARTICIPANTS);
   const [isConfigMode, setIsConfigMode] = useState(true);
   const [giocatoreInAsta, setGiocatoreInAsta] = useState(null);
   const [offertaCorrente, setOffertaCorrente] = useState(0);
@@ -69,12 +51,9 @@ export default function App() {
   const [stopTimerVisivoServer, setStopTimerVisivoServer] = useState(30);
 
   const [filtroLettera, setFiltroLettera] = useState("TUTTE");
-  const [filtriRuoliAttivi, setFiltriRuoliAttivi] = useState({
-    P: true,
-    D: true,
-    C: true,
-    A: true,
-  });
+  const [filtriRuoliAttivi, setFiltriRuoliAttivi] = useState(
+    INITIAL_ROLE_FILTERS,
+  );
 
   const docRef = doc(db, "asta_fantacalcio", "sessione_asta");
   const isMobileView =
@@ -97,7 +76,7 @@ export default function App() {
   ) => {
     try {
       await setDoc(docRef, {
-        giocatori: ordinaGiocatoriAlfabeticamente(nuoviG),
+        giocatori: sortPlayersAlphabetically(nuoviG),
         partecipanti: nuoviP,
         isConfigMode: configMode,
         giocatoreInAsta: gInAsta,
@@ -126,9 +105,7 @@ export default function App() {
       try {
         const contenutoJson = JSON.parse(e.target.result);
         const arrayGrezzo = contenutoJson.players || contenutoJson;
-        const nuoviGiocatoriParsed = ordinaGiocatoriAlfabeticamente(
-          arrayGrezzo.map(parsePlayer)
-        );
+        const nuoviGiocatoriParsed = normalizePlayers(arrayGrezzo);
 
         setGiocatori(nuoviGiocatoriParsed);
         salvaSuFirebase(
@@ -159,17 +136,17 @@ export default function App() {
     const unsub = onSnapshot(docRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        const giocatoriParsed = (data.giocatori || GIOCATORI_INITIAL).map(
-          parsePlayer,
+        const giocatoriParsed = (data.giocatori || INITIAL_PLAYERS).map(
+          normalizePlayer,
         );
-        setGiocatori(ordinaGiocatoriAlfabeticamente(giocatoriParsed));
+        setGiocatori(sortPlayersAlphabetically(giocatoriParsed));
 
-        setPartecipanti(data.partecipanti || PARTECIPANTI_INITIAL);
+        setPartecipanti(data.partecipanti || INITIAL_PARTICIPANTS);
         setIsConfigMode(
           data.isConfigMode !== undefined ? data.isConfigMode : true,
         );
         setGiocatoreInAsta(
-          data.giocatoreInAsta ? parsePlayer(data.giocatoreInAsta) : null,
+          data.giocatoreInAsta ? normalizePlayer(data.giocatoreInAsta) : null,
         );
         setOffertaCorrente(data.offertaCorrente || 0);
         setIsTimerStarted(data.isTimerStarted || false);
@@ -190,8 +167,8 @@ export default function App() {
         );
       } else {
         salvaSuFirebase(
-          GIOCATORI_INITIAL,
-          PARTECIPANTI_INITIAL,
+          INITIAL_PLAYERS,
+          INITIAL_PARTICIPANTS,
           true,
           null,
           0,
@@ -355,12 +332,9 @@ export default function App() {
         "Attenzione! Vuoi resettare l'intera sessione d'asta e ricaricare i giocatori dal file JSON?",
       )
     ) {
-      const giocatoriFresiDalJson = ordinaGiocatoriAlfabeticamente(
-        (datiJson.players || datiJson).map(parsePlayer),
-      );
       salvaSuFirebase(
-        giocatoriFresiDalJson,
-        PARTECIPANTI_INITIAL,
+        INITIAL_PLAYERS,
+        INITIAL_PARTICIPANTS,
         true,
         null,
         0,
@@ -489,9 +463,9 @@ export default function App() {
         (g) => g.ruolo === ruoloCorrente,
       ).length;
 
-      if (quantitaInRosa >= (LIMITI_RUOLI[ruoloCorrente] || 0)) {
+      if (quantitaInRosa >= (ROLE_LIMITS[ruoloCorrente] || 0)) {
         alert(
-          `⛔ Impossibile offrire: hai già completato i ${ruoloCorrente} (${LIMITI_RUOLI[ruoloCorrente]}/${LIMITI_RUOLI[ruoloCorrente]})!`,
+          `⛔ Impossibile offrire: hai già completato i ${ruoloCorrente} (${ROLE_LIMITS[ruoloCorrente]}/${ROLE_LIMITS[ruoloCorrente]})!`,
         );
         return;
       }
@@ -557,9 +531,9 @@ export default function App() {
       (g) => g.ruolo === ruoloCorrente,
     ).length;
 
-    if (quantitaInRosa >= (LIMITI_RUOLI[ruoloCorrente] || 0)) {
+    if (quantitaInRosa >= (ROLE_LIMITS[ruoloCorrente] || 0)) {
       alert(
-        `❌ Limite raggiunto! ${vincitore.nome} ha già completato i ${ruoloCorrente} (${LIMITI_RUOLI[ruoloCorrente]}/${LIMITI_RUOLI[ruoloCorrente]}). Assegnazione bloccata.`,
+        `❌ Limite raggiunto! ${vincitore.nome} ha già completato i ${ruoloCorrente} (${ROLE_LIMITS[ruoloCorrente]}/${ROLE_LIMITS[ruoloCorrente]}). Assegnazione bloccata.`,
       );
       return;
     }
@@ -585,42 +559,14 @@ export default function App() {
       (g) => g.id !== giocatoreInAsta.id,
     );
 
-    let prossimoGiocatore = null;
-    if (giocatoriRimasti.length > 0) {
-      const ordinatiAlfabeticamente =
-        ordinaGiocatoriAlfabeticamente(giocatoriRimasti);
-
-      let letteraDiPartenza =
-        filtroLettera === "TUTTE"
-          ? ordinatiAlfabeticamente[0].nome[0].toUpperCase()
-          : filtroLettera;
-
-      const trovaConLetteraCiclica = (startLetter) => {
-        const indiceLetteraIniziale = ALFABETO.indexOf(startLetter);
-        for (let i = 0; i < ALFABETO.length; i++) {
-          const indexCorrente = (indiceLetteraIniziale + i) % ALFABETO.length;
-          const letteraCercata = ALFABETO[indexCorrente];
-
-          const candidato = ordinatiAlfabeticamente.find((g) => {
-            const rispettaLettera = g.nome
-              .toUpperCase()
-              .startsWith(letteraCercata);
-            const rispettaRuolo = filtriRuoliAttivi[g.ruolo];
-            return rispettaLettera && rispettaRuolo;
-          });
-
-          if (candidato) {
-            if (filtroLettera !== "TUTTE") {
-              setFiltroLettera(letteraCercata);
-            }
-            return candidato;
-          }
-        }
-        return ordinatiAlfabeticamente[0];
-      };
-
-      prossimoGiocatore = trovaConLetteraCiclica(letteraDiPartenza);
-    }
+    const { player: prossimoGiocatore, letter: prossimaLettera } =
+      findNextPlayer(
+        giocatoriRimasti,
+        filtroLettera,
+        filtriRuoliAttivi,
+        ALPHABET,
+      );
+    setFiltroLettera(prossimaLettera);
 
     setTimer(10);
     await salvaSuFirebase(
@@ -662,8 +608,8 @@ export default function App() {
     const ruoloCorrente = giocatoreInAsta.ruolo;
     const quantitaInRosa = vincitore.rosa.filter((g) => g.ruolo === ruoloCorrente).length;
 
-    if (quantitaInRosa >= (LIMITI_RUOLI[ruoloCorrente] || 0)) {
-      alert(`❌ Limite raggiunto! ${vincitore.nome} ha già completato i ${ruoloCorrente} (${LIMITI_RUOLI[ruoloCorrente]}/${LIMITI_RUOLI[ruoloCorrente]}).`);
+    if (quantitaInRosa >= (ROLE_LIMITS[ruoloCorrente] || 0)) {
+      alert(`❌ Limite raggiunto! ${vincitore.nome} ha già completato i ${ruoloCorrente} (${ROLE_LIMITS[ruoloCorrente]}/${ROLE_LIMITS[ruoloCorrente]}).`);
       return;
     }
 
@@ -686,30 +632,14 @@ export default function App() {
 
     const giocatoriRimasti = giocatori.filter((g) => g.id !== giocatoreInAsta.id);
 
-    let prossimoGiocatore = null;
-    if (giocatoriRimasti.length > 0) {
-      const ordinatiAlfabeticamente = ordinaGiocatoriAlfabeticamente(giocatoriRimasti);
-      let letteraDiPartenza = filtroLettera === "TUTTE" ? ordinatiAlfabeticamente[0].nome[0].toUpperCase() : filtroLettera;
-
-      const trovaConLetteraCiclica = (startLetter) => {
-        const indiceLetteraIniziale = ALFABETO.indexOf(startLetter);
-        for (let i = 0; i < ALFABETO.length; i++) {
-          const indexCorrente = (indiceLetteraIniziale + i) % ALFABETO.length;
-          const letteraCercata = ALFABETO[indexCorrente];
-          const candidato = ordinatiAlfabeticamente.find((g) => {
-            const rispettaLettera = g.nome.toUpperCase().startsWith(letteraCercata);
-            const rispettaRuolo = filtriRuoliAttivi[g.ruolo];
-            return rispettaLettera && rispettaRuolo;
-          });
-          if (candidato) {
-            if (filtroLettera !== "TUTTE") setFiltroLettera(letteraCercata);
-            return candidato;
-          }
-        }
-        return ordinatiAlfabeticamente[0];
-      };
-      prossimoGiocatore = trovaConLetteraCiclica(letteraDiPartenza);
-    }
+    const { player: prossimoGiocatore, letter: prossimaLettera } =
+      findNextPlayer(
+        giocatoriRimasti,
+        filtroLettera,
+        filtriRuoliAttivi,
+        ALPHABET,
+      );
+    setFiltroLettera(prossimaLettera);
 
     setSquadraManualeId("");
     setPrezzoManuale("");
@@ -735,14 +665,10 @@ export default function App() {
     (p) => p.id === parseInt(ultimoOfferenteId),
   );
 
-  const giocatoriFiltrati = ordinaGiocatoriAlfabeticamente(giocatori).filter(
-    (g) => {
-      const rispettaLettera =
-        filtroLettera === "TUTTE" ||
-        g.nome.toUpperCase().startsWith(filtroLettera);
-      const rispettaRuolo = filtriRuoliAttivi[g.ruolo];
-      return rispettaLettera && rispettaRuolo;
-    },
+  const giocatoriFiltrati = filterPlayers(
+    giocatori,
+    filtroLettera,
+    filtriRuoliAttivi,
   );
 
   if (isMobileView) {
@@ -1054,12 +980,7 @@ export default function App() {
           <div className="card teams-card">
             <h2>👥 Rose e Crediti Residui</h2>
             {partecipanti.map((p) => {
-              const contiRuoli = {
-                P: p.rosa.filter((g) => g.ruolo === "P").length,
-                D: p.rosa.filter((g) => g.ruolo === "D").length,
-                C: p.rosa.filter((g) => g.ruolo === "C").length,
-                A: p.rosa.filter((g) => g.ruolo === "A").length,
-              };
+              const contiRuoli = countRosterRoles(p.rosa, ROLE_LIMITS);
               return (
                 <div
                   key={p.id}
@@ -1151,7 +1072,7 @@ export default function App() {
               >
                 TUTTE
               </button>
-              {ALFABETO.map((lettera) => (
+              {ALPHABET.map((lettera) => (
                 <button
                   key={lettera}
                   onClick={() => setFiltroLettera(lettera)}
@@ -1193,12 +1114,7 @@ export default function App() {
         <div className="card" style={{ width: "100%", marginTop: "20px" }}>
           <h2>👥 Gestione Dettagliata Rose di Tutti i Partecipanti</h2>
           {partecipanti.map((p) => {
-            const contiRuoli = {
-              P: p.rosa.filter((g) => g.ruolo === "P").length,
-              D: p.rosa.filter((g) => g.ruolo === "D").length,
-              C: p.rosa.filter((g) => g.ruolo === "C").length,
-              A: p.rosa.filter((g) => g.ruolo === "A").length,
-            };
+            const contiRuoli = countRosterRoles(p.rosa, ROLE_LIMITS);
             return (
               <div key={p.id} style={{ marginBottom: "20px", borderBottom: "1px solid #334155", paddingBottom: "15px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
