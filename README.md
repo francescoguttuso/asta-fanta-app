@@ -61,7 +61,7 @@ Il file `.env` è ignorato da Git e non deve essere committato.
 | `npm run build` | Genera la build di produzione in `dist/` |
 | `npm run preview` | Avvia localmente la build di produzione |
 
-Non è presente una suite di test automatizzata. Per le modifiche strutturali vengono usati lint, build e smoke test browser mirati.
+Non è presente una suite di test automatizzata. Per verificare le modifiche vengono usati lint, build e smoke test browser mirati.
 
 ## Dati e sincronizzazione
 
@@ -95,7 +95,7 @@ src/
   giocatori.json
 ```
 
-Per il contesto tecnico completo leggere [AGENTS.md](./AGENTS.md). Il piano e lo storico del refactoring sono in [REFACTORING_KANBAN.md](./REFACTORING_KANBAN.md).
+Per il contesto tecnico completo e le indicazioni operative leggere [AGENTS.md](./AGENTS.md).
 
 ## Limiti attuali dell'MVP
 
