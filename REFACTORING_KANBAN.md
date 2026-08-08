@@ -3,7 +3,7 @@
 Documento operativo per il refactoring strutturale di **Asta Fanta App**.
 
 Ultimo aggiornamento: 9 agosto 2026
-Stato: refactoring in corso; RF-03 completata
+Stato: refactoring in corso; RF-04 completata
 
 ## Obiettivo
 
@@ -122,13 +122,6 @@ Evitare barrel file (`index.js`) e directory con un solo wrapper privo di valore
 
 ### Da fare
 
-#### RF-04 — Estrarre le viste secondarie
-
-- Estrarre vista Rose e placeholder Calendario/Classifica.
-- Riutilizzare una funzione semplice per il conteggio ruoli, senza creare componenti generici non necessari.
-
-Verifica: navigazione tra tutte le voci e contenuti invariati.
-
 #### RF-05 — Isolare sincronizzazione sessione e timer
 
 - Introdurre `useAuctionSession` per snapshot Firestore, stato condiviso e timer derivato.
@@ -166,7 +159,7 @@ Verifica: `npm run lint`, `npm run build`, stato Git limitato ai file previsti.
 
 ### In corso
 
-Nessuna card. Il prossimo step consigliato è **RF-04**.
+Nessuna card. Il prossimo step consigliato è **RF-05**.
 
 ### Completato
 
@@ -202,6 +195,15 @@ Nessuna card. Il prossimo step consigliato è **RF-04**.
 - `App.jsx` è stato ridotto da 1.081 a circa 800 righe.
 - Verificati lint e build; restano i 3 warning già presenti nella baseline.
 - Smoke test desktop eseguito con Firebase fittizio: rendering dei tre pannelli, conteggi, filtro ruolo, filtro lettera e navigazione Dashboard/Rose corretti; nessuna scrittura sui dati reali.
+
+#### RF-04 — Estrarre le viste secondarie
+
+- Creati `RostersView` e `PlaceholderView` sotto `src/features/auction/components/`.
+- Spostata la vista Rose mantenendo il conteggio ruoli tramite `countRosterRoles` e gli stessi contenuti e stili.
+- Condiviso un solo placeholder semplice tra Calendario e Classifica.
+- `App.jsx` è stato ridotto da circa 800 a 771 righe.
+- Verificati lint e build; restano i 3 warning già presenti nella baseline.
+- Smoke test eseguito con Firebase fittizio: navigazione Dashboard, Rose, Calendario e Classifica e relativi contenuti corretti; nessuna scrittura sui dati reali.
 
 ## Problemi e rischi preesistenti da non confondere con regressioni
 

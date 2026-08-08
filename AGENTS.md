@@ -58,6 +58,8 @@ src/
         AppNavigation.jsx      # navigazione tra le viste admin
         AuctionPanel.jsx       # banditore, timer, offerte e assegnazioni
         AvailablePlayers.jsx   # filtri ed elenco dei giocatori disponibili
+        PlaceholderView.jsx    # placeholder Calendario/Classifica
+        RostersView.jsx        # dettaglio rose di tutti i partecipanti
         TeamConfiguration.jsx  # configurazione e modifica nomi squadre
         TeamsSummary.jsx       # riepilogo crediti e rose della Dashboard
   utils/
@@ -70,7 +72,7 @@ src/
   main.jsx              # entry point React con StrictMode
 ```
 
-`App.jsx` è il principale obiettivo del refactoring. Shell e Dashboard admin sono già separate in componenti presentazionali; gli handler di feature restano nel parent. Non riportarne il markup nel file principale e non aggiungere altra logica corposa mentre il refactoring è in corso.
+`App.jsx` è il principale obiettivo del refactoring. Shell, Dashboard e viste secondarie admin sono già separate in componenti presentazionali; gli handler di feature restano nel parent. Non riportarne il markup nel file principale e non aggiungere altra logica corposa mentre il refactoring è in corso.
 
 ## Funzionamento attuale
 

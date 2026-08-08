@@ -6,6 +6,8 @@ import AppHeader from "./features/auction/components/AppHeader";
 import AppNavigation from "./features/auction/components/AppNavigation";
 import AuctionPanel from "./features/auction/components/AuctionPanel";
 import AvailablePlayers from "./features/auction/components/AvailablePlayers";
+import PlaceholderView from "./features/auction/components/PlaceholderView";
+import RostersView from "./features/auction/components/RostersView";
 import TeamConfiguration from "./features/auction/components/TeamConfiguration";
 import TeamsSummary from "./features/auction/components/TeamsSummary";
 import {
@@ -13,7 +15,6 @@ import {
   INITIAL_PARTICIPANTS,
   INITIAL_PLAYERS,
   INITIAL_ROLE_FILTERS,
-  ROLE_LIMITS,
 } from "./data/auctionDefaults";
 import {
   AUCTION_DURATION_MS,
@@ -21,7 +22,6 @@ import {
   getRemainingSeconds,
 } from "./timerUtils";
 import {
-  countRosterRoles,
   filterPlayers,
   findNextPlayer,
   normalizePlayer,
@@ -762,38 +762,9 @@ export default function App() {
           />
         </div>
       ) : vistaCorrente === "rose" ? (
-        <div className="card" style={{ width: "100%", marginTop: "20px" }}>
-          <h2>👥 Gestione Dettagliata Rose di Tutti i Partecipanti</h2>
-          {partecipanti.map((p) => {
-            const contiRuoli = countRosterRoles(p.rosa, ROLE_LIMITS);
-            return (
-              <div key={p.id} style={{ marginBottom: "20px", borderBottom: "1px solid #334155", paddingBottom: "15px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h3 style={{ color: "#38bdf8", margin: 0 }}>{p.nome}</h3>
-                  <span style={{ color: "#10b981", fontWeight: "bold" }}>Crediti Residui: {p.crediti} FM</span>
-                </div>
-                <div style={{ fontSize: "0.85rem", color: "#fbbf24", marginTop: "5px" }}>
-                  Composizione Ruoli: P: {contiRuoli.P}/3 | D: {contiRuoli.D}/8 | C: {contiRuoli.C}/8 | A: {contiRuoli.A}/6
-                </div>
-                {p.rosa.length > 0 ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "10px" }}>
-                    {p.rosa.map((g, index) => (
-                      <span key={index} style={{ background: "#1e293b", padding: "6px 10px", borderRadius: "6px", fontSize: "0.85rem", border: "1px solid #475569" }}>
-                        <strong>{g.nome}</strong> ({g.ruolo}) - <em>{g.prezzo} FM</em>
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p style={{ fontStyle: "italic", color: "#64748b", fontSize: "0.85rem", marginTop: "8px" }}>Nessun giocatore in rosa al momento.</p>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <RostersView participants={partecipanti} />
       ) : (
-        <div className="card" style={{ width: "100%", marginTop: "20px", textAlign: "center", padding: "40px" }}>
-          <h2 style={{ color: "#94a3b8" }}>Sezione "{vistaCorrente.toUpperCase()}" in fase di sviluppo...</h2>
-        </div>
+        <PlaceholderView view={vistaCorrente} />
       )}
     </div>
   );
