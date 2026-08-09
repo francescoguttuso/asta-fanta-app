@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { INITIAL_PARTICIPANTS, INITIAL_PLAYERS } from '@/data/auctionDefaults';
-import { STOP_DURATION_MS, getRemainingSeconds } from '@/timerUtils';
+import { STOP_DURATION_MS, getRemainingSeconds } from '@/utils/timerUtils';
 import {
   normalizePlayer,
   sortPlayersAlphabetically,

@@ -1,7 +1,10 @@
 import { runTransaction, setDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { ALPHABET } from '@/data/auctionDefaults';
-import { AUCTION_DURATION_MS, getRemainingMilliseconds } from '@/timerUtils';
+import {
+  AUCTION_DURATION_MS,
+  getRemainingMilliseconds,
+} from '@/utils/timerUtils';
 import { findNextPlayer, sortPlayersAlphabetically } from '@/utils/playerUtils';
 
 export const saveAuctionSession = async ({
