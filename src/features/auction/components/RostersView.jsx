@@ -1,11 +1,14 @@
 import { ROLE_LIMITS } from "../../../data/auctionDefaults";
 import { countRosterRoles } from "../../../utils/playerUtils";
+import { useAuctionSessionContext } from "../context/useAuctionContexts";
 
-export default function RostersView({ participants }) {
+export default function RostersView() {
+  const { partecipanti } = useAuctionSessionContext();
+
   return (
     <div className="card" style={{ width: "100%", marginTop: "20px" }}>
       <h2>👥 Gestione Dettagliata Rose di Tutti i Partecipanti</h2>
-      {participants.map((participant) => {
+      {partecipanti.map((participant) => {
         const roleCounts = countRosterRoles(participant.rosa, ROLE_LIMITS);
 
         return (

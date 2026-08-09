@@ -24,9 +24,6 @@ const AUCTION_SESSION_REF = doc(
   "sessione_asta",
 );
 
-const withDefault = (value, fallback) =>
-  value === undefined ? fallback : value;
-
 export default function useAuctionSession({ isMobileView }) {
   const [giocatori, setGiocatori] = useState(INITIAL_PLAYERS);
   const [partecipanti, setPartecipanti] = useState(INITIAL_PARTICIPANTS);
@@ -46,64 +43,36 @@ export default function useAuctionSession({ isMobileView }) {
 
   const currentSessionRef = useRef(null);
   currentSessionRef.current = {
-    isTimerStarted,
-    ultimoOfferenteId,
-    ultimoAcquisto,
-    storicoOfferte,
+    players: giocatori,
+    participants: partecipanti,
+    configMode: isConfigMode,
+    playerInAuction: giocatoreInAsta,
+    currentBid: offertaCorrente,
+    timerStarted: isTimerStarted,
+    lastBidderId: ultimoOfferenteId,
+    paused: isPaused,
+    stopCalledBy: stopChiamatoDa,
+    stopStartedAt: stopIniziatoAt,
+    lastPurchase: ultimoAcquisto,
+    bidHistory: storicoOfferte,
     timer,
     timerEndsAt,
   };
 
   const saveSession = useCallback(
-    async ({
-      players,
-      participants,
-      configMode,
-      playerInAuction,
-      currentBid,
-      timerStarted,
-      lastBidderId,
-      paused = false,
-      stopCalledBy = null,
-      stopStartedAt = null,
-      lastPurchase,
-      bidHistory,
-      endsAt,
-    }) => {
+    async (changes = {}) => {
       const currentSession = currentSessionRef.current;
-      const nextTimerStarted = withDefault(
-        timerStarted,
-        currentSession.isTimerStarted,
-      );
+      const nextSession = { ...currentSession, ...changes };
+      const nextTimerStarted = nextSession.timerStarted;
 
       try {
         await saveAuctionSession({
           docRef: AUCTION_SESSION_REF,
-          players,
-          participants,
-          configMode,
-          playerInAuction,
-          currentBid,
+          ...nextSession,
           timerStarted: nextTimerStarted,
-          lastBidderId: withDefault(
-            lastBidderId,
-            currentSession.ultimoOfferenteId,
-          ),
-          paused,
-          stopCalledBy,
-          stopStartedAt,
-          lastPurchase: withDefault(
-            lastPurchase,
-            currentSession.ultimoAcquisto,
-          ),
-          bidHistory: withDefault(
-            bidHistory,
-            currentSession.storicoOfferte,
-          ),
-          timer: currentSession.timer,
           timerEndsAt:
-            nextTimerStarted && !paused
-              ? withDefault(endsAt, currentSession.timerEndsAt)
+            nextTimerStarted && !nextSession.paused
+              ? changes.endsAt ?? nextSession.timerEndsAt
               : null,
         });
       } catch (err) {

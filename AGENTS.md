@@ -45,11 +45,12 @@ Non leggere, stampare o committare segreti del file `.env`. Non inserire credenz
 
 ```text
 src/
-  App.jsx               # azioni d'asta e composizione delle viste admin/mobile
+  App.jsx               # scelta admin/mobile e provider della sessione condivisa
   data/
     auctionDefaults.js  # giocatori/partecipanti iniziali, limiti, alfabeto e filtri ruolo
   features/
     auction/
+      AdminAuctionPage.jsx       # composizione delle viste e provider admin
       auctionActions.js        # salvataggio, transazioni asta/STOP e calcolo assegnazione
       components/
         AppHeader.jsx          # titolo e azioni import/export/reset
@@ -60,8 +61,14 @@ src/
         RostersView.jsx        # dettaglio rose di tutti i partecipanti
         TeamConfiguration.jsx  # configurazione e modifica nomi squadre
         TeamsSummary.jsx       # riepilogo crediti e rose della Dashboard
+      context/
+        auctionContexts.js          # definizione dei Context sessione e admin
+        AuctionSessionProvider.jsx  # stato Firestore condiviso da admin/mobile
+        AdminAuctionProvider.jsx    # stato locale e comandi della vista admin
+        useAuctionContexts.js       # hook di accesso obbligatorio ai Context
       hooks/
-        useAuctionSession.js   # stato condiviso, snapshot, salvataggio e timer asta/STOP
+        useAdminAuctionController.js # filtri, validazioni e azioni della vista admin
+        useAuctionSession.js          # snapshot, aggiornamento sessione e timer asta/STOP
     mobile/
       MobileController.jsx     # selezione locale, validazioni e orchestrazione mobile
       components/
@@ -78,7 +85,7 @@ src/
   main.jsx              # entry point React con StrictMode
 ```
 
-`App.jsx` mantiene composizione, validazioni e orchestrazione admin. Shell, Dashboard e viste secondarie sono componenti presentazionali; stato condiviso, snapshot e timer sono isolati in `useAuctionSession`. Le operazioni Firestore e il calcolo condiviso dell'assegnazione sono in `auctionActions.js`. La vista mobile è sotto `features/mobile/`, con logica nel controller e markup nei tre componenti dedicati. Mantenere questa separazione e collocare le modifiche nella feature responsabile.
+`App.jsx` sceglie la vista e monta `AuctionSessionProvider`. Snapshot, timer e stato Firestore condiviso sono gestiti da `useAuctionSession`; `saveSession(changes)` accetta aggiornamenti parziali e completa il payload usando la sessione corrente. La vista server è composta da `AdminAuctionPage`: `useAdminAuctionController` contiene stato locale, validazioni e comandi, esposti ai componenti tramite `AdminAuctionProvider`. Le operazioni Firestore e il calcolo dell'assegnazione restano in `auctionActions.js`. La vista mobile è sotto `features/mobile/`, con logica nel controller e markup nei tre componenti dedicati. Mantenere questa separazione e collocare le modifiche nella feature responsabile.
 
 ## Funzionamento attuale
 
@@ -139,6 +146,8 @@ participant = {
 
 Le offerte e gli STOP usano le transazioni definite in `auctionActions.js`. Timer e STOP condivisi si basano su timestamp assoluti e vengono derivati da `useAuctionSession` per restare coerenti tra client. Auto-assegnazione e fine automatica dello STOP vengono eseguiti soltanto dalla vista server aperta.
 
+`AuctionSessionContext` è la fonte condivisa per i dati della sessione. `AdminAuctionContext` esiste solo nella vista server e contiene stato UI e azioni admin. Non usare il Context admin nella vista mobile e non duplicare lo stato Firestore in altri provider.
+
 ## Regole per le modifiche
 
 - Preservare l'architettura semplice corrente e non cambiare incidentalmente UI o comportamento.
@@ -146,9 +155,11 @@ Le offerte e gli STOP usano le transazioni definite in `auctionActions.js`. Time
 - Creare componenti UI generici solo quando esiste riuso reale.
 - Preferire funzioni pure per parse, sort, filtri, conteggi e scelta del prossimo giocatore.
 - Tenere in `useAuctionSession` stato condiviso, snapshot e timer; non spostarvi azioni d'asta non correlate.
+- Usare `saveSession({ campo: valore })` specificando soltanto i campi da modificare; passare il payload completo solo per inizializzazione o reset.
+- Tenere in `useAdminAuctionController` lo stato locale e l'orchestrazione della vista server; i componenti di `features/auction/components` possono leggere i Context di feature senza lunghe catene di props.
 - Passare oggetti nominati alle azioni di `auctionActions.js`; mantenere espliciti gli input e i campi Firestore aggiornati.
 - Non introdurre Redux, Zustand, router, TypeScript, librerie UI o nuove dipendenze senza richiesta.
-- Non usare Context API solo per evitare prop drilling limitato.
+- Non aggiungere altri Context senza uno stato realmente condiviso o una catena di props significativa; per dati locali a un solo componente preferire `useState`.
 - Non dividere prematuramente `App.css`; preservare classi e markup quando non è richiesta una modifica della UI.
 - Isolare le correzioni funzionali da eventuali riorganizzazioni del codice.
 - Preservare il supporto ai JSON `{ players: [...] }` e agli array importati direttamente.

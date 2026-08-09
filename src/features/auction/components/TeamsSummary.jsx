@@ -1,11 +1,14 @@
 import { ROLE_LIMITS } from "../../../data/auctionDefaults";
 import { countRosterRoles } from "../../../utils/playerUtils";
+import { useAuctionSessionContext } from "../context/useAuctionContexts";
 
-export default function TeamsSummary({ participants }) {
+export default function TeamsSummary() {
+  const { partecipanti } = useAuctionSessionContext();
+
   return (
     <div className="card teams-card">
       <h2>👥 Rose e Crediti Residui</h2>
-      {participants.map((participant) => {
+      {partecipanti.map((participant) => {
         const roleCounts = countRosterRoles(participant.rosa, ROLE_LIMITS);
 
         return (

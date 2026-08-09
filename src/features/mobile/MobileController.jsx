@@ -4,22 +4,24 @@ import {
   placeBid,
   requestAuctionStop,
 } from "../auction/auctionActions";
+import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 import BidHistory from "./components/BidHistory";
 import MobileAuctionPanel from "./components/MobileAuctionPanel";
 import TeamSelector from "./components/TeamSelector";
 
-export default function MobileController({
-  partecipanti,
-  giocatoreInAsta,
-  offertaCorrente,
-  timer,
-  isTimerStarted,
-  isPaused,
-  stopChiamatoDa,
-  storicoOfferte,
-  stopTimer,
-  docRef,
-}) {
+export default function MobileController() {
+  const {
+    partecipanti,
+    giocatoreInAsta,
+    offertaCorrente,
+    timer,
+    isTimerStarted,
+    isPaused,
+    stopChiamatoDa,
+    storicoOfferte,
+    stopTimer,
+    docRef,
+  } = useAuctionSessionContext();
   const [mioId, setMioId] = useState("");
 
   const faiOffertaMobile = async (incremento = 1) => {

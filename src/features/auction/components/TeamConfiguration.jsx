@@ -1,14 +1,20 @@
-export default function TeamConfiguration({
-  isConfigMode,
-  participants,
-  onTeamNameChange,
-  onLock,
-  onUnlock,
-}) {
+import {
+  useAdminAuctionContext,
+  useAuctionSessionContext,
+} from "../context/useAuctionContexts";
+
+export default function TeamConfiguration() {
+  const { isConfigMode, partecipanti } = useAuctionSessionContext();
+  const { cambiaNomeSquadra, impostaModalitaConfigurazione } =
+    useAdminAuctionContext();
+
   if (!isConfigMode) {
     return (
       <div style={{ textAlign: "center", marginBottom: "20px" }}>
-        <button onClick={onUnlock} className="btn btn-grey">
+        <button
+          onClick={() => impostaModalitaConfigurazione(true)}
+          className="btn btn-grey"
+        >
           ✏️ Modifica Squadre
         </button>
       </div>
@@ -19,7 +25,7 @@ export default function TeamConfiguration({
     <div className="card config-card">
       <h2>⚙️ Configurazione Iniziale Squadre</h2>
       <div className="config-grid">
-        {participants.map((participant) => (
+        {partecipanti.map((participant) => (
           <div
             key={participant.id}
             style={{ display: "flex", flexDirection: "column" }}
@@ -31,7 +37,7 @@ export default function TeamConfiguration({
               type="text"
               value={participant.nome}
               onChange={(event) =>
-                onTeamNameChange(participant.id, event.target.value)
+                cambiaNomeSquadra(participant.id, event.target.value)
               }
               className="input-field"
             />
@@ -39,7 +45,7 @@ export default function TeamConfiguration({
         ))}
       </div>
       <button
-        onClick={onLock}
+        onClick={() => impostaModalitaConfigurazione(false)}
         className="btn btn-orange"
         style={{ width: "100%", padding: "12px" }}
       >

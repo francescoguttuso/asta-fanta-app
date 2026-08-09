@@ -1,19 +1,24 @@
 import { ALPHABET } from "../../../data/auctionDefaults";
+import {
+  useAdminAuctionContext,
+  useAuctionSessionContext,
+} from "../context/useAuctionContexts";
 
-export default function AvailablePlayers({
-  players,
-  totalPlayers,
-  activeRoleFilters,
-  selectedLetter,
-  isConfigMode,
-  onRoleToggle,
-  onLetterChange,
-  onCallPlayer,
-}) {
+export default function AvailablePlayers() {
+  const { giocatori, isConfigMode } = useAuctionSessionContext();
+  const {
+    giocatoriFiltrati: players,
+    filtriRuoliAttivi: activeRoleFilters,
+    filtroLettera: selectedLetter,
+    cambiaFiltroRuolo: onRoleToggle,
+    setFiltroLettera: onLetterChange,
+    chiamaGiocatore: onCallPlayer,
+  } = useAdminAuctionContext();
+
   return (
     <div className="card players-card">
       <h2>
-        🔍 Elenco Giocatori Disponibili ({players.length} / {totalPlayers})
+        🔍 Elenco Giocatori Disponibili ({players.length} / {giocatori.length})
       </h2>
 
       <div className="role-filters">

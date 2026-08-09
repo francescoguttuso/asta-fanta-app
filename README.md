@@ -73,19 +73,25 @@ asta_fantacalcio/sessione_asta
 
 Offerte e STOP usano transazioni Firestore. I timer condivisi usano timestamp assoluti, così server e controller possono derivare il tempo rimanente dalla stessa sessione.
 
+Lo stato sincronizzato è esposto da un Context di sessione condiviso tra vista server e mobile. La vista server usa un secondo Context, limitato alla feature admin, per filtri, navigazione e comandi dell'asta. Gli aggiornamenti ordinari chiamano `saveSession` passando soltanto i campi modificati; il provider completa il documento con lo stato corrente.
+
 Il dataset iniziale è in `src/giocatori.json`. L'import accetta sia un array di calciatori sia un oggetto `{ "players": [...] }`, con i campi italiani o inglesi supportati dall'app.
 
 ## Struttura principale
 
 ```text
 src/
-  App.jsx
+  App.jsx                         # scelta vista e provider della sessione
   data/auctionDefaults.js
   features/
     auction/
+      AdminAuctionPage.jsx
       auctionActions.js
       components/
-      hooks/useAuctionSession.js
+      context/
+      hooks/
+        useAdminAuctionController.js
+        useAuctionSession.js
     mobile/
       MobileController.jsx
       components/

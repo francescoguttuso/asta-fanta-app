@@ -1,25 +1,34 @@
-export default function AuctionPanel({
-  player,
-  currentBid,
-  lastBidder,
-  lastBidderId,
-  isTimerStarted,
-  isPaused,
-  stopCalledBy,
-  stopTimer,
-  timer,
-  participants,
-  manualTeamId,
-  manualPrice,
-  lastPurchase,
-  onPlayerChange,
-  onStartTimer,
-  onBid,
-  onAssign,
-  onManualTeamChange,
-  onManualPriceChange,
-  onManualAssign,
-}) {
+import {
+  useAdminAuctionContext,
+  useAuctionSessionContext,
+} from "../context/useAuctionContexts";
+
+export default function AuctionPanel() {
+  const {
+    giocatoreInAsta: player,
+    offertaCorrente: currentBid,
+    ultimoOfferenteId: lastBidderId,
+    isTimerStarted,
+    isPaused,
+    stopChiamatoDa: stopCalledBy,
+    stopTimer,
+    timer,
+    partecipanti: participants,
+    ultimoAcquisto: lastPurchase,
+  } = useAuctionSessionContext();
+  const {
+    ultimoOfferente: lastBidder,
+    squadraManualeId: manualTeamId,
+    setSquadraManualeId: onManualTeamChange,
+    prezzoManuale: manualPrice,
+    setPrezzoManuale: onManualPriceChange,
+    cambiaGiocatoreManuale: onPlayerChange,
+    avviaTimerManualmente: onStartTimer,
+    faiOfferta: onBid,
+    assegnaGiocatore: onAssign,
+    assegnaGiocatoreManualmente: onManualAssign,
+  } = useAdminAuctionContext();
+
   return (
     <div className="card auction-card">
       <h2>📢 Banditore Asta Live</h2>

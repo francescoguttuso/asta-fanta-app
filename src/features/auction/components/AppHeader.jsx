@@ -1,9 +1,17 @@
-export default function AppHeader({ onExport, onImport, onReset }) {
+import { useAdminAuctionContext } from "../context/useAuctionContexts";
+
+export default function AppHeader() {
+  const {
+    esportaInExcel,
+    gestisciCaricamentoJson,
+    resettaTutto,
+  } = useAdminAuctionContext();
+
   return (
     <div className="header-container">
       <h1 className="main-title">⚽ FantaRiggio Asta Pro (Server) ⚽</h1>
       <div className="header-actions">
-        <button onClick={onExport} className="btn btn-green">
+        <button onClick={esportaInExcel} className="btn btn-green">
           📊 Esporta CSV Pulito
         </button>
 
@@ -19,12 +27,12 @@ export default function AppHeader({ onExport, onImport, onReset }) {
           <input
             type="file"
             accept=".json"
-            onChange={onImport}
+            onChange={gestisciCaricamentoJson}
             style={{ display: "none" }}
           />
         </label>
 
-        <button onClick={onReset} className="btn btn-orange">
+        <button onClick={resettaTutto} className="btn btn-orange">
           ⚠️ Resetta Sessione
         </button>
       </div>
