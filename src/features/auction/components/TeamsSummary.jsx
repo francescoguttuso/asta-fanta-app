@@ -1,12 +1,12 @@
-import { ROLE_LIMITS } from "../../../data/auctionDefaults";
-import { countRosterRoles } from "../../../utils/playerUtils";
-import { useAuctionSessionContext } from "../context/useAuctionContexts";
+import { ROLE_LIMITS } from '@/data/auctionDefaults';
+import { countRosterRoles } from '@/utils/playerUtils';
+import { useAuctionSessionContext } from '../context/useAuctionContexts';
 
 export default function TeamsSummary() {
   const { partecipanti } = useAuctionSessionContext();
 
   return (
-    <div className="card teams-card">
+    <div className='card teams-card'>
       <h2>👥 Rose e Crediti Residui</h2>
       {partecipanti.map((participant) => {
         const roleCounts = countRosterRoles(participant.rosa, ROLE_LIMITS);
@@ -14,31 +14,29 @@ export default function TeamsSummary() {
         return (
           <div
             key={participant.id}
-            className="team-row"
+            className='team-row'
             style={{
-              display: "block",
-              padding: "10px",
-              marginBottom: "8px",
-              borderBottom: "1px solid #334155",
+              display: 'block',
+              padding: '10px',
+              marginBottom: '8px',
+              borderBottom: '1px solid #334155',
             }}
           >
             <div
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontWeight: "bold",
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontWeight: 'bold',
               }}
             >
               <span>{participant.nome}</span>
-              <span style={{ color: "#10b981" }}>
-                {participant.crediti} FM
-              </span>
+              <span style={{ color: '#10b981' }}>{participant.crediti} FM</span>
             </div>
             <div
               style={{
-                fontSize: "0.8rem",
-                color: "#38bdf8",
-                marginTop: "4px",
+                fontSize: '0.8rem',
+                color: '#38bdf8',
+                marginTop: '4px',
               }}
             >
               P: {roleCounts.P}/3 | D: {roleCounts.D}/8 | C: {roleCounts.C}/8 |
@@ -46,15 +44,15 @@ export default function TeamsSummary() {
             </div>
             <div
               style={{
-                fontSize: "0.85rem",
-                color: "#94a3b8",
-                marginTop: "4px",
+                fontSize: '0.85rem',
+                color: '#94a3b8',
+                marginTop: '4px',
               }}
             >
-              Rosa ({participant.rosa.length}): {" "}
+              Rosa ({participant.rosa.length}):{' '}
               {participant.rosa
                 .map((player) => `${player.nome} (${player.prezzo}FM)`)
-                .join(", ") || "Nessun acquisto"}
+                .join(', ') || 'Nessun acquisto'}
             </div>
           </div>
         );

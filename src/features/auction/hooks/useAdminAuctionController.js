@@ -1,20 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from 'react';
 import {
   INITIAL_PARTICIPANTS,
   INITIAL_PLAYERS,
   INITIAL_ROLE_FILTERS,
   ROLE_LIMITS,
-} from "../../../data/auctionDefaults";
-import {
-  filterPlayers,
-  normalizePlayers,
-} from "../../../utils/playerUtils";
+} from '@/data/auctionDefaults';
+import { filterPlayers, normalizePlayers } from '@/utils/playerUtils';
 import {
   buildPlayerAssignment,
   placeBid,
   startAuctionTimer,
-} from "../auctionActions";
-import { useAuctionSessionContext } from "../context/useAuctionContexts";
+} from '../auctionActions';
+import { useAuctionSessionContext } from '../context/useAuctionContexts';
 
 const createReadyAuctionState = (playerInAuction) => ({
   playerInAuction,
@@ -48,13 +45,12 @@ export default function useAdminAuctionController() {
     saveSession,
   } = session;
 
-  const [vistaCorrente, setVistaCorrente] = useState("dashboard");
-  const [squadraManualeId, setSquadraManualeId] = useState("");
-  const [prezzoManuale, setPrezzoManuale] = useState("");
-  const [filtroLettera, setFiltroLettera] = useState("TUTTE");
-  const [filtriRuoliAttivi, setFiltriRuoliAttivi] = useState(
-    INITIAL_ROLE_FILTERS,
-  );
+  const [vistaCorrente, setVistaCorrente] = useState('dashboard');
+  const [squadraManualeId, setSquadraManualeId] = useState('');
+  const [prezzoManuale, setPrezzoManuale] = useState('');
+  const [filtroLettera, setFiltroLettera] = useState('TUTTE');
+  const [filtriRuoliAttivi, setFiltriRuoliAttivi] =
+    useState(INITIAL_ROLE_FILTERS);
 
   const gestisciCaricamentoJson = (event) => {
     const file = event.target.files[0];
@@ -70,10 +66,10 @@ export default function useAdminAuctionController() {
 
         setGiocatori(nuoviGiocatori);
         saveSession({ players: nuoviGiocatori });
-        alert("File JSON importato e aggiornato con successo!");
+        alert('File JSON importato e aggiornato con successo!');
       } catch (errore) {
-        console.error("Errore durante il parsing del JSON:", errore);
-        alert("Il file selezionato non è un JSON valido.");
+        console.error('Errore durante il parsing del JSON:', errore);
+        alert('Il file selezionato non è un JSON valido.');
       }
     };
     reader.readAsText(file);
@@ -100,7 +96,7 @@ export default function useAdminAuctionController() {
       (giocatore) => giocatore.id === giocatoreInAsta.id,
     );
     const nuovoIndice =
-      direzione === "avanti" ? indiceAttuale + 1 : indiceAttuale - 1;
+      direzione === 'avanti' ? indiceAttuale + 1 : indiceAttuale - 1;
 
     if (nuovoIndice >= 0 && nuovoIndice < giocatoriFiltrati.length) {
       setTimer(10);
@@ -138,7 +134,7 @@ export default function useAdminAuctionController() {
   };
 
   const esportaInExcel = () => {
-    let csvContent = "data:text/csv;charset=utf-8,";
+    let csvContent = 'data:text/csv;charset=utf-8,';
 
     partecipanti.forEach((partecipante) => {
       partecipante.rosa?.forEach((giocatore) => {
@@ -146,9 +142,9 @@ export default function useAdminAuctionController() {
       });
     });
 
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csvContent));
-    link.setAttribute("download", "fantariggio_rosters.csv");
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', 'fantariggio_rosters.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -172,7 +168,7 @@ export default function useAdminAuctionController() {
 
   const chiamaGiocatore = (giocatore) => {
     if (isConfigMode) {
-      alert("Completa e salva la configurazione prima di iniziare!");
+      alert('Completa e salva la configurazione prima di iniziare!');
       return;
     }
 
@@ -210,12 +206,12 @@ export default function useAdminAuctionController() {
     try {
       await placeBid({
         docRef,
-        bidderId: "1",
-        bidderName: admin?.nome || "Admin",
+        bidderId: '1',
+        bidderName: admin?.nome || 'Admin',
         increment: incremento,
       });
     } catch (error) {
-      console.error("Errore nel rilancio server: ", error);
+      console.error('Errore nel rilancio server: ', error);
     }
   };
 
@@ -255,7 +251,7 @@ export default function useAdminAuctionController() {
     if (!giocatoreInAsta) return;
     if (!ultimoOfferenteId) {
       alert(
-        "Impossibile assegnare: nessuna offerta ricevuta per questo calciatore.",
+        'Impossibile assegnare: nessuna offerta ricevuta per questo calciatore.',
       );
       return;
     }
@@ -311,13 +307,13 @@ export default function useAdminAuctionController() {
   const assegnaGiocatoreManualmente = async () => {
     if (!giocatoreInAsta) return;
     if (!squadraManualeId) {
-      alert("Seleziona una squadra a cui assegnare il giocatore!");
+      alert('Seleziona una squadra a cui assegnare il giocatore!');
       return;
     }
 
     const prezzo = parseInt(prezzoManuale);
     if (isNaN(prezzo) || prezzo < 0) {
-      alert("Inserisci un prezzo di acquisto valido!");
+      alert('Inserisci un prezzo di acquisto valido!');
       return;
     }
 
@@ -343,8 +339,8 @@ export default function useAdminAuctionController() {
       return;
     }
 
-    setSquadraManualeId("");
-    setPrezzoManuale("");
+    setSquadraManualeId('');
+    setPrezzoManuale('');
     await completaAssegnazione(vincitore, prezzo);
   };
 

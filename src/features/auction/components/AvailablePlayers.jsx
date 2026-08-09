@@ -1,4 +1,4 @@
-import { ALPHABET } from "../../../data/auctionDefaults";
+import { ALPHABET } from "@/data/auctionDefaults";
 import {
   useAdminAuctionContext,
   useAuctionSessionContext,

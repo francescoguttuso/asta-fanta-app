@@ -1,28 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../../../firebaseConfig";
-import {
-  INITIAL_PARTICIPANTS,
-  INITIAL_PLAYERS,
-} from "../../../data/auctionDefaults";
-import {
-  STOP_DURATION_MS,
-  getRemainingSeconds,
-} from "../../../timerUtils";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/firebaseConfig';
+import { INITIAL_PARTICIPANTS, INITIAL_PLAYERS } from '@/data/auctionDefaults';
+import { STOP_DURATION_MS, getRemainingSeconds } from '@/timerUtils';
 import {
   normalizePlayer,
   sortPlayersAlphabetically,
-} from "../../../utils/playerUtils";
-import {
-  resumeAuctionAfterStop,
-  saveAuctionSession,
-} from "../auctionActions";
+} from '@/utils/playerUtils';
+import { resumeAuctionAfterStop, saveAuctionSession } from '../auctionActions';
 
-const AUCTION_SESSION_REF = doc(
-  db,
-  "asta_fantacalcio",
-  "sessione_asta",
-);
+const AUCTION_SESSION_REF = doc(db, 'asta_fantacalcio', 'sessione_asta');
 
 export default function useAuctionSession({ isMobileView }) {
   const [giocatori, setGiocatori] = useState(INITIAL_PLAYERS);
@@ -59,28 +46,25 @@ export default function useAuctionSession({ isMobileView }) {
     timerEndsAt,
   };
 
-  const saveSession = useCallback(
-    async (changes = {}) => {
-      const currentSession = currentSessionRef.current;
-      const nextSession = { ...currentSession, ...changes };
-      const nextTimerStarted = nextSession.timerStarted;
+  const saveSession = useCallback(async (changes = {}) => {
+    const currentSession = currentSessionRef.current;
+    const nextSession = { ...currentSession, ...changes };
+    const nextTimerStarted = nextSession.timerStarted;
 
-      try {
-        await saveAuctionSession({
-          docRef: AUCTION_SESSION_REF,
-          ...nextSession,
-          timerStarted: nextTimerStarted,
-          timerEndsAt:
-            nextTimerStarted && !nextSession.paused
-              ? changes.endsAt ?? nextSession.timerEndsAt
-              : null,
-        });
-      } catch (err) {
-        console.error("Errore nel salvataggio su Firestore: ", err);
-      }
-    },
-    [],
-  );
+    try {
+      await saveAuctionSession({
+        docRef: AUCTION_SESSION_REF,
+        ...nextSession,
+        timerStarted: nextTimerStarted,
+        timerEndsAt:
+          nextTimerStarted && !nextSession.paused
+            ? (changes.endsAt ?? nextSession.timerEndsAt)
+            : null,
+      });
+    } catch (err) {
+      console.error('Errore nel salvataggio su Firestore: ', err);
+    }
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(AUCTION_SESSION_REF, (snapshot) => {
@@ -175,7 +159,7 @@ export default function useAuctionSession({ isMobileView }) {
             });
           } catch (error) {
             console.error(
-              "Errore nello sblocco automatico dello STOP: ",
+              'Errore nello sblocco automatico dello STOP: ',
               error,
             );
           }
