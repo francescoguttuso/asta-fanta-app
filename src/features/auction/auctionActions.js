@@ -1,14 +1,8 @@
-import { runTransaction, setDoc } from "firebase/firestore";
-import { db } from "../../firebaseConfig";
-import { ALPHABET } from "../../data/auctionDefaults";
-import {
-  AUCTION_DURATION_MS,
-  getRemainingMilliseconds,
-} from "../../timerUtils";
-import {
-  findNextPlayer,
-  sortPlayersAlphabetically,
-} from "../../utils/playerUtils";
+import { runTransaction, setDoc } from 'firebase/firestore';
+import { db } from '@/firebaseConfig';
+import { ALPHABET } from '@/data/auctionDefaults';
+import { AUCTION_DURATION_MS, getRemainingMilliseconds } from '@/timerUtils';
+import { findNextPlayer, sortPlayersAlphabetically } from '@/utils/playerUtils';
 
 export const saveAuctionSession = async ({
   docRef,
@@ -58,12 +52,7 @@ export const startAuctionTimer = async ({ docRef }) => {
   });
 };
 
-export const placeBid = async ({
-  docRef,
-  bidderId,
-  bidderName,
-  increment,
-}) => {
+export const placeBid = async ({ docRef, bidderId, bidderName, increment }) => {
   await runTransaction(db, async (transaction) => {
     const sessionSnapshot = await transaction.get(docRef);
     if (!sessionSnapshot.exists()) return;
@@ -159,8 +148,7 @@ export const resumeAuctionAfterStop = async ({ docRef, stopStartedAt }) => {
       stopIniziatoAt: null,
       timerRimanenteMs: null,
       timer: Math.ceil(remainingTimerMs / 1000),
-      timerEndsAt:
-        remainingTimerMs > 0 ? Date.now() + remainingTimerMs : null,
+      timerEndsAt: remainingTimerMs > 0 ? Date.now() + remainingTimerMs : null,
     });
   });
 };
