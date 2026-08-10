@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { ROLE_LIMITS } from '@/data/auctionDefaults';
-import { placeBid, requestAuctionStop } from '../auction/auctionActions';
-import { useAuctionSessionContext } from '../auction/context/useAuctionContexts';
-import BidHistory from './components/BidHistory';
-import MobileAuctionPanel from './components/MobileAuctionPanel';
-import TeamSelector from './components/TeamSelector';
+import { useState } from "react";
+import { ROLE_LIMITS } from "@/data/auctionDefaults";
+import { placeBid, requestAuctionStop } from "../auction/auctionActions";
+import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
+import BidHistory from "./components/BidHistory";
+import MobileAuctionPanel from "./components/MobileAuctionPanel";
+import TeamSelector from "./components/TeamSelector";
 
 export default function MobileController() {
   const {
@@ -19,10 +19,10 @@ export default function MobileController() {
     stopTimer,
     docRef,
   } = useAuctionSessionContext();
-  const [mioId, setMioId] = useState('');
+  const [mioId, setMioId] = useState("");
 
   const faiOffertaMobile = async (incremento = 1) => {
-    if (!mioId) return alert('Seleziona prima la tua squadra!');
+    if (!mioId) return alert("Seleziona prima la tua squadra!");
     if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) return;
 
     const utenteCorrente = partecipanti.find((p) => p.id === parseInt(mioId));
@@ -44,16 +44,16 @@ export default function MobileController() {
       await placeBid({
         docRef,
         bidderId: mioId,
-        bidderName: utenteCorrente?.nome || 'Squadra',
+        bidderName: utenteCorrente?.nome || "Squadra",
         increment: incremento,
       });
     } catch (err) {
-      console.error('Errore rilancio mobile: ', err);
+      console.error("Errore rilancio mobile: ", err);
     }
   };
 
   const fermaAstaMobile = async () => {
-    if (!mioId) return alert('Seleziona prima la tua squadra!');
+    if (!mioId) return alert("Seleziona prima la tua squadra!");
     if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) return;
 
     const utenteCorrente = partecipanti.find((p) => p.id === parseInt(mioId));
@@ -61,7 +61,7 @@ export default function MobileController() {
 
     const stopRimanenti = utenteCorrente.stopDisponibili ?? 2;
     if (stopRimanenti <= 0) {
-      alert('⛔ Hai esaurito i 2 stop a tua disposizione!');
+      alert("⛔ Hai esaurito i 2 stop a tua disposizione!");
       return;
     }
 
@@ -74,7 +74,7 @@ export default function MobileController() {
         timer,
       });
     } catch (err) {
-      console.error('Errore attivazione STOP: ', err);
+      console.error("Errore attivazione STOP: ", err);
     }
   };
 
@@ -84,8 +84,8 @@ export default function MobileController() {
     : 2;
 
   return (
-    <div className='container mobile-container'>
-      <h2 style={{ textAlign: 'center', fontSize: '1.4rem' }}>
+    <div className="container mobile-container">
+      <h2 style={{ textAlign: "center", fontSize: "1.4rem" }}>
         📱 Controller Fanta Squadra
       </h2>
 

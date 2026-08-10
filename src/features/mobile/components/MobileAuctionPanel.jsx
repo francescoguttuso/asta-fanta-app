@@ -10,6 +10,7 @@ export default function MobileAuctionPanel({
   remainingStops,
   onBid,
   onStop,
+  lastPurchase,
 }) {
   if (!player) {
     return (
@@ -139,6 +140,56 @@ export default function MobileAuctionPanel({
       >
         🛑 CHIEDI STOP (30s) - Rimasti: {remainingStops}/2
       </button>
+
+      {/* ULTIMO ACQUISTO */}
+      {lastPurchase && (
+        <div
+          className="alert-box"
+          style={{
+            marginTop: "15px",
+            padding: "15px",
+            textAlign: "center",
+          }}
+        >
+          <h4
+            style={{
+              color: "#38bdf8",
+              margin: "0 0 12px",
+              fontSize: "1.15rem",
+            }}
+          >
+            🏆 ULTIMO ACQUISTO
+          </h4>
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+              fontSize: "1rem",
+            }}
+          >
+            <div>
+              ⚽ <strong>{lastPurchase.calciatore}</strong>
+              {lastPurchase.ruolo && ` (${lastPurchase.ruolo})`}
+            </div>
+
+            <div>
+              💰 Prezzo:{" "}
+              <strong style={{ color: "#10b981" }}>
+                {lastPurchase.prezzo} FM
+              </strong>
+            </div>
+
+            <div>
+              👑 Aggiudicato a:{" "}
+              <strong style={{ color: "#fbbf24" }}>
+                {lastPurchase.vincitoreNome}
+              </strong>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

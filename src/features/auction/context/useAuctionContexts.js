@@ -1,8 +1,5 @@
 import { useContext } from "react";
-import {
-  AdminAuctionContext,
-  AuctionSessionContext,
-} from "./auctionContexts";
+import { AdminAuctionContext, AuctionSessionContext } from "./auctionContexts";
 
 const useRequiredContext = (context, hookName, providerName) => {
   const value = useContext(context);
