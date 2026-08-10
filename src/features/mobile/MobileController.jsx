@@ -17,17 +17,29 @@ export default function MobileController() {
     stopChiamatoDa,
     storicoOfferte,
     stopTimer,
+
+    // ULTIMO ACQUISTO
+    ultimoAcquisto,
+
     docRef,
   } = useAuctionSessionContext();
+
   const [mioId, setMioId] = useState("");
 
   const faiOffertaMobile = async (incremento = 1) => {
-    if (!mioId) return alert("Seleziona prima la tua squadra!");
-    if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) return;
+    if (!mioId) {
+      return alert("Seleziona prima la tua squadra!");
+    }
+
+    if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) {
+      return;
+    }
 
     const utenteCorrente = partecipanti.find((p) => p.id === parseInt(mioId));
+
     if (utenteCorrente) {
       const ruoloCorrente = giocatoreInAsta.ruolo;
+
       const quantitaInRosa = utenteCorrente.rosa.filter(
         (g) => g.ruolo === ruoloCorrente,
       ).length;
@@ -36,6 +48,7 @@ export default function MobileController() {
         alert(
           `⛔ Impossibile rilanciare: hai già completato il reparto dei ${ruoloCorrente} (${ROLE_LIMITS[ruoloCorrente]}/${ROLE_LIMITS[ruoloCorrente]})!`,
         );
+
         return;
       }
     }
@@ -53,15 +66,25 @@ export default function MobileController() {
   };
 
   const fermaAstaMobile = async () => {
-    if (!mioId) return alert("Seleziona prima la tua squadra!");
-    if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) return;
+    if (!mioId) {
+      return alert("Seleziona prima la tua squadra!");
+    }
+
+    if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) {
+      return;
+    }
 
     const utenteCorrente = partecipanti.find((p) => p.id === parseInt(mioId));
-    if (!utenteCorrente) return;
+
+    if (!utenteCorrente) {
+      return;
+    }
 
     const stopRimanenti = utenteCorrente.stopDisponibili ?? 2;
+
     if (stopRimanenti <= 0) {
       alert("⛔ Hai esaurito i 2 stop a tua disposizione!");
+
       return;
     }
 
@@ -79,13 +102,19 @@ export default function MobileController() {
   };
 
   const utenteSelezionato = partecipanti.find((p) => p.id === parseInt(mioId));
+
   const stopRimanentiSelezionato = utenteSelezionato
     ? (utenteSelezionato.stopDisponibili ?? 2)
     : 2;
 
   return (
     <div className="container mobile-container">
-      <h2 style={{ textAlign: "center", fontSize: "1.4rem" }}>
+      <h2
+        style={{
+          textAlign: "center",
+          fontSize: "1.4rem",
+        }}
+      >
         📱 Controller Fanta Squadra
       </h2>
 
@@ -109,6 +138,10 @@ export default function MobileController() {
         remainingStops={stopRimanentiSelezionato}
         onBid={faiOffertaMobile}
         onStop={fermaAstaMobile}
+        // ==========================================
+        // ULTIMO ACQUISTO
+        // ==========================================
+        lastPurchase={ultimoAcquisto}
       />
 
       <BidHistory bids={storicoOfferte} />

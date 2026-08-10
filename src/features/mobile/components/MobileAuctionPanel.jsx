@@ -12,6 +12,10 @@ export default function MobileAuctionPanel({
   onStop,
   lastPurchase,
 }) {
+  // ===================================================
+  // NESSUN GIOCATORE IN ASTA
+  // ===================================================
+
   if (!player) {
     return (
       <div
@@ -21,10 +25,119 @@ export default function MobileAuctionPanel({
           padding: "20px",
         }}
       >
-        <p style={{ color: "#94a3b8" }}>Nessun calciatore sul banditore.</p>
+        <p
+          style={{
+            color: "#94a3b8",
+          }}
+        >
+          Nessun calciatore sul banditore.
+        </p>
+
+        {/* ========================================= */}
+        {/* ULTIMO ACQUISTO */}
+        {/* ========================================= */}
+
+        {lastPurchase && (
+          <div
+            className="alert-box"
+            style={{
+              marginTop: "15px",
+              padding: "15px",
+              textAlign: "center",
+            }}
+          >
+            <h4
+              style={{
+                color: "#38bdf8",
+                margin: "0 0 12px",
+                fontSize: "1.15rem",
+              }}
+            >
+              🏆 ULTIMO ACQUISTO
+            </h4>
+
+            {/* ===================================== */}
+            {/* CAMPIONCINO ULTIMO ACQUISTO */}
+            {/* ===================================== */}
+
+            {lastPurchase.id && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginBottom: "12px",
+                }}
+              >
+                <img
+                  src={`/images/players/${lastPurchase.id}.png`}
+                  alt={lastPurchase.calciatore}
+                  style={{
+                    width: "130px",
+                    height: "165px",
+                    objectFit: "contain",
+                    display: "block",
+                  }}
+                  onError={(event) => {
+                    console.error(
+                      "Errore caricamento campioncino ultimo acquisto:",
+                      event.currentTarget.src,
+                    );
+
+                    event.currentTarget.style.display = "none";
+                  }}
+                />
+              </div>
+            )}
+
+            {/* ===================================== */}
+            {/* DATI ULTIMO ACQUISTO */}
+            {/* ===================================== */}
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+                fontSize: "1rem",
+              }}
+            >
+              <div>
+                ⚽ <strong>{lastPurchase.calciatore}</strong>
+                {lastPurchase.ruolo && ` (${lastPurchase.ruolo})`}
+              </div>
+
+              <div>
+                💰 Prezzo:{" "}
+                <strong
+                  style={{
+                    color: "#10b981",
+                  }}
+                >
+                  {lastPurchase.prezzo} FM
+                </strong>
+              </div>
+
+              <div>
+                👑 Aggiudicato a:{" "}
+                <strong
+                  style={{
+                    color: "#fbbf24",
+                  }}
+                >
+                  {lastPurchase.vincitoreNome}
+                </strong>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
+
+  // ===================================================
+  // DISABILITAZIONE AZIONI
+  // ===================================================
 
   const actionsDisabled =
     !selectedTeamId || !isTimerStarted || timer === 0 || isPaused;
@@ -36,8 +149,13 @@ export default function MobileAuctionPanel({
    * 30 FM  -> disattivato
    * 31 FM+ -> attivato
    */
+
   const stopDisabled =
     actionsDisabled || currentBid <= 30 || remainingStops <= 0;
+
+  // ===================================================
+  // GIOCATORE ATTUALMENTE IN ASTA
+  // ===================================================
 
   return (
     <div
@@ -46,14 +164,85 @@ export default function MobileAuctionPanel({
         textAlign: "center",
       }}
     >
-      <h3
+      {/* ========================================= */}
+      {/* GIOCATORE + CAMPIONCINO */}
+      {/* ========================================= */}
+
+      <div
         style={{
-          color: "#38bdf8",
-          margin: "5px 0",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "15px",
+          margin: "5px 0 15px",
         }}
       >
-        {player.nome} ({player.squadra}) - [{player.ruolo}]
-      </h3>
+        {/* CAMPIONCINO */}
+
+        {player.id && (
+          <img
+            src={`/images/players/${player.id}.png`}
+            alt={player.nome}
+            style={{
+              width: "90px",
+              height: "115px",
+              objectFit: "contain",
+              display: "block",
+              flexShrink: 0,
+            }}
+            onError={(event) => {
+              console.error(
+                "Errore caricamento campioncino giocatore in asta:",
+                event.currentTarget.src,
+              );
+
+              event.currentTarget.style.display = "none";
+            }}
+          />
+        )}
+
+        {/* DATI GIOCATORE */}
+
+        <div
+          style={{
+            textAlign: "left",
+          }}
+        >
+          <h3
+            style={{
+              color: "#38bdf8",
+              margin: 0,
+              fontSize: "1.25rem",
+            }}
+          >
+            {player.nome}
+          </h3>
+
+          <div
+            style={{
+              color: "#cbd5e1",
+              marginTop: "4px",
+              fontSize: "0.95rem",
+            }}
+          >
+            {player.squadra}
+          </div>
+
+          <div
+            style={{
+              color: "#94a3b8",
+              marginTop: "2px",
+              fontSize: "0.9rem",
+            }}
+          >
+            [{player.ruolo}]
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================= */}
+      {/* OFFERTE / TIMER */}
+      {/* ========================================= */}
 
       <div
         className="alert-box"
@@ -67,7 +256,14 @@ export default function MobileAuctionPanel({
             margin: 0,
           }}
         >
-          Offerta: <span style={{ color: "#10b981" }}>{currentBid} FM</span>
+          Offerta:{" "}
+          <span
+            style={{
+              color: "#10b981",
+            }}
+          >
+            {currentBid} FM
+          </span>
         </h4>
 
         <div
@@ -78,9 +274,19 @@ export default function MobileAuctionPanel({
           }}
         >
           {!isTimerStarted ? (
-            <span style={{ color: "#fbbf24" }}>⏳ IN ATTESA DI AVVIO</span>
+            <span
+              style={{
+                color: "#fbbf24",
+              }}
+            >
+              ⏳ IN ATTESA DI AVVIO
+            </span>
           ) : isPaused ? (
-            <div style={{ color: "#f87171" }}>
+            <div
+              style={{
+                color: "#f87171",
+              }}
+            >
               🛑 STOP DA: <strong>{stopCalledBy}</strong>
               <div
                 style={{
@@ -96,6 +302,10 @@ export default function MobileAuctionPanel({
           )}
         </div>
       </div>
+
+      {/* ========================================= */}
+      {/* PULSANTI OFFERTE */}
+      {/* ========================================= */}
 
       <div className="mobile-bid-actions">
         <button
@@ -125,6 +335,10 @@ export default function MobileAuctionPanel({
         </button>
       </div>
 
+      {/* ========================================= */}
+      {/* STOP */}
+      {/* ========================================= */}
+
       <button
         onClick={onStop}
         disabled={stopDisabled}
@@ -141,7 +355,10 @@ export default function MobileAuctionPanel({
         🛑 CHIEDI STOP (30s) - Rimasti: {remainingStops}/2
       </button>
 
+      {/* ========================================= */}
       {/* ULTIMO ACQUISTO */}
+      {/* ========================================= */}
+
       {lastPurchase && (
         <div
           className="alert-box"
@@ -161,6 +378,41 @@ export default function MobileAuctionPanel({
             🏆 ULTIMO ACQUISTO
           </h4>
 
+          {/* CAMPIONCINO */}
+
+          {lastPurchase.id && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: "12px",
+              }}
+            >
+              <img
+                src={`/images/players/${lastPurchase.id}.png`}
+                alt={lastPurchase.calciatore}
+                style={{
+                  width: "130px",
+                  height: "165px",
+                  objectFit: "contain",
+                  display: "block",
+                  margin: "0 auto",
+                }}
+                onError={(event) => {
+                  console.error(
+                    "Errore caricamento campioncino ultimo acquisto:",
+                    event.currentTarget.src,
+                  );
+
+                  event.currentTarget.style.display = "none";
+                }}
+              />
+            </div>
+          )}
+
+          {/* DATI ACQUISTO */}
+
           <div
             style={{
               display: "flex",
@@ -176,14 +428,22 @@ export default function MobileAuctionPanel({
 
             <div>
               💰 Prezzo:{" "}
-              <strong style={{ color: "#10b981" }}>
+              <strong
+                style={{
+                  color: "#10b981",
+                }}
+              >
                 {lastPurchase.prezzo} FM
               </strong>
             </div>
 
             <div>
               👑 Aggiudicato a:{" "}
-              <strong style={{ color: "#fbbf24" }}>
+              <strong
+                style={{
+                  color: "#fbbf24",
+                }}
+              >
                 {lastPurchase.vincitoreNome}
               </strong>
             </div>
