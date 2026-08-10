@@ -6,6 +6,7 @@ import {
 export default function AuctionPanel() {
   const {
     giocatoreInAsta: player,
+    giocatori,
     offertaCorrente: currentBid,
     ultimoOfferenteId: lastBidderId,
     isTimerStarted,
@@ -16,6 +17,7 @@ export default function AuctionPanel() {
     partecipanti: participants,
     ultimoAcquisto: lastPurchase,
   } = useAuctionSessionContext();
+
   const {
     ultimoOfferente: lastBidder,
     squadraManualeId: manualTeamId,
@@ -29,38 +31,131 @@ export default function AuctionPanel() {
     assegnaGiocatoreManualmente: onManualAssign,
   } = useAdminAuctionContext();
 
+  /*
+   * =====================================================
+   * RECUPERO ID CAMPIONCINO
+   * =====================================================
+   *
+   * Normalmente player.id è già presente.
+   *
+   * Se però la sessione Firestore contiene un vecchio
+   * giocatore senza id, cerchiamo lo stesso giocatore
+   * nella lista completa "giocatori".
+   */
+
+  const playerImageId =
+    player?.id ??
+    giocatori?.find(
+      (giocatore) =>
+        giocatore.nome === player?.nome &&
+        giocatore.squadra === player?.squadra,
+    )?.id;
+
   return (
     <div className="card auction-card">
       <h2>📢 Banditore Asta Live</h2>
+
       {player ? (
         <div>
+          {/* ========================================= */}
+          {/* CAMPIONCINO GIOCATORE */}
+          {/* ========================================= */}
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              margin: "10px 0 15px",
+              minHeight: "190px",
+            }}
+          >
+            {playerImageId ? (
+              <img
+                src={`/images/players/${playerImageId}.png`}
+                alt={player.nome}
+                style={{
+                  width: "150px",
+                  height: "190px",
+                  objectFit: "contain",
+                  display: "block",
+                }}
+                onError={(event) => {
+                  console.error(
+                    "Errore caricamento campioncino:",
+                    event.currentTarget.src,
+                  );
+
+                  event.currentTarget.style.display = "none";
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  color: "#94a3b8",
+                  fontSize: "0.9rem",
+                }}
+              >
+                Campioncino non disponibile
+              </div>
+            )}
+          </div>
+
+          {/* ========================================= */}
+          {/* NAVIGAZIONE GIOCATORE */}
+          {/* ========================================= */}
+
           <div className="auction-player-nav">
             <button
               onClick={() => onPlayerChange("indietro")}
               className="btn btn-grey"
-              style={{ padding: "5px 12px", fontSize: "1.2rem" }}
+              style={{
+                padding: "5px 12px",
+                fontSize: "1.2rem",
+              }}
             >
               ◀
             </button>
 
-            <h3 style={{ color: "#38bdf8", margin: 0, textAlign: "center" }}>
+            <h3
+              style={{
+                color: "#38bdf8",
+                margin: 0,
+                textAlign: "center",
+              }}
+            >
               🏃 {player.nome} ({player.squadra}) - [{player.ruolo}]
             </h3>
 
             <button
               onClick={() => onPlayerChange("avanti")}
               className="btn btn-grey"
-              style={{ padding: "5px 12px", fontSize: "1.2rem" }}
+              style={{
+                padding: "5px 12px",
+                fontSize: "1.2rem",
+              }}
             >
               ▶
             </button>
           </div>
 
+          {/* ========================================= */}
+          {/* OFFERTE / TIMER */}
+          {/* ========================================= */}
+
           <div
             className="alert-box"
-            style={{ textAlign: "center", margin: "15px 0" }}
+            style={{
+              textAlign: "center",
+              margin: "15px 0",
+            }}
           >
-            <h4 style={{ fontSize: "1.6rem", margin: 0 }}>
+            <h4
+              style={{
+                fontSize: "1.6rem",
+                margin: 0,
+              }}
+            >
               Offerta: <span style={{ color: "#10b981" }}>{currentBid} FM</span>
             </h4>
 
@@ -72,7 +167,7 @@ export default function AuctionPanel() {
                 fontSize: "1.1rem",
               }}
             >
-              🙋 Miglior Offerente: {" "}
+              🙋 Miglior Offerente:{" "}
               {lastBidder ? lastBidder.nome : "In attesa di rilanci"}
             </p>
 
@@ -90,7 +185,12 @@ export default function AuctionPanel() {
               ) : isPaused ? (
                 <div style={{ color: "#f87171" }}>
                   🛑 PAUSA STOP RICHIESTA DA: <strong>{stopCalledBy}</strong>
-                  <div style={{ fontSize: "1.4rem", marginTop: "5px" }}>
+                  <div
+                    style={{
+                      fontSize: "1.4rem",
+                      marginTop: "5px",
+                    }}
+                  >
                     ⏱️ Ripresa Asta tra: {stopTimer}s
                   </div>
                 </div>
@@ -99,6 +199,10 @@ export default function AuctionPanel() {
               )}
             </div>
           </div>
+
+          {/* ========================================= */}
+          {/* AVVIO TIMER */}
+          {/* ========================================= */}
 
           {!isTimerStarted && (
             <button
@@ -116,6 +220,10 @@ export default function AuctionPanel() {
             </button>
           )}
 
+          {/* ========================================= */}
+          {/* OFFERTE */}
+          {/* ========================================= */}
+
           <div className="bid-actions">
             <button
               onClick={() => onBid(1)}
@@ -124,6 +232,7 @@ export default function AuctionPanel() {
             >
               +1 FM 🔨
             </button>
+
             <button
               onClick={() => onBid(5)}
               disabled={!isTimerStarted || timer === 0 || isPaused}
@@ -132,6 +241,10 @@ export default function AuctionPanel() {
               +5 FM 🚀
             </button>
           </div>
+
+          {/* ========================================= */}
+          {/* ASSEGNAZIONE */}
+          {/* ========================================= */}
 
           <button
             onClick={onAssign}
@@ -147,6 +260,10 @@ export default function AuctionPanel() {
             🏆 Assegna a {lastBidder ? lastBidder.nome : "..."} e Passa al
             Prossimo ⏩
           </button>
+
+          {/* ========================================= */}
+          {/* ASSEGNAZIONE MANUALE */}
+          {/* ========================================= */}
 
           <div
             style={{
@@ -165,8 +282,13 @@ export default function AuctionPanel() {
             >
               ⚠️ Correzione / Assegnazione Manuale d'Emergenza:
             </p>
+
             <div
-              style={{ display: "flex", gap: "8px", marginBottom: "8px" }}
+              style={{
+                display: "flex",
+                gap: "8px",
+                marginBottom: "8px",
+              }}
             >
               <select
                 value={manualTeamId}
@@ -181,12 +303,14 @@ export default function AuctionPanel() {
                 }}
               >
                 <option value="">Seleziona Squadra...</option>
+
                 {participants.map((participant) => (
                   <option key={participant.id} value={participant.id}>
                     {participant.nome} ({participant.crediti} FM)
                   </option>
                 ))}
               </select>
+
               <input
                 type="number"
                 placeholder="Prezzo FM"
@@ -202,19 +326,31 @@ export default function AuctionPanel() {
                 }}
               />
             </div>
+
             <button
               onClick={onManualAssign}
               className="btn btn-orange"
-              style={{ width: "100%", padding: "8px", fontSize: "0.95rem" }}
+              style={{
+                width: "100%",
+                padding: "8px",
+                fontSize: "0.95rem",
+              }}
             >
               🔧 Forza Assegnazione Manuale
             </button>
           </div>
         </div>
       ) : (
+        /* =========================================== */
+        /* NESSUN GIOCATORE IN ASTA */
+        /* =========================================== */
+
         <div
           className="alert-box"
-          style={{ textAlign: "center", padding: "20px" }}
+          style={{
+            textAlign: "center",
+            padding: "20px",
+          }}
         >
           <p style={{ color: "#94a3b8" }}>
             Nessun calciatore attualmente sul banditore.
@@ -228,19 +364,43 @@ export default function AuctionPanel() {
                 paddingTop: "15px",
               }}
             >
-              <span style={{ fontSize: "1.2rem", color: "#38bdf8" }}>
+              <span
+                style={{
+                  fontSize: "1.2rem",
+                  color: "#38bdf8",
+                }}
+              >
                 🎉 <strong>ULTIMO COLPO ASSEGNATO!</strong>
               </span>
-              <h3 style={{ color: "#fbbf24", margin: "8px 0" }}>
+
+              <h3
+                style={{
+                  color: "#fbbf24",
+                  margin: "8px 0",
+                }}
+              >
                 {lastPurchase.calciatore} ({lastPurchase.ruolo})
               </h3>
-              <p style={{ fontSize: "1.1rem" }}>
-                Vinto da {" "}
-                <strong style={{ color: "#38bdf8" }}>
+
+              <p
+                style={{
+                  fontSize: "1.1rem",
+                }}
+              >
+                Vinto da{" "}
+                <strong
+                  style={{
+                    color: "#38bdf8",
+                  }}
+                >
                   {lastPurchase.vincitoreNome}
                 </strong>{" "}
-                per {" "}
-                <strong style={{ color: "#10b981" }}>
+                per{" "}
+                <strong
+                  style={{
+                    color: "#10b981",
+                  }}
+                >
                   {lastPurchase.prezzo} FM
                 </strong>
               </p>
