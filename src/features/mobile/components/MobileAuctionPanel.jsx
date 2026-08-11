@@ -84,7 +84,6 @@ export default function MobileAuctionPanel({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            marginLeft: "30px",
           }}
         >
           <img
