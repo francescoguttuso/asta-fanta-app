@@ -12,10 +12,6 @@ export default function MobileAuctionPanel({
   onStop,
   lastPurchase,
 }) {
-  // ===================================================
-  // NESSUN GIOCATORE IN ASTA
-  // ===================================================
-
   if (!player) {
     return (
       <div
@@ -25,319 +21,273 @@ export default function MobileAuctionPanel({
           padding: "20px",
         }}
       >
-        <p
-          style={{
-            color: "#94a3b8",
-          }}
-        >
-          Nessun calciatore sul banditore.
-        </p>
-
-        {/* ========================================= */}
-        {/* ULTIMO ACQUISTO */}
-        {/* ========================================= */}
-
-        {lastPurchase && (
-          <div
-            className="alert-box"
-            style={{
-              marginTop: "15px",
-              padding: "15px",
-              textAlign: "center",
-            }}
-          >
-            <h4
-              style={{
-                color: "#38bdf8",
-                margin: "0 0 12px",
-                fontSize: "1.15rem",
-              }}
-            >
-              🏆 ULTIMO ACQUISTO
-            </h4>
-
-            {/* ===================================== */}
-            {/* CAMPIONCINO ULTIMO ACQUISTO */}
-            {/* ===================================== */}
-
-            {lastPurchase.id && (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  marginBottom: "12px",
-                }}
-              >
-                <img
-                  src={`/images/players/${lastPurchase.id}.png`}
-                  alt={lastPurchase.calciatore}
-                  style={{
-                    width: "130px",
-                    height: "165px",
-                    objectFit: "contain",
-                    display: "block",
-                  }}
-                  onError={(event) => {
-                    console.error(
-                      "Errore caricamento campioncino ultimo acquisto:",
-                      event.currentTarget.src,
-                    );
-
-                    event.currentTarget.style.display = "none";
-                  }}
-                />
-              </div>
-            )}
-
-            {/* ===================================== */}
-            {/* DATI ULTIMO ACQUISTO */}
-            {/* ===================================== */}
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "6px",
-                fontSize: "1rem",
-              }}
-            >
-              <div>
-                ⚽ <strong>{lastPurchase.calciatore}</strong>
-                {lastPurchase.ruolo && ` (${lastPurchase.ruolo})`}
-              </div>
-
-              <div>
-                💰 Prezzo:{" "}
-                <strong
-                  style={{
-                    color: "#10b981",
-                  }}
-                >
-                  {lastPurchase.prezzo} FM
-                </strong>
-              </div>
-
-              <div>
-                👑 Aggiudicato a:{" "}
-                <strong
-                  style={{
-                    color: "#fbbf24",
-                  }}
-                >
-                  {lastPurchase.vincitoreNome}
-                </strong>
-              </div>
-            </div>
-          </div>
-        )}
+        <p style={{ color: "#94a3b8" }}>Nessun calciatore sul banditore.</p>
       </div>
     );
   }
-
-  // ===================================================
-  // DISABILITAZIONE AZIONI
-  // ===================================================
 
   const actionsDisabled =
     !selectedTeamId || !isTimerStarted || timer === 0 || isPaused;
 
   /*
-   * Lo STOP è disponibile SOLO dopo un'offerta
-   * superiore a 30 FM.
+   * STOP disponibile SOLO sopra 30 FM.
    *
-   * 30 FM  -> disattivato
-   * 31 FM+ -> attivato
+   * 30 FM  → disabilitato
+   * 31 FM+ → abilitato
    */
-
   const stopDisabled =
     actionsDisabled || currentBid <= 30 || remainingStops <= 0;
-
-  // ===================================================
-  // GIOCATORE ATTUALMENTE IN ASTA
-  // ===================================================
 
   return (
     <div
       className="card"
       style={{
         textAlign: "center",
+        padding: "14px",
       }}
     >
-      {/* ========================================= */}
-      {/* GIOCATORE + CAMPIONCINO */}
-      {/* ========================================= */}
+      {/* =====================================================
+          GIOCATORE IN ASTA
+      ===================================================== */}
 
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          gap: "15px",
-          margin: "5px 0 15px",
+          gap: "12px",
+          marginBottom: "12px",
         }}
       >
-        {/* CAMPIONCINO */}
+        {/* IMMAGINE GIOCATORE */}
 
-        {player.id && (
-          <img
-            src={`/images/players/${player.id}.png`}
-            alt={player.nome}
-            style={{
-              width: "90px",
-              height: "115px",
-              objectFit: "contain",
-              display: "block",
-              flexShrink: 0,
-            }}
-            onError={(event) => {
-              console.error(
-                "Errore caricamento campioncino giocatore in asta:",
-                event.currentTarget.src,
-              );
+        <img
+          src={`/images/players/${player.id}.webp`}
+          alt={player.nome}
+          style={{
+            width: "64px",
+            height: "64px",
+            objectFit: "contain",
+            borderRadius: "10px",
+            background: "#0f172a",
+            border: "1px solid #334155",
+          }}
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
+        />
 
-              event.currentTarget.style.display = "none";
-            }}
-          />
-        )}
-
-        {/* DATI GIOCATORE */}
+        {/* NOME */}
 
         <div
           style={{
             textAlign: "left",
           }}
         >
-          <h3
+          <div
             style={{
               color: "#38bdf8",
-              margin: 0,
-              fontSize: "1.25rem",
+              fontSize: "1.2rem",
+              fontWeight: "800",
             }}
           >
             {player.nome}
-          </h3>
-
-          <div
-            style={{
-              color: "#cbd5e1",
-              marginTop: "4px",
-              fontSize: "0.95rem",
-            }}
-          >
-            {player.squadra}
           </div>
 
           <div
             style={{
               color: "#94a3b8",
-              marginTop: "2px",
-              fontSize: "0.9rem",
+              fontSize: "0.85rem",
+              marginTop: "3px",
             }}
           >
-            [{player.ruolo}]
+            {player.squadra} • {player.ruolo}
           </div>
         </div>
       </div>
 
-      {/* ========================================= */}
-      {/* OFFERTE / TIMER */}
-      {/* ========================================= */}
+      {/* =====================================================
+          TIMER + CLESSIDRA
+      ===================================================== */}
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "14px",
+          marginBottom: "12px",
+        }}
+      >
+        {/* CLESSIDRA */}
+
+        <div
+          style={{
+            fontSize: "2rem",
+            lineHeight: 1,
+            display: "inline-block",
+            animation:
+              isTimerStarted && !isPaused
+                ? "hourglassSpin 1.5s linear infinite"
+                : "none",
+          }}
+        >
+          ⏳
+        </div>
+
+        {/* TIMER */}
+
+        <div
+          style={{
+            fontSize: "2rem",
+            fontWeight: "900",
+            color: isPaused ? "#f87171" : timer <= 3 ? "#f97316" : "#38bdf8",
+            minWidth: "70px",
+          }}
+        >
+          {isPaused ? stopTimer : timer}s
+        </div>
+      </div>
+
+      {/* =====================================================
+          STATO ASTA
+      ===================================================== */}
+
+      <div
+        style={{
+          marginBottom: "12px",
+          fontWeight: "700",
+          fontSize: "0.9rem",
+        }}
+      >
+        {!isTimerStarted ? (
+          <span style={{ color: "#fbbf24" }}>⏳ IN ATTESA DI AVVIO</span>
+        ) : isPaused ? (
+          <div
+            style={{
+              color: "#f87171",
+            }}
+          >
+            🛑 STOP RICHIESTO DA <strong>{stopCalledBy}</strong>
+            <div
+              style={{
+                marginTop: "4px",
+                fontSize: "0.85rem",
+                color: "#fca5a5",
+              }}
+            >
+              Ripresa tra {stopTimer}s
+            </div>
+          </div>
+        ) : (
+          <span style={{ color: "#94a3b8" }}>🔨 ASTA IN CORSO</span>
+        )}
+      </div>
+
+      {/* =====================================================
+          OFFERTA CORRENTE
+      ===================================================== */}
 
       <div
         className="alert-box"
         style={{
           margin: "10px 0",
+          padding: "12px",
         }}
       >
-        <h4
+        <div
           style={{
-            fontSize: "1.4rem",
-            margin: 0,
+            color: "#94a3b8",
+            fontSize: "0.75rem",
+            textTransform: "uppercase",
           }}
         >
-          Offerta:{" "}
-          <span
-            style={{
-              color: "#10b981",
-            }}
-          >
-            {currentBid} FM
-          </span>
-        </h4>
+          Offerta corrente
+        </div>
 
         <div
           style={{
-            marginTop: "8px",
-            fontSize: "1.1rem",
-            fontWeight: "bold",
+            color: "#10b981",
+            fontSize: "1.8rem",
+            fontWeight: "900",
+            marginTop: "2px",
           }}
         >
-          {!isTimerStarted ? (
-            <span
-              style={{
-                color: "#fbbf24",
-              }}
-            >
-              ⏳ IN ATTESA DI AVVIO
-            </span>
-          ) : isPaused ? (
-            <div
-              style={{
-                color: "#f87171",
-              }}
-            >
-              🛑 STOP DA: <strong>{stopCalledBy}</strong>
-              <div
-                style={{
-                  fontSize: "1.2rem",
-                  marginTop: "3px",
-                }}
-              >
-                ⏱️ Ripresa tra: {stopTimer}s
-              </div>
-            </div>
-          ) : (
-            <span>⏱️ Timer: {timer}s</span>
-          )}
+          {currentBid} FM
         </div>
       </div>
 
-      {/* ========================================= */}
-      {/* PULSANTI OFFERTE */}
-      {/* ========================================= */}
+      {/* =====================================================
+          PULSANTI OFFERTE
+      ===================================================== */}
 
-      <div className="mobile-bid-actions">
+      <div
+        className="mobile-bid-actions"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr",
+          gap: "8px",
+          marginTop: "10px",
+        }}
+      >
+        {/* +1 */}
+
         <button
           onClick={() => onBid(1)}
           disabled={actionsDisabled}
           className="btn"
           style={{
-            flex: 1,
-            padding: "12px",
-            fontSize: "1.1rem",
+            padding: "13px 6px",
+            fontSize: "1rem",
+            fontWeight: "800",
+            background: "#2563eb",
+            border: "1px solid #3b82f6",
+            color: "#fff",
           }}
         >
-          +1 FM 🔨
+          +1 FM
         </button>
+
+        {/* +5 */}
 
         <button
           onClick={() => onBid(5)}
           disabled={actionsDisabled}
-          className="btn btn-green"
+          className="btn"
           style={{
-            flex: 1,
-            padding: "12px",
-            fontSize: "1.1rem",
+            padding: "13px 6px",
+            fontSize: "1rem",
+            fontWeight: "800",
+            background: "#16a34a",
+            border: "1px solid #22c55e",
+            color: "#fff",
           }}
         >
-          +5 FM 🚀
+          +5 FM
+        </button>
+
+        {/* +10 */}
+
+        <button
+          onClick={() => onBid(10)}
+          disabled={actionsDisabled}
+          className="btn"
+          style={{
+            padding: "13px 6px",
+            fontSize: "1rem",
+            fontWeight: "800",
+            background: "#7c3aed",
+            border: "1px solid #8b5cf6",
+            color: "#fff",
+          }}
+        >
+          +10 FM
         </button>
       </div>
 
-      {/* ========================================= */}
-      {/* STOP */}
-      {/* ========================================= */}
+      {/* =====================================================
+          STOP
+      ===================================================== */}
 
       <button
         onClick={onStop}
@@ -346,79 +296,46 @@ export default function MobileAuctionPanel({
         style={{
           width: "100%",
           padding: "12px",
-          fontSize: "1.1rem",
+          fontSize: "1rem",
+          fontWeight: "800",
           marginTop: "10px",
-          opacity: stopDisabled ? 0.5 : 1,
+          opacity: stopDisabled ? 0.45 : 1,
           cursor: stopDisabled ? "not-allowed" : "pointer",
         }}
       >
-        🛑 CHIEDI STOP (30s) - Rimasti: {remainingStops}/2
+        🛑 CHIEDI STOP (30s)
+        <span style={{ marginLeft: "6px" }}>• {remainingStops}/2</span>
       </button>
 
-      {/* ========================================= */}
-      {/* ULTIMO ACQUISTO */}
-      {/* ========================================= */}
+      {/* =====================================================
+          ULTIMO ACQUISTO
+      ===================================================== */}
 
       {lastPurchase && (
         <div
           className="alert-box"
           style={{
-            marginTop: "15px",
-            padding: "15px",
+            marginTop: "14px",
+            padding: "13px",
             textAlign: "center",
           }}
         >
           <h4
             style={{
               color: "#38bdf8",
-              margin: "0 0 12px",
-              fontSize: "1.15rem",
+              margin: "0 0 10px",
+              fontSize: "1rem",
             }}
           >
             🏆 ULTIMO ACQUISTO
           </h4>
 
-          {/* CAMPIONCINO */}
-
-          {lastPurchase.id && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                marginBottom: "12px",
-              }}
-            >
-              <img
-                src={`/images/players/${lastPurchase.id}.png`}
-                alt={lastPurchase.calciatore}
-                style={{
-                  width: "130px",
-                  height: "165px",
-                  objectFit: "contain",
-                  display: "block",
-                  margin: "0 auto",
-                }}
-                onError={(event) => {
-                  console.error(
-                    "Errore caricamento campioncino ultimo acquisto:",
-                    event.currentTarget.src,
-                  );
-
-                  event.currentTarget.style.display = "none";
-                }}
-              />
-            </div>
-          )}
-
-          {/* DATI ACQUISTO */}
-
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "6px",
-              fontSize: "1rem",
+              gap: "5px",
+              fontSize: "0.9rem",
             }}
           >
             <div>
@@ -450,6 +367,36 @@ export default function MobileAuctionPanel({
           </div>
         </div>
       )}
+
+      {/* =====================================================
+          ANIMAZIONE CLESSIDRA
+      ===================================================== */}
+
+      <style>
+        {`
+          @keyframes hourglassSpin {
+            0% {
+              transform: rotate(0deg);
+            }
+
+            45% {
+              transform: rotate(0deg);
+            }
+
+            50% {
+              transform: rotate(180deg);
+            }
+
+            95% {
+              transform: rotate(180deg);
+            }
+
+            100% {
+              transform: rotate(360deg);
+            }
+          }
+        `}
+      </style>
     </div>
   );
 }

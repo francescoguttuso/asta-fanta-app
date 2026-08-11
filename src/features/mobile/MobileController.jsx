@@ -1,10 +1,16 @@
 import { useState } from "react";
+
 import { ROLE_LIMITS } from "@/data/auctionDefaults";
+
 import { placeBid, requestAuctionStop } from "../auction/auctionActions";
+
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
+
 import BidHistory from "./components/BidHistory";
 import MobileAuctionPanel from "./components/MobileAuctionPanel";
 import TeamSelector from "./components/TeamSelector";
+
+const SAVED_TEAM_KEY = "fantaAstaTeamId";
 
 export default function MobileController() {
   const {
@@ -17,14 +23,55 @@ export default function MobileController() {
     stopChiamatoDa,
     storicoOfferte,
     stopTimer,
-
-    // ULTIMO ACQUISTO
     ultimoAcquisto,
-
     docRef,
   } = useAuctionSessionContext();
 
-  const [mioId, setMioId] = useState("");
+  // =====================================================
+  // SQUADRA SALVATA
+  // =====================================================
+
+  const [mioId, setMioId] = useState(() => {
+    return localStorage.getItem(SAVED_TEAM_KEY) || "";
+  });
+
+  const [showTeamSelector, setShowTeamSelector] = useState(
+    () => !localStorage.getItem(SAVED_TEAM_KEY),
+  );
+
+  // =====================================================
+  // SQUADRA SELEZIONATA
+  // =====================================================
+
+  const utenteSelezionato = partecipanti.find(
+    (participant) => participant.id === parseInt(mioId),
+  );
+
+  // =====================================================
+  // CAMBIO SQUADRA
+  // =====================================================
+
+  const handleTeamChange = (value) => {
+    setMioId(value);
+
+    if (value) {
+      localStorage.setItem(SAVED_TEAM_KEY, value);
+
+      setShowTeamSelector(false);
+    }
+  };
+
+  // =====================================================
+  // CAMBIA SQUADRA
+  // =====================================================
+
+  const cambiaSquadra = () => {
+    setShowTeamSelector(true);
+  };
+
+  // =====================================================
+  // OFFERTA MOBILE
+  // =====================================================
 
   const faiOffertaMobile = async (incremento = 1) => {
     if (!mioId) {
@@ -35,7 +82,13 @@ export default function MobileController() {
       return;
     }
 
-    const utenteCorrente = partecipanti.find((p) => p.id === parseInt(mioId));
+    // ================================================
+    // CONTROLLO REPARTO
+    // ================================================
+
+    const utenteCorrente = partecipanti.find(
+      (participant) => participant.id === parseInt(mioId),
+    );
 
     if (utenteCorrente) {
       const ruoloCorrente = giocatoreInAsta.ruolo;
@@ -53,17 +106,28 @@ export default function MobileController() {
       }
     }
 
+    // ================================================
+    // INVIO OFFERTA
+    // ================================================
+
     try {
       await placeBid({
         docRef,
+
         bidderId: mioId,
+
         bidderName: utenteCorrente?.nome || "Squadra",
+
         increment: incremento,
       });
     } catch (err) {
-      console.error("Errore rilancio mobile: ", err);
+      console.error("Errore rilancio mobile:", err);
     }
   };
+
+  // =====================================================
+  // STOP MOBILE
+  // =====================================================
 
   const fermaAstaMobile = async () => {
     if (!mioId) {
@@ -74,7 +138,9 @@ export default function MobileController() {
       return;
     }
 
-    const utenteCorrente = partecipanti.find((p) => p.id === parseInt(mioId));
+    const utenteCorrente = partecipanti.find(
+      (participant) => participant.id === parseInt(mioId),
+    );
 
     if (!utenteCorrente) {
       return;
@@ -91,40 +157,183 @@ export default function MobileController() {
     try {
       await requestAuctionStop({
         docRef,
+
         participantId: parseInt(mioId),
+
         participantName: utenteCorrente.nome,
+
         participants: partecipanti,
+
         timer,
       });
     } catch (err) {
-      console.error("Errore attivazione STOP: ", err);
+      console.error("Errore attivazione STOP:", err);
     }
   };
 
-  const utenteSelezionato = partecipanti.find((p) => p.id === parseInt(mioId));
+  // =====================================================
+  // STOP RIMANENTI
+  // =====================================================
 
   const stopRimanentiSelezionato = utenteSelezionato
     ? (utenteSelezionato.stopDisponibili ?? 2)
     : 2;
 
-  return (
-    <div className="container mobile-container">
-      <h2
+  // =====================================================
+  // SCHERMATA SELEZIONE SQUADRA
+  // =====================================================
+
+  if (showTeamSelector || !mioId) {
+    return (
+      <div
+        className="container mobile-container"
         style={{
-          textAlign: "center",
-          fontSize: "1.4rem",
+          maxWidth: "520px",
+          margin: "0 auto",
+          padding: "20px 15px",
         }}
       >
-        📱 Controller Fanta Squadra
-      </h2>
+        <div
+          className="card"
+          style={{
+            textAlign: "center",
+            padding: "25px 20px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "2.5rem",
+              marginBottom: "10px",
+            }}
+          >
+            ⚽
+          </div>
 
-      <TeamSelector
-        participants={partecipanti}
-        selectedTeamId={mioId}
-        selectedTeam={utenteSelezionato}
-        remainingStops={stopRimanentiSelezionato}
-        onTeamChange={setMioId}
-      />
+          <h2
+            style={{
+              color: "#38bdf8",
+              marginBottom: "8px",
+            }}
+          >
+            Fanta Asta
+          </h2>
+
+          <p
+            style={{
+              color: "#94a3b8",
+              marginBottom: "20px",
+            }}
+          >
+            Seleziona la tua squadra per entrare nell'asta.
+          </p>
+
+          <TeamSelector
+            participants={partecipanti}
+            selectedTeamId={mioId}
+            selectedTeam={utenteSelezionato}
+            remainingStops={stopRimanentiSelezionato}
+            onTeamChange={handleTeamChange}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // =====================================================
+  // CONTROLLER ASTA
+  // =====================================================
+
+  return (
+    <div
+      className="container mobile-container"
+      style={{
+        maxWidth: "520px",
+        margin: "0 auto",
+        padding: "10px 12px 25px",
+      }}
+    >
+      {/* ==============================================
+          TESTATA SQUADRA
+      ============================================== */}
+
+      <div
+        className="card"
+        style={{
+          padding: "10px 14px",
+          marginBottom: "10px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: "0.75rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            La tua squadra
+          </div>
+
+          <div
+            style={{
+              color: "#38bdf8",
+              fontSize: "1.15rem",
+              fontWeight: "800",
+              marginTop: "2px",
+            }}
+          >
+            🟢 {utenteSelezionato?.nome}
+          </div>
+        </div>
+
+        <div
+          style={{
+            textAlign: "right",
+          }}
+        >
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: "0.7rem",
+            }}
+          >
+            CREDITI
+          </div>
+
+          <strong
+            style={{
+              color: "#10b981",
+              fontSize: "1.1rem",
+            }}
+          >
+            {utenteSelezionato?.crediti} FM
+          </strong>
+        </div>
+
+        <button
+          type="button"
+          onClick={cambiaSquadra}
+          title="Cambia squadra"
+          style={{
+            border: "none",
+            background: "transparent",
+            color: "#94a3b8",
+            fontSize: "1.4rem",
+            cursor: "pointer",
+            padding: "4px",
+          }}
+        >
+          ⋮
+        </button>
+      </div>
+
+      {/* ==============================================
+          ASTA
+      ============================================== */}
 
       <MobileAuctionPanel
         player={giocatoreInAsta}
@@ -138,11 +347,12 @@ export default function MobileController() {
         remainingStops={stopRimanentiSelezionato}
         onBid={faiOffertaMobile}
         onStop={fermaAstaMobile}
-        // ==========================================
-        // ULTIMO ACQUISTO
-        // ==========================================
         lastPurchase={ultimoAcquisto}
       />
+
+      {/* ==============================================
+          STORICO OFFERTE
+      ============================================== */}
 
       <BidHistory bids={storicoOfferte} />
     </div>
