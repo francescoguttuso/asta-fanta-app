@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { ROLE_LIMITS } from "@/data/auctionDefaults";
 
-import { placeBid, requestAuctionStop } from "../auction/auctionActions";
+import { getMaximumBid, placeBid, requestAuctionStop } from "../auction/auctionActions";
 
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 
@@ -102,6 +102,16 @@ export default function MobileController() {
           `⛔ Impossibile rilanciare: hai già completato il reparto dei ${ruoloCorrente} (${ROLE_LIMITS[ruoloCorrente]}/${ROLE_LIMITS[ruoloCorrente]})!`,
         );
 
+        return;
+      }
+
+      const maximumBid = getMaximumBid(utenteCorrente, ruoloCorrente);
+      const nuovaOfferta = offertaCorrente + incremento;
+
+      if (nuovaOfferta > maximumBid) {
+        alert(
+          `💰 Offerta non possibile! La tua potenza economica massima per questo giocatore è ${maximumBid} FM.`,
+        );
         return;
       }
     }
@@ -240,6 +250,14 @@ export default function MobileController() {
   }
 
   // =====================================================
+  // POTENZA ECONOMICA MASSIMA
+  // =====================================================
+
+  const maximumBid = giocatoreInAsta && utenteSelezionato
+    ? getMaximumBid(utenteSelezionato, giocatoreInAsta.ruolo)
+    : 0;
+
+  // =====================================================
   // CONTROLLER ASTA
   // =====================================================
 
@@ -345,6 +363,7 @@ export default function MobileController() {
         stopTimer={stopTimer}
         selectedTeamId={mioId}
         remainingStops={stopRimanentiSelezionato}
+        maximumBid={maximumBid}
         onBid={faiOffertaMobile}
         onStop={fermaAstaMobile}
         lastPurchase={ultimoAcquisto}

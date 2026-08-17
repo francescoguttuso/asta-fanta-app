@@ -1,16 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { INITIAL_PARTICIPANTS, INITIAL_PLAYERS } from '@/data/auctionDefaults';
-import { STOP_DURATION_MS, getRemainingSeconds } from '@/utils/timerUtils';
+import { STOP_DURATION_MS } from '@/utils/timerUtils';
 import {
   normalizePlayer,
   sortPlayersAlphabetically,
 } from '@/utils/playerUtils';
-import {
-  resumeAuctionAfterStop,
-  saveAuctionSession,
-} from '../auctionActions';
+import { resumeAuctionAfterStop, saveAuctionSession } from '../auctionActions';
 
 const AUCTION_SESSION_REF = doc(db, 'asta_fantacalcio', 'sessione_asta');
 
@@ -29,19 +26,41 @@ export default function useAuctionSession({ isMobileView }) {
   const [storicoOfferte, setStoricoOfferte] = useState([]);
   const [timer, setTimer] = useState(10);
   const [timerEndsAt, setTimerEndsAt] = useState(null);
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
   const [stopTimer, setStopTimer] = useState(30);
 
-  /*
-   * IMPORTANTISSIMO:
-   * saveSession non ricostruisce più la sessione partendo dallo stato
-   * locale del dispositivo. Invia solamente i campi esplicitamente
-   * richiesti dal chiamante.
-   */
+  const currentSessionRef = useRef(null);
+  currentSessionRef.current = {
+    players: giocatori,
+    participants: partecipanti,
+    configMode: isConfigMode,
+    playerInAuction: giocatoreInAsta,
+    currentBid: offertaCorrente,
+    timerStarted: isTimerStarted,
+    lastBidderId: ultimoOfferenteId,
+    paused: isPaused,
+    stopCalledBy: stopChiamatoDa,
+    stopStartedAt: stopIniziatoAt,
+    lastPurchase: ultimoAcquisto,
+    bidHistory: storicoOfferte,
+    timer,
+    timerEndsAt,
+  };
+
   const saveSession = useCallback(async (changes = {}) => {
+    const currentSession = currentSessionRef.current;
+    const nextSession = { ...currentSession, ...changes };
+    const nextTimerStarted = nextSession.timerStarted;
+
     try {
       await saveAuctionSession({
         docRef: AUCTION_SESSION_REF,
-        changes,
+        ...nextSession,
+        timerStarted: nextTimerStarted,
+        timerEndsAt:
+          nextTimerStarted && !nextSession.paused
+            ? (changes.endsAt ?? nextSession.timerEndsAt)
+            : null,
       });
     } catch (err) {
       console.error('Errore nel salvataggio su Firestore: ', err);
@@ -49,67 +68,75 @@ export default function useAuctionSession({ isMobileView }) {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      AUCTION_SESSION_REF,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.data();
+    const unsubscribe = onSnapshot(AUCTION_SESSION_REF, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        const giocatoriParsed = (data.giocatori || INITIAL_PLAYERS).map(
+          normalizePlayer,
+        );
 
-          const giocatoriParsed = (
-            data.giocatori || INITIAL_PLAYERS
-          ).map(normalizePlayer);
+        setGiocatori(sortPlayersAlphabetically(giocatoriParsed));
+        setPartecipanti(data.partecipanti || INITIAL_PARTICIPANTS);
+        setIsConfigMode(
+          data.isConfigMode !== undefined ? data.isConfigMode : true,
+        );
+        setGiocatoreInAsta(
+          data.giocatoreInAsta ? normalizePlayer(data.giocatoreInAsta) : null,
+        );
+        setOffertaCorrente(data.offertaCorrente || 0);
+        setIsTimerStarted(data.isTimerStarted || false);
+        setUltimoOfferenteId(data.ultimoOfferenteId || null);
+        setIsPaused(data.isPaused || false);
+        setStopChiamatoDa(data.stopChiamatoDa || null);
+        setStopIniziatoAt(data.stopIniziatoAt || null);
+        setUltimoAcquisto(data.ultimoAcquisto || null);
+        setStoricoOfferte(data.storicoOfferte || []);
 
-          setGiocatori(sortPlayersAlphabetically(giocatoriParsed));
-          setPartecipanti(data.partecipanti || INITIAL_PARTICIPANTS);
-          setIsConfigMode(
-            data.isConfigMode !== undefined ? data.isConfigMode : true,
-          );
-          setGiocatoreInAsta(
-            data.giocatoreInAsta
-              ? normalizePlayer(data.giocatoreInAsta)
-              : null,
-          );
-          setOffertaCorrente(data.offertaCorrente || 0);
-          setIsTimerStarted(data.isTimerStarted || false);
-          setUltimoOfferenteId(data.ultimoOfferenteId || null);
-          setIsPaused(data.isPaused || false);
-          setStopChiamatoDa(data.stopChiamatoDa || null);
-          setStopIniziatoAt(data.stopIniziatoAt || null);
-          setUltimoAcquisto(data.ultimoAcquisto || null);
-          setStoricoOfferte(data.storicoOfferte || []);
+        const timerSalvato = data.timer !== undefined ? data.timer : 10;
+        setTimer(timerSalvato);
+        // Firestore ci fornisce l'istante del commit dal server.
+        // Usiamo questo valore per correggere il piccolo disallineamento
+        // degli orologi dei vari dispositivi.
+        const serverNowMs = data.serverNow?.toMillis?.();
 
-          const timerSalvato = data.timer !== undefined ? data.timer : 10;
-          setTimer(timerSalvato);
-
-          /*
-           * Non ricreiamo più timerEndsAt usando Date.now() locale se
-           * Firestore non lo contiene. Se il timestamp manca, lasciamo
-           * null: la sorgente autorevole deve essere il documento remoto.
-           */
-          setTimerEndsAt(data.timerEndsAt || null);
-        } else {
-          saveSession({
-            players: INITIAL_PLAYERS,
-            participants: INITIAL_PARTICIPANTS,
-            configMode: true,
-            playerInAuction: null,
-            currentBid: 0,
-            timerStarted: false,
-            lastBidderId: null,
-            paused: false,
-            stopCalledBy: null,
-            stopStartedAt: null,
-            lastPurchase: null,
-            bidHistory: [],
-            timer: 10,
-            timerEndsAt: null,
-          });
+        if (serverNowMs) {
+          const offset = serverNowMs - Date.now();
+          setClockOffsetMs(offset);
         }
-      },
-      (error) => {
-        console.error('Errore listener sessione asta:', error);
-      },
-    );
+
+        const durationMs = Number(
+          data.timerDurationMs ?? (timerSalvato > 0 ? timerSalvato * 1000 : 0),
+        );
+
+        const synchronizedTimerEndsAt =
+          serverNowMs && data.isTimerStarted && !data.isPaused && durationMs > 0
+            ? serverNowMs + durationMs
+            : null;
+
+        setTimerEndsAt(
+          synchronizedTimerEndsAt ??
+            data.timerEndsAt ??
+            (data.isTimerStarted && !data.isPaused && timerSalvato > 0
+              ? Date.now() + timerSalvato * 1000
+              : null),
+        );
+      } else {
+        saveSession({
+          players: INITIAL_PLAYERS,
+          participants: INITIAL_PARTICIPANTS,
+          configMode: true,
+          playerInAuction: null,
+          currentBid: 0,
+          timerStarted: false,
+          lastBidderId: null,
+          paused: false,
+          stopCalledBy: null,
+          stopStartedAt: null,
+          lastPurchase: null,
+          bidHistory: [],
+        });
+      }
+    });
 
     return unsubscribe;
   }, [saveSession]);
@@ -120,13 +147,18 @@ export default function useAuctionSession({ isMobileView }) {
     }
 
     const aggiornaTimer = () => {
-      setTimer(getRemainingSeconds(timerEndsAt));
+      const nowSynchronized = Date.now() + clockOffsetMs;
+      const remainingSeconds = Math.max(
+        0,
+        Math.ceil((timerEndsAt - nowSynchronized) / 1000),
+      );
+      setTimer(remainingSeconds);
     };
 
     aggiornaTimer();
     const intervallo = setInterval(aggiornaTimer, 250);
     return () => clearInterval(intervallo);
-  }, [giocatoreInAsta, isTimerStarted, isPaused, timerEndsAt]);
+  }, [giocatoreInAsta, isTimerStarted, isPaused, timerEndsAt, clockOffsetMs]);
 
   useEffect(() => {
     let interval = null;
@@ -141,11 +173,6 @@ export default function useAuctionSession({ isMobileView }) {
       aggiornaTimerStop();
       interval = setInterval(aggiornaTimerStop, 1000);
 
-      /*
-       * Un solo tipo di client deve occuparsi del resume automatico.
-       * Il controllo transaction-side in resumeAuctionAfterStop impedisce
-       * comunque che più dispositivi riattivino lo stesso STOP.
-       */
       if (!isMobileView) {
         const trascorsiMs = Date.now() - stopIniziatoAt;
         const rimastiMs = Math.max(0, STOP_DURATION_MS - trascorsiMs);

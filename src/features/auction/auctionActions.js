@@ -1,84 +1,95 @@
-import { runTransaction, setDoc } from 'firebase/firestore';
-import { db } from '@/firebaseConfig';
-import { ALPHABET, ROLE_LIMITS } from '@/data/auctionDefaults';
+import { runTransaction, serverTimestamp, setDoc } from "firebase/firestore";
+import { db } from "@/firebaseConfig";
+import { ALPHABET, ROLE_LIMITS } from "@/data/auctionDefaults";
 import {
   AUCTION_DURATION_MS,
   getRemainingMilliseconds,
-} from '@/utils/timerUtils';
-import { filterPlayers, findNextPlayer, sortPlayersAlphabetically } from '@/utils/playerUtils';
+} from "@/utils/timerUtils";
+import { findNextPlayer, sortPlayersAlphabetically } from "@/utils/playerUtils";
 
-const sameId = (a, b) => String(a) === String(b);
+const TOTAL_SQUAD_SIZE = Object.values(ROLE_LIMITS).reduce(
+  (total, limit) => total + limit,
+  0,
+);
 
-const createReadyAuctionState = (playerInAuction) => ({
-  giocatoreInAsta: playerInAuction,
-  offertaCorrente: 0,
-  isTimerStarted: false,
-  ultimoOfferenteId: null,
-  isPaused: false,
-  stopChiamatoDa: null,
-  stopIniziatoAt: null,
-  storicoOfferte: [],
-  timer: 10,
-  timerEndsAt: null,
-});
-
-/*
- * IMPORTANTISSIMO:
- * questa funzione NON salva più l'intera sessione locale.
- * Scrive solamente i campi realmente richiesti dal chiamante.
- * Questo evita che un dispositivo con stato vecchio possa
- * sovrascrivere le modifiche fatte contemporaneamente dagli altri.
+/**
+ * Calcola la massima cifra totale che una squadra può offrire per il
+ * giocatore corrente, lasciando almeno 1 FM per ogni posto ancora da
+ * completare dopo questo acquisto.
  */
-export const saveAuctionSession = async ({ docRef, changes = {} }) => {
-  const payload = {};
+export const getMaximumBid = (participant, playerRole) => {
+  if (!participant) return 0;
 
-  const fieldMap = {
-    players: 'giocatori',
-    participants: 'partecipanti',
-    configMode: 'isConfigMode',
-    playerInAuction: 'giocatoreInAsta',
-    currentBid: 'offertaCorrente',
-    timerStarted: 'isTimerStarted',
-    lastBidderId: 'ultimoOfferenteId',
-    paused: 'isPaused',
-    stopCalledBy: 'stopChiamatoDa',
-    stopStartedAt: 'stopIniziatoAt',
-    lastPurchase: 'ultimoAcquisto',
-    bidHistory: 'storicoOfferte',
-    timer: 'timer',
-    timerEndsAt: 'timerEndsAt',
-  };
+  const rosa = Array.isArray(participant.rosa) ? participant.rosa : [];
+  const roleLimit = ROLE_LIMITS[playerRole] || 0;
+  const roleCount = rosa.filter(
+    (player) => player.ruolo === playerRole,
+  ).length;
 
-  Object.entries(fieldMap).forEach(([sourceKey, firestoreKey]) => {
-    if (Object.prototype.hasOwnProperty.call(changes, sourceKey)) {
-      const value = changes[sourceKey];
-      payload[firestoreKey] =
-        sourceKey === 'players' && Array.isArray(value)
-          ? sortPlayersAlphabetically(value)
-          : value;
-    }
-  });
+  if (!roleLimit || roleCount >= roleLimit) {
+    return 0;
+  }
 
-  if (Object.keys(payload).length === 0) return;
+  const crediti = Math.max(0, Number(participant.crediti) || 0);
+  const remainingSlotsAfterPurchase = Math.max(
+    0,
+    TOTAL_SQUAD_SIZE - (rosa.length + 1),
+  );
 
-  await setDoc(docRef, payload, { merge: true });
+  return Math.max(0, Math.floor(crediti - remainingSlotsAfterPurchase));
+};
+
+export const saveAuctionSession = async ({
+  docRef,
+  players,
+  participants,
+  configMode,
+  playerInAuction,
+  currentBid,
+  timerStarted,
+  lastBidderId,
+  paused,
+  stopCalledBy,
+  stopStartedAt,
+  lastPurchase,
+  bidHistory,
+  timer,
+  timerEndsAt,
+  timerDurationMs,
+  serverNow,
+}) => {
+  await setDoc(docRef, {
+    giocatori: sortPlayersAlphabetically(players),
+    partecipanti: participants,
+    isConfigMode: configMode,
+    giocatoreInAsta: playerInAuction,
+    offertaCorrente: currentBid,
+    isTimerStarted: timerStarted,
+    ultimoOfferenteId: lastBidderId,
+    isPaused: paused,
+    stopChiamatoDa: stopCalledBy,
+    stopIniziatoAt: stopStartedAt,
+    ultimoAcquisto: lastPurchase,
+    storicoOfferte: bidHistory,
+    timer,
+    timerEndsAt,
+    ...(timerDurationMs !== undefined ? { timerDurationMs } : {}),
+    ...(serverNow !== undefined ? { serverNow } : {}),
+  }, { merge: true });
 };
 
 export const startAuctionTimer = async ({ docRef }) => {
   await runTransaction(db, async (transaction) => {
     const sessionSnapshot = await transaction.get(docRef);
+
     if (!sessionSnapshot.exists()) return;
-
-    const session = sessionSnapshot.data();
-
-    if (!session.giocatoreInAsta || session.isPaused || session.isTimerStarted) {
-      return;
-    }
 
     transaction.update(docRef, {
       isTimerStarted: true,
       timer: 10,
       timerEndsAt: Date.now() + AUCTION_DURATION_MS,
+      timerDurationMs: AUCTION_DURATION_MS,
+      serverNow: serverTimestamp(),
     });
   });
 };
@@ -86,20 +97,38 @@ export const startAuctionTimer = async ({ docRef }) => {
 export const placeBid = async ({ docRef, bidderId, bidderName, increment }) => {
   await runTransaction(db, async (transaction) => {
     const sessionSnapshot = await transaction.get(docRef);
+
     if (!sessionSnapshot.exists()) return;
 
     const session = sessionSnapshot.data();
 
-    if (
-      !session.giocatoreInAsta ||
-      session.isPaused ||
-      !session.isTimerStarted ||
-      getRemainingMilliseconds(session.timerEndsAt) === 0
-    ) {
+    if (session.isPaused || !session.isTimerStarted) return;
+
+    if (session.timerEndsAt && Date.now() >= session.timerEndsAt) {
       return;
     }
 
-    const newBid = (session.offertaCorrente || 0) + increment;
+    const player = session.giocatoreInAsta;
+    if (!player) return;
+
+    const currentParticipants = session.partecipanti || [];
+    const bidder = currentParticipants.find(
+      (participant) => String(participant.id) === String(bidderId),
+    );
+
+    if (!bidder) return;
+
+    const maximumBid = getMaximumBid(bidder, player.ruolo);
+    const newBid = (session.offertaCorrente || 0) + Number(increment || 0);
+
+    // Controllo definitivo lato Firestore: il dispositivo non può
+    // superare la reale potenza economica della squadra.
+    if (newBid > maximumBid) {
+      console.warn(
+        `Offerta rifiutata: ${bidder.nome} può arrivare al massimo a ${maximumBid} FM.`,
+      );
+      return;
+    }
 
     const newHistoryEntry = {
       nome: bidderName,
@@ -117,10 +146,11 @@ export const placeBid = async ({ docRef, bidderId, bidderName, increment }) => {
       ultimoOfferenteId: bidderId,
       timer: 10,
       timerEndsAt: Date.now() + AUCTION_DURATION_MS,
+      timerDurationMs: AUCTION_DURATION_MS,
+      serverNow: serverTimestamp(),
       isPaused: false,
       stopChiamatoDa: null,
       stopIniziatoAt: null,
-      timerRimanenteMs: null,
       storicoOfferte: bidHistory,
     });
   });
@@ -130,49 +160,87 @@ export const requestAuctionStop = async ({
   docRef,
   participantId,
   participantName,
+  participants,
+  timer,
 }) => {
   await runTransaction(db, async (transaction) => {
     const sessionSnapshot = await transaction.get(docRef);
+
     if (!sessionSnapshot.exists()) return;
 
     const session = sessionSnapshot.data();
 
-    if (session.isPaused || !session.isTimerStarted || !session.giocatoreInAsta) {
-      return;
-    }
+    /*
+     * Lo STOP non può essere richiesto:
+     * - se l'asta è già in pausa
+     * - se il timer non è partito
+     */
+    if (session.isPaused || !session.isTimerStarted) return;
 
+    /*
+     * Lo STOP diventa disponibile SOLO dopo
+     * un'offerta superiore a 30 FM.
+     *
+     * 30 FM -> NO
+     * 31 FM -> SI
+     */
     const currentBid = session.offertaCorrente || 0;
+
     if (currentBid <= 30) return;
 
-    const currentParticipants = session.partecipanti || [];
-    const participant = currentParticipants.find((p) =>
-      sameId(p.id, participantId),
-    );
+    const currentParticipants = session.partecipanti || participants;
+
+    const participant = currentParticipants.find((p) => p.id === participantId);
 
     if (!participant) return;
 
+    /*
+     * Ogni squadra parte con 2 STOP.
+     */
     const remainingStops = participant.stopDisponibili ?? 2;
+
+    /*
+     * Se la squadra ha già utilizzato entrambi gli STOP
+     * per questo giocatore, non può richiederne altri.
+     */
     if (remainingStops <= 0) return;
 
     const remainingTimerMs = session.timerEndsAt
       ? getRemainingMilliseconds(session.timerEndsAt)
-      : Math.max(0, (session.timer ?? 0) * 1000);
+      : Math.max(0, (session.timer ?? timer) * 1000);
 
+    /*
+     * Il timer deve essere ancora attivo.
+     */
     if (remainingTimerMs === 0) return;
 
-    const updatedParticipants = currentParticipants.map((p) =>
-      sameId(p.id, participantId)
-        ? { ...p, stopDisponibili: remainingStops - 1 }
-        : p,
-    );
+    /*
+     * Consuma UNO STOP della squadra che lo ha richiesto.
+     */
+    const updatedParticipants = currentParticipants.map((participant) => {
+      if (participant.id === participantId) {
+        return {
+          ...participant,
+          stopDisponibili: remainingStops - 1,
+        };
+      }
+
+      return participant;
+    });
 
     transaction.update(docRef, {
       isPaused: true,
       stopChiamatoDa: participantName,
       stopIniziatoAt: Date.now(),
+
+      /*
+       * Conserviamo il tempo residuo dell'asta
+       * per poterla riprendere dopo i 30 secondi.
+       */
       timerRimanenteMs: remainingTimerMs,
       timer: Math.ceil(remainingTimerMs / 1000),
       timerEndsAt: null,
+
       partecipanti: updatedParticipants,
     });
   });
@@ -181,10 +249,15 @@ export const requestAuctionStop = async ({
 export const resumeAuctionAfterStop = async ({ docRef, stopStartedAt }) => {
   await runTransaction(db, async (transaction) => {
     const sessionSnapshot = await transaction.get(docRef);
+
     if (!sessionSnapshot.exists()) return;
 
     const session = sessionSnapshot.data();
 
+    /*
+     * Evita che una vecchia chiamata possa
+     * riattivare uno STOP diverso.
+     */
     if (!session.isPaused || session.stopIniziatoAt !== stopStartedAt) {
       return;
     }
@@ -200,191 +273,10 @@ export const resumeAuctionAfterStop = async ({ docRef, stopStartedAt }) => {
       stopIniziatoAt: null,
       timerRimanenteMs: null,
       timer: Math.ceil(remainingTimerMs / 1000),
-      timerEndsAt:
-        remainingTimerMs > 0 ? Date.now() + remainingTimerMs : null,
+      timerEndsAt: remainingTimerMs > 0 ? Date.now() + remainingTimerMs : null,
+      timerDurationMs: remainingTimerMs,
+      serverNow: serverTimestamp(),
     });
-  });
-};
-
-/*
- * Cambio manuale del giocatore eseguito come transaction.
- * In questo modo un browser non può usare una lista vecchia
- * per sovrascrivere la lista aggiornata da un altro browser.
- */
-export const changePlayerManual = async ({
-  docRef,
-  direction,
-  selectedLetter,
-  activeRoleFilters,
-}) => {
-  return runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(docRef);
-    if (!snapshot.exists()) return false;
-
-    const session = snapshot.data();
-    if (session.isConfigMode || !session.giocatoreInAsta) return false;
-
-    const players = (session.giocatori || []).slice();
-    const currentIndex = players.findIndex((p) =>
-      sameId(p.id, session.giocatoreInAsta.id),
-    );
-
-    if (currentIndex < 0) return false;
-
-    const filteredPlayers = filterPlayers(
-      players,
-      selectedLetter,
-      activeRoleFilters,
-    );
-
-    const filteredIndex = filteredPlayers.findIndex((p) =>
-      sameId(p.id, session.giocatoreInAsta.id),
-    );
-
-    if (filteredIndex < 0) return false;
-
-    const nextIndex = direction === 'avanti' ? filteredIndex + 1 : filteredIndex - 1;
-    if (nextIndex < 0 || nextIndex >= filteredPlayers.length) return false;
-
-    const nextPlayer = filteredPlayers[nextIndex];
-    const participants = (session.partecipanti || []).map((p) => ({
-      ...p,
-      stopDisponibili: 2,
-    }));
-
-    const firstLetter = String(nextPlayer.nome || '').charAt(0).toUpperCase();
-
-    transaction.update(docRef, {
-      giocatoreInAsta: nextPlayer,
-      offertaCorrente: 0,
-      isTimerStarted: false,
-      ultimoOfferenteId: null,
-      isPaused: false,
-      stopChiamatoDa: null,
-      stopIniziatoAt: null,
-      storicoOfferte: [],
-      timer: 10,
-      timerEndsAt: null,
-      timerRimanenteMs: null,
-      partecipanti: participants,
-    });
-
-    return { nextPlayer, nextLetter: firstLetter };
-  });
-};
-
-/*
- * Assegnazione ATOMICA.
- * È il punto più importante della correzione:
- * se 10 dispositivi arrivano contemporaneamente a timer=0,
- * solo il primo che completa la transaction può assegnare il giocatore.
- */
-export const assignPlayer = async ({
-  docRef,
-  winnerId,
-  price,
-  selectedLetter,
-  activeRoleFilters,
-  expectedPlayerId,
-}) => {
-  return runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(docRef);
-    if (!snapshot.exists()) return { assigned: false, reason: 'missing' };
-
-    const session = snapshot.data();
-    const player = session.giocatoreInAsta;
-
-    if (!player || !sameId(player.id, expectedPlayerId)) {
-      return { assigned: false, reason: 'already-assigned' };
-    }
-
-    const participants = session.partecipanti || [];
-    const winner = participants.find((p) => sameId(p.id, winnerId));
-    if (!winner) return { assigned: false, reason: 'winner-not-found' };
-
-    const currentBid = session.offertaCorrente || 0;
-    const finalPrice = Number(price);
-
-    if (!Number.isFinite(finalPrice) || finalPrice < 0) {
-      return { assigned: false, reason: 'invalid-price' };
-    }
-
-    if (winner.crediti < finalPrice) {
-      return { assigned: false, reason: 'insufficient-credits' };
-    }
-
-    const role = player.ruolo;
-    const roleCount = (winner.rosa || []).filter(
-      (ownedPlayer) => ownedPlayer.ruolo === role,
-    ).length;
-
-    if (roleCount >= (ROLE_LIMITS[role] || 0)) {
-      return { assigned: false, reason: 'role-limit' };
-    }
-
-    const remainingPlayers = (session.giocatori || []).filter(
-      (availablePlayer) => !sameId(availablePlayer.id, player.id),
-    );
-
-    const { player: nextPlayer, letter: nextLetter } = findNextPlayer(
-      remainingPlayers,
-      selectedLetter,
-      activeRoleFilters,
-      ALPHABET,
-    );
-
-    const updatedParticipants = participants.map((participant) => {
-      if (sameId(participant.id, winner.id)) {
-        return {
-          ...participant,
-          crediti: participant.crediti - finalPrice,
-          rosa: [
-            ...(participant.rosa || []),
-            { ...player, prezzo: finalPrice },
-          ],
-          stopDisponibili: 2,
-        };
-      }
-
-      return {
-        ...participant,
-        stopDisponibili: 2,
-      };
-    });
-
-    const lastPurchase = {
-      id: player.id,
-      calciatore: player.nome,
-      squadra: player.squadra,
-      ruolo: player.ruolo,
-      vincitoreNome: winner.nome,
-      prezzo: finalPrice,
-    };
-
-    transaction.update(docRef, {
-      giocatori: sortPlayersAlphabetically(remainingPlayers),
-      partecipanti: updatedParticipants,
-      giocatoreInAsta: nextPlayer || null,
-      offertaCorrente: 0,
-      isTimerStarted: false,
-      ultimoOfferenteId: null,
-      isPaused: false,
-      stopChiamatoDa: null,
-      stopIniziatoAt: null,
-      storicoOfferte: [],
-      timer: 10,
-      timerEndsAt: null,
-      timerRimanenteMs: null,
-      ultimoAcquisto: lastPurchase,
-    });
-
-    return {
-      assigned: true,
-      nextPlayer,
-      nextLetter,
-      lastPurchase,
-      currentBid,
-    };
   });
 };
 
@@ -398,21 +290,28 @@ export const buildPlayerAssignment = ({
   activeRoleFilters,
 }) => {
   const lastPurchase = {
-    id: player.id,
     calciatore: player.nome,
-    squadra: player.squadra,
     ruolo: player.ruolo,
     vincitoreNome: winner.nome,
     prezzo: price,
   };
 
+  /*
+   * IMPORTANTE:
+   *
+   * Alla fine dell'asta del giocatore gli STOP
+   * vengono completamente resettati.
+   *
+   * Ogni squadra riparte quindi con 2 STOP
+   * quando viene messo all'asta il giocatore successivo.
+   */
   const updatedParticipants = participants.map((participant) => {
-    if (sameId(participant.id, winner.id)) {
+    if (participant.id === winner.id) {
       return {
         ...participant,
         crediti: participant.crediti - price,
         rosa: [
-          ...(participant.rosa || []),
+          ...participant.rosa,
           {
             ...player,
             prezzo: price,
@@ -429,7 +328,7 @@ export const buildPlayerAssignment = ({
   });
 
   const remainingPlayers = players.filter(
-    (availablePlayer) => !sameId(availablePlayer.id, player.id),
+    (availablePlayer) => availablePlayer.id !== player.id,
   );
 
   const { player: nextPlayer, letter: nextLetter } = findNextPlayer(
