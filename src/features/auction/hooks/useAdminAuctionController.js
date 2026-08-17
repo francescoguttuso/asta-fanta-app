@@ -151,6 +151,49 @@ export default function useAdminAuctionController() {
     document.body.removeChild(link);
   };
 
+  const rimuoviGiocatoreDallaRosa = useCallback(
+    async (participantId, playerId) => {
+      const participant = partecipanti.find(
+        (item) => item.id === Number(participantId),
+      );
+      const player = participant?.rosa?.find(
+        (item) => item.id === Number(playerId),
+      );
+
+      if (!participant || !player) {
+        alert('Giocatore non trovato nella rosa.');
+        return false;
+      }
+
+      const conferma = window.confirm(
+        `Rimuovere ${player.nome} dalla rosa di ${participant.nome}?\n\n` +
+          `Verranno restituiti ${Number(player.prezzo) || 0} FM e il giocatore tornerà nel listone.`,
+      );
+
+      if (!conferma) return false;
+
+      try {
+        const result = await removePlayerFromRoster({
+          docRef,
+          participantId,
+          playerId,
+        });
+
+        if (!result?.ok) {
+          alert('Impossibile rimuovere il giocatore. La sessione potrebbe essere cambiata.');
+          return false;
+        }
+
+        return true;
+      } catch (error) {
+        console.error('Errore nella rimozione del giocatore:', error);
+        alert('Errore durante la rimozione del giocatore.');
+        return false;
+      }
+    },
+    [docRef, partecipanti],
+  );
+
   const cambiaNomeSquadra = (id, nuovoNome) => {
     const partecipantiAggiornati = partecipanti.map((partecipante) =>
       partecipante.id === id
@@ -375,6 +418,7 @@ export default function useAdminAuctionController() {
     resettaTutto,
     esportaInExcel,
     cambiaNomeSquadra,
+    rimuoviGiocatoreDallaRosa,
     impostaModalitaConfigurazione,
     chiamaGiocatore,
     cambiaFiltroRuolo,

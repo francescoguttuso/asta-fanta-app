@@ -1,6 +1,9 @@
 import { ROLE_LIMITS } from "@/data/auctionDefaults";
 import { countRosterRoles } from "@/utils/playerUtils";
-import { useAuctionSessionContext } from "../context/useAuctionContexts";
+import {
+  useAdminAuctionContext,
+  useAuctionSessionContext,
+} from "../context/useAuctionContexts";
 
 const ROLE_CONFIG = {
   P: {
@@ -374,16 +377,49 @@ function RoleColumn({ participant, role }) {
                     {player.nome}
                   </span>
 
-                  <span
+                  <div
                     style={{
-                      color: "#f4f4f4",
-                      fontSize: "12px",
-                      fontWeight: "700",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "7px",
                       flexShrink: 0,
                     }}
                   >
-                    {player.prezzo} FM
-                  </span>
+                    <span
+                      style={{
+                        color: "#f4f4f4",
+                        fontSize: "12px",
+                        fontWeight: "700",
+                      }}
+                    >
+                      {player.prezzo} FM
+                    </span>
+
+                    <button
+                      type="button"
+                      title={`Rimuovi ${player.nome} dalla rosa`}
+                      onClick={() =>
+                        rimuoviGiocatoreDallaRosa(participant.id, player.id)
+                      }
+                      style={{
+                        border: "1px solid #7f1d1d",
+                        background: "#450a0a",
+                        color: "#fca5a5",
+                        borderRadius: "6px",
+                        width: "25px",
+                        height: "25px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        fontWeight: "900",
+                        padding: 0,
+                      }}
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <span
@@ -403,6 +439,7 @@ function RoleColumn({ participant, role }) {
 
 export default function RostersView() {
   const { partecipanti } = useAuctionSessionContext();
+  const { rimuoviGiocatoreDallaRosa } = useAdminAuctionContext();
 
   if (!partecipanti || partecipanti.length === 0) {
     return (

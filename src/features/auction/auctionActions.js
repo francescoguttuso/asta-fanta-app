@@ -280,6 +280,83 @@ export const resumeAuctionAfterStop = async ({ docRef, stopStartedAt }) => {
   });
 };
 
+// =====================================================
+// RIMOZIONE GIOCATORE DALLA ROSA / RIMBORSO
+// =====================================================
+export const removePlayerFromRoster = async ({ docRef, participantId, playerId }) => {
+  let result = { ok: false, reason: 'unknown' };
+
+  await runTransaction(db, async (transaction) => {
+    const sessionSnapshot = await transaction.get(docRef);
+
+    if (!sessionSnapshot.exists()) {
+      result = { ok: false, reason: 'session-not-found' };
+      return;
+    }
+
+    const session = sessionSnapshot.data();
+    const participants = session.partecipanti || [];
+    const players = session.giocatori || [];
+
+    const participant = participants.find(
+      (item) => item.id === Number(participantId),
+    );
+
+    if (!participant) {
+      result = { ok: false, reason: 'participant-not-found' };
+      return;
+    }
+
+    const roster = participant.rosa || [];
+    const rosterPlayer = roster.find(
+      (item) => item.id === Number(playerId),
+    );
+
+    if (!rosterPlayer) {
+      result = { ok: false, reason: 'player-not-found' };
+      return;
+    }
+
+    const refund = Math.max(0, Number(rosterPlayer.prezzo) || 0);
+
+    // Rimuove il prezzo d'acquisto prima di rimettere il giocatore nel listone.
+    const { prezzo: _prezzo, ...playerToReturn } = rosterPlayer;
+
+    const updatedParticipants = participants.map((item) => {
+      if (item.id !== participant.id) return item;
+
+      return {
+        ...item,
+        crediti: (Number(item.crediti) || 0) + refund,
+        rosa: roster.filter((item) => item.id !== rosterPlayer.id),
+      };
+    });
+
+    const alreadyAvailable = players.some(
+      (item) => item.id === rosterPlayer.id,
+    );
+
+    const updatedPlayers = alreadyAvailable
+      ? players
+      : sortPlayersAlphabetically([...players, playerToReturn]);
+
+    transaction.update(docRef, {
+      partecipanti: updatedParticipants,
+      giocatori: updatedPlayers,
+    });
+
+    result = {
+      ok: true,
+      participantId: participant.id,
+      playerId: rosterPlayer.id,
+      playerName: rosterPlayer.nome,
+      refund,
+    };
+  });
+
+  return result;
+};
+
 export const buildPlayerAssignment = ({
   players,
   participants,
