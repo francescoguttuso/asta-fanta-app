@@ -271,7 +271,7 @@ function TeamCard({ participant }) {
   );
 }
 
-function RoleColumn({ participant, role }) {
+function RoleColumn({ participant, role, onRemovePlayer }) {
   const config = ROLE_CONFIG[role];
 
   const players = getPlayersByRole(participant.rosa, role);
@@ -399,7 +399,7 @@ function RoleColumn({ participant, role }) {
                       type="button"
                       title={`Rimuovi ${player.nome} dalla rosa`}
                       onClick={() =>
-                        rimuoviGiocatoreDallaRosa(participant.id, player.id)
+                        onRemovePlayer(participant.id, player.id)
                       }
                       style={{
                         border: "1px solid #7f1d1d",
@@ -516,13 +516,29 @@ export default function RostersView() {
                 minWidth: 0,
               }}
             >
-              <RoleColumn participant={participant} role="P" />
+              <RoleColumn
+                participant={participant}
+                role="P"
+                onRemovePlayer={rimuoviGiocatoreDallaRosa}
+              />
 
-              <RoleColumn participant={participant} role="D" />
+              <RoleColumn
+                participant={participant}
+                role="D"
+                onRemovePlayer={rimuoviGiocatoreDallaRosa}
+              />
 
-              <RoleColumn participant={participant} role="C" />
+              <RoleColumn
+                participant={participant}
+                role="C"
+                onRemovePlayer={rimuoviGiocatoreDallaRosa}
+              />
 
-              <RoleColumn participant={participant} role="A" />
+              <RoleColumn
+                participant={participant}
+                role="A"
+                onRemovePlayer={rimuoviGiocatoreDallaRosa}
+              />
             </div>
           ))}
         </div>
