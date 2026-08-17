@@ -10,6 +10,7 @@ import {
   buildPlayerAssignment,
   getMaximumBid,
   placeBid,
+  removePlayerFromRoster,
   startAuctionTimer,
 } from '../auctionActions';
 import { useAuctionSessionContext } from '../context/useAuctionContexts';
