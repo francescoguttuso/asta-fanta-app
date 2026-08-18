@@ -269,21 +269,18 @@ export default function useAdminAuctionController() {
           );
         }
 
-        // Usiamo prima il catalogo completo già presente nello stato.
-        // Se un ID non viene trovato, rileggiamo il catalogo direttamente
-        // da Firestore: così l'importazione non dipende dalla lista
-        // dei giocatori ancora disponibili all'asta o da uno stato locale
-        // rimasto indietro.
+        // Catalogo completo: prima usiamo quello già in memoria.
         let catalogo = giocatoriCatalogo?.length
           ? giocatoriCatalogo
           : (giocatori || []);
 
-        const catalogoById = new Map(
+        let catalogoById = new Map(
           catalogo.map((player) => [String(player.id).trim(), player]),
         );
 
-        // Se il catalogo locale non contiene tutti gli ID, recuperiamo
-        // il catalogo completo dalla sessione Firestore.
+        // Se manca qualche ID, rileggiamo il catalogo completo dalla
+        // sessione Firestore. Il campo corretto salvato dalla sessione è
+        // "playersCatalog".
         const idsDaCercare = Array.from(grouped.values())
           .flatMap((dati) => dati.rosa)
           .map((item) => String(item.id).trim());
@@ -299,17 +296,19 @@ export default function useAdminAuctionController() {
             const datiSessione = snapshot.data();
 
             const catalogoFirestore =
-              datiSessione.giocatoriCatalogo ||
-              datiSessione.giocatori ||
+              datiSessione.playersCatalog ||
+              datiSessione.players ||
               [];
 
-            catalogo = catalogoFirestore;
-
-            catalogoById.clear();
-
-            catalogo.forEach((player) => {
-              catalogoById.set(String(player.id).trim(), player);
-            });
+            if (Array.isArray(catalogoFirestore) && catalogoFirestore.length) {
+              catalogo = catalogoFirestore;
+              catalogoById = new Map(
+                catalogo.map((player) => [
+                  String(player.id).trim(),
+                  player,
+                ]),
+              );
+            }
           }
         }
         const usedIds = new Set();
