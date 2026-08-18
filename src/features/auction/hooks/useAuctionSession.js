@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { INITIAL_PARTICIPANTS, INITIAL_PLAYERS } from '@/data/auctionDefaults';
-import { STOP_DURATION_MS } from '@/utils/timerUtils';
+import { STOP_DURATION_MS, getRemainingSeconds } from '@/utils/timerUtils';
 import {
   normalizePlayer,
   sortPlayersAlphabetically,
@@ -13,6 +13,7 @@ const AUCTION_SESSION_REF = doc(db, 'asta_fantacalcio', 'sessione_asta');
 
 export default function useAuctionSession({ isMobileView }) {
   const [giocatori, setGiocatori] = useState(INITIAL_PLAYERS);
+  const [giocatoriCatalogo, setGiocatoriCatalogo] = useState(INITIAL_PLAYERS);
   const [partecipanti, setPartecipanti] = useState(INITIAL_PARTICIPANTS);
   const [isConfigMode, setIsConfigMode] = useState(true);
   const [giocatoreInAsta, setGiocatoreInAsta] = useState(null);
@@ -26,8 +27,8 @@ export default function useAuctionSession({ isMobileView }) {
   const [storicoOfferte, setStoricoOfferte] = useState([]);
   const [timer, setTimer] = useState(10);
   const [timerEndsAt, setTimerEndsAt] = useState(null);
-  const [clockOffsetMs, setClockOffsetMs] = useState(0);
   const [stopTimer, setStopTimer] = useState(30);
+  const [pendingSwitch, setPendingSwitch] = useState(null);
 
   const currentSessionRef = useRef(null);
   currentSessionRef.current = {
@@ -45,6 +46,8 @@ export default function useAuctionSession({ isMobileView }) {
     bidHistory: storicoOfferte,
     timer,
     timerEndsAt,
+    playersCatalog: giocatoriCatalogo,
+    pendingSwitch,
   };
 
   const saveSession = useCallback(async (changes = {}) => {
@@ -61,6 +64,8 @@ export default function useAuctionSession({ isMobileView }) {
           nextTimerStarted && !nextSession.paused
             ? (changes.endsAt ?? nextSession.timerEndsAt)
             : null,
+        playersCatalog: nextSession.playersCatalog,
+        pendingSwitch: nextSession.pendingSwitch,
       });
     } catch (err) {
       console.error('Errore nel salvataggio su Firestore: ', err);
@@ -71,11 +76,16 @@ export default function useAuctionSession({ isMobileView }) {
     const unsubscribe = onSnapshot(AUCTION_SESSION_REF, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
+        const catalogParsed = (data.giocatoriCatalogo || data.giocatori || INITIAL_PLAYERS).map(
+          normalizePlayer,
+        );
+
         const giocatoriParsed = (data.giocatori || INITIAL_PLAYERS).map(
           normalizePlayer,
         );
 
         setGiocatori(sortPlayersAlphabetically(giocatoriParsed));
+        setGiocatoriCatalogo(sortPlayersAlphabetically(catalogParsed));
         setPartecipanti(data.partecipanti || INITIAL_PARTICIPANTS);
         setIsConfigMode(
           data.isConfigMode !== undefined ? data.isConfigMode : true,
@@ -94,28 +104,9 @@ export default function useAuctionSession({ isMobileView }) {
 
         const timerSalvato = data.timer !== undefined ? data.timer : 10;
         setTimer(timerSalvato);
-        // Firestore ci fornisce l'istante del commit dal server.
-        // Usiamo questo valore per correggere il piccolo disallineamento
-        // degli orologi dei vari dispositivi.
-        const serverNowMs = data.serverNow?.toMillis?.();
-
-        if (serverNowMs) {
-          const offset = serverNowMs - Date.now();
-          setClockOffsetMs(offset);
-        }
-
-        const durationMs = Number(
-          data.timerDurationMs ?? (timerSalvato > 0 ? timerSalvato * 1000 : 0),
-        );
-
-        const synchronizedTimerEndsAt =
-          serverNowMs && data.isTimerStarted && !data.isPaused && durationMs > 0
-            ? serverNowMs + durationMs
-            : null;
-
+        setPendingSwitch(data.pendingSwitch || null);
         setTimerEndsAt(
-          synchronizedTimerEndsAt ??
-            data.timerEndsAt ??
+          data.timerEndsAt ||
             (data.isTimerStarted && !data.isPaused && timerSalvato > 0
               ? Date.now() + timerSalvato * 1000
               : null),
@@ -134,6 +125,8 @@ export default function useAuctionSession({ isMobileView }) {
           stopStartedAt: null,
           lastPurchase: null,
           bidHistory: [],
+          playersCatalog: INITIAL_PLAYERS,
+          pendingSwitch: null,
         });
       }
     });
@@ -147,18 +140,13 @@ export default function useAuctionSession({ isMobileView }) {
     }
 
     const aggiornaTimer = () => {
-      const nowSynchronized = Date.now() + clockOffsetMs;
-      const remainingSeconds = Math.max(
-        0,
-        Math.ceil((timerEndsAt - nowSynchronized) / 1000),
-      );
-      setTimer(remainingSeconds);
+      setTimer(getRemainingSeconds(timerEndsAt));
     };
 
     aggiornaTimer();
     const intervallo = setInterval(aggiornaTimer, 250);
     return () => clearInterval(intervallo);
-  }, [giocatoreInAsta, isTimerStarted, isPaused, timerEndsAt, clockOffsetMs]);
+  }, [giocatoreInAsta, isTimerStarted, isPaused, timerEndsAt]);
 
   useEffect(() => {
     let interval = null;
@@ -205,6 +193,8 @@ export default function useAuctionSession({ isMobileView }) {
     docRef: AUCTION_SESSION_REF,
     giocatori,
     setGiocatori,
+    giocatoriCatalogo,
+    setGiocatoriCatalogo,
     partecipanti,
     setPartecipanti,
     isConfigMode,
@@ -221,6 +211,7 @@ export default function useAuctionSession({ isMobileView }) {
     timer,
     setTimer,
     stopTimer,
+    pendingSwitch,
     saveSession,
   };
 }

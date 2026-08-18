@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { ROLE_LIMITS } from "@/data/auctionDefaults";
 
-import { getMaximumBid, placeBid, requestAuctionStop } from "../auction/auctionActions";
+import { placeBid, requestAuctionStop, settleAuctionWinner } from "../auction/auctionActions";
 
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 
@@ -25,6 +25,7 @@ export default function MobileController() {
     stopTimer,
     ultimoAcquisto,
     docRef,
+    pendingSwitch,
   } = useAuctionSessionContext();
 
   // =====================================================
@@ -83,37 +84,34 @@ export default function MobileController() {
     }
 
     // ================================================
-    // CONTROLLO REPARTO
+    // CONTROLLO POTENZA ECONOMICA LOCALE
     // ================================================
 
     const utenteCorrente = partecipanti.find(
-      (participant) => participant.id === parseInt(mioId),
+      (participant) => participant.id === parseInt(mioId, 10),
     );
 
-    if (utenteCorrente) {
-      const ruoloCorrente = giocatoreInAsta.ruolo;
+    if (!utenteCorrente) return;
 
-      const quantitaInRosa = utenteCorrente.rosa.filter(
-        (g) => g.ruolo === ruoloCorrente,
-      ).length;
+    const ruoloCorrente = giocatoreInAsta.ruolo;
+    const limiteRuolo = ROLE_LIMITS[ruoloCorrente] || 0;
+    const quantitaInRosa = utenteCorrente?.rosa?.filter(
+      (g) => g.ruolo === ruoloCorrente,
+    ).length || 0;
 
-      if (quantitaInRosa >= (ROLE_LIMITS[ruoloCorrente] || 0)) {
-        alert(
-          `⛔ Impossibile rilanciare: hai già completato il reparto dei ${ruoloCorrente} (${ROLE_LIMITS[ruoloCorrente]}/${ROLE_LIMITS[ruoloCorrente]})!`,
-        );
+    const nextBid = offertaCorrente + incremento;
+    let budgetMassimo = utenteCorrente?.crediti || 0;
 
-        return;
-      }
+    if (quantitaInRosa >= limiteRuolo) {
+      const maxSvincolo = (utenteCorrente?.rosa || [])
+        .filter((g) => g.ruolo === ruoloCorrente)
+        .reduce((max, g) => Math.max(max, Number(g.prezzo || 0)), 0);
+      budgetMassimo += maxSvincolo;
+    }
 
-      const maximumBid = getMaximumBid(utenteCorrente, ruoloCorrente);
-      const nuovaOfferta = offertaCorrente + incremento;
-
-      if (nuovaOfferta > maximumBid) {
-        alert(
-          `💰 Offerta non possibile! La tua potenza economica massima per questo giocatore è ${maximumBid} FM.`,
-        );
-        return;
-      }
+    if (nextBid > budgetMassimo) {
+      alert(`⛔ Non puoi rilanciare a ${nextBid} FM. Potenza economica massima: ${budgetMassimo} FM.`);
+      return;
     }
 
     // ================================================
@@ -132,6 +130,31 @@ export default function MobileController() {
       });
     } catch (err) {
       console.error("Errore rilancio mobile:", err);
+    }
+  };
+
+  // =====================================================
+  // SWITCH / TAGLIO CONTESTUALE MOBILE
+  // =====================================================
+
+  const completaSwitchMobile = async (switchPlayerId) => {
+    if (!pendingSwitch || !mioId) return;
+    if (String(pendingSwitch.winnerId) !== String(mioId)) return;
+
+    try {
+      await settleAuctionWinner({
+        docRef,
+        winnerId: parseInt(mioId, 10),
+        price: Number(pendingSwitch.price),
+        selectedLetter: pendingSwitch.selectedLetter || "TUTTE",
+        activeRoleFilters:
+          pendingSwitch.activeRoleFilters || { P: true, D: true, C: true, A: true },
+        expectedPlayerId: pendingSwitch.player?.id,
+        switchPlayerId,
+      });
+    } catch (error) {
+      console.error("Errore switch mobile:", error);
+      alert(error.message || "Errore durante lo switch.");
     }
   };
 
@@ -250,14 +273,6 @@ export default function MobileController() {
   }
 
   // =====================================================
-  // POTENZA ECONOMICA MASSIMA
-  // =====================================================
-
-  const maximumBid = giocatoreInAsta && utenteSelezionato
-    ? getMaximumBid(utenteSelezionato, giocatoreInAsta.ruolo)
-    : 0;
-
-  // =====================================================
   // CONTROLLER ASTA
   // =====================================================
 
@@ -363,10 +378,12 @@ export default function MobileController() {
         stopTimer={stopTimer}
         selectedTeamId={mioId}
         remainingStops={stopRimanentiSelezionato}
-        maximumBid={maximumBid}
         onBid={faiOffertaMobile}
         onStop={fermaAstaMobile}
         lastPurchase={ultimoAcquisto}
+        pendingSwitch={pendingSwitch}
+        selectedParticipant={utenteSelezionato}
+        onSwitch={completaSwitchMobile}
       />
 
       {/* ==============================================

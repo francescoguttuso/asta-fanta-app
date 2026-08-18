@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   INITIAL_PARTICIPANTS,
-  INITIAL_PLAYERS,
   INITIAL_ROLE_FILTERS,
   ROLE_LIMITS,
 } from '@/data/auctionDefaults';
 import { filterPlayers, normalizePlayers } from '@/utils/playerUtils';
 import {
-  buildPlayerAssignment,
-  getMaximumBid,
   placeBid,
   removePlayerFromRoster,
+  settleAuctionWinner,
   startAuctionTimer,
 } from '../auctionActions';
 import { useAuctionSessionContext } from '../context/useAuctionContexts';
@@ -25,6 +23,8 @@ const createReadyAuctionState = (playerInAuction) => ({
   stopStartedAt: null,
   bidHistory: [],
   timer: 10,
+  timerEndsAt: null,
+  pendingSwitch: null,
 });
 
 export default function useAdminAuctionController() {
@@ -33,6 +33,8 @@ export default function useAdminAuctionController() {
     docRef,
     giocatori,
     setGiocatori,
+    giocatoriCatalogo,
+    setGiocatoriCatalogo,
     partecipanti,
     setPartecipanti,
     isConfigMode,
@@ -44,6 +46,7 @@ export default function useAdminAuctionController() {
     isPaused,
     setTimer,
     timer,
+    pendingSwitch,
     saveSession,
   } = session;
 
@@ -59,7 +62,7 @@ export default function useAdminAuctionController() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (loadEvent) => {
+    reader.onload = async (loadEvent) => {
       try {
         const contenutoJson = JSON.parse(loadEvent.target.result);
         const nuoviGiocatori = normalizePlayers(
@@ -67,7 +70,11 @@ export default function useAdminAuctionController() {
         );
 
         setGiocatori(nuoviGiocatori);
-        saveSession({ players: nuoviGiocatori });
+        setGiocatoriCatalogo(nuoviGiocatori);
+        await saveSession({
+          players: nuoviGiocatori,
+          playersCatalog: nuoviGiocatori,
+        });
         alert('File JSON importato e aggiornato con successo!');
       } catch (errore) {
         console.error('Errore durante il parsing del JSON:', errore);
@@ -91,8 +98,8 @@ export default function useAdminAuctionController() {
     filtriRuoliAttivi,
   );
 
-  const cambiaGiocatoreManuale = (direzione) => {
-    if (!giocatoreInAsta || isConfigMode) return;
+  const cambiaGiocatoreManuale = async (direzione) => {
+    if (!giocatoreInAsta || isConfigMode || pendingSwitch) return;
 
     const indiceAttuale = giocatoriFiltrati.findIndex(
       (giocatore) => giocatore.id === giocatoreInAsta.id,
@@ -102,23 +109,28 @@ export default function useAdminAuctionController() {
 
     if (nuovoIndice >= 0 && nuovoIndice < giocatoriFiltrati.length) {
       setTimer(10);
-      saveSession({
+      await saveSession({
         ...createReadyAuctionState(giocatoriFiltrati[nuovoIndice]),
       });
     }
   };
 
-  const resettaTutto = () => {
+  const resettaTutto = async () => {
     if (
       !window.confirm(
-        "Attenzione! Vuoi resettare l'intera sessione d'asta e ricaricare i giocatori dal file JSON?",
+        "Attenzione! Vuoi resettare l'intera sessione d'asta usando l'ultimo JSON caricato?",
       )
     ) {
       return;
     }
 
-    saveSession({
-      players: INITIAL_PLAYERS,
+    const catalogo = giocatoriCatalogo?.length
+      ? giocatoriCatalogo
+      : giocatori;
+
+    await saveSession({
+      players: catalogo,
+      playersCatalog: catalogo,
       participants: INITIAL_PARTICIPANTS,
       configMode: true,
       playerInAuction: null,
@@ -131,6 +143,8 @@ export default function useAdminAuctionController() {
       lastPurchase: null,
       bidHistory: [],
       timer: 10,
+      timerEndsAt: null,
+      pendingSwitch: null,
     });
     setTimer(10);
   };
@@ -151,49 +165,6 @@ export default function useAdminAuctionController() {
     link.click();
     document.body.removeChild(link);
   };
-
-  const rimuoviGiocatoreDallaRosa = useCallback(
-    async (participantId, playerId) => {
-      const participant = partecipanti.find(
-        (item) => item.id === Number(participantId),
-      );
-      const player = participant?.rosa?.find(
-        (item) => item.id === Number(playerId),
-      );
-
-      if (!participant || !player) {
-        alert('Giocatore non trovato nella rosa.');
-        return false;
-      }
-
-      const conferma = window.confirm(
-        `Rimuovere ${player.nome} dalla rosa di ${participant.nome}?\n\n` +
-          `Verranno restituiti ${Number(player.prezzo) || 0} FM e il giocatore tornerà nel listone.`,
-      );
-
-      if (!conferma) return false;
-
-      try {
-        const result = await removePlayerFromRoster({
-          docRef,
-          participantId,
-          playerId,
-        });
-
-        if (!result?.ok) {
-          alert('Impossibile rimuovere il giocatore. La sessione potrebbe essere cambiata.');
-          return false;
-        }
-
-        return true;
-      } catch (error) {
-        console.error('Errore nella rimozione del giocatore:', error);
-        alert('Errore durante la rimozione del giocatore.');
-        return false;
-      }
-    },
-    [docRef, partecipanti],
-  );
 
   const cambiaNomeSquadra = (id, nuovoNome) => {
     const partecipantiAggiornati = partecipanti.map((partecipante) =>
@@ -216,11 +187,10 @@ export default function useAdminAuctionController() {
       alert('Completa e salva la configurazione prima di iniziare!');
       return;
     }
+    if (pendingSwitch) return;
 
     setTimer(10);
-    saveSession({
-      ...createReadyAuctionState(giocatore),
-    });
+    saveSession({ ...createReadyAuctionState(giocatore) });
   };
 
   const cambiaFiltroRuolo = (ruolo) => {
@@ -234,76 +204,70 @@ export default function useAdminAuctionController() {
     if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) return;
 
     const admin = partecipanti.find((partecipante) => partecipante.id === 1);
-    if (admin) {
-      const ruolo = giocatoreInAsta.ruolo;
-      const giocatoriNelRuolo = admin.rosa.filter(
-        (giocatore) => giocatore.ruolo === ruolo,
-      ).length;
-
-      if (giocatoriNelRuolo >= (ROLE_LIMITS[ruolo] || 0)) {
-        alert(
-          `⛔ Impossibile offrire: hai già completato i ${ruolo} (${ROLE_LIMITS[ruolo]}/${ROLE_LIMITS[ruolo]})!`,
-        );
-        return;
-      }
-
-      const maximumBid = getMaximumBid(admin, ruolo);
-      const nuovaOfferta = offertaCorrente + incremento;
-
-      if (nuovaOfferta > maximumBid) {
-        alert(
-          `💰 Offerta non possibile: la tua potenza economica massima è ${maximumBid} FM.`,
-        );
-        return;
-      }
-    }
+    if (!admin) return;
 
     try {
-      await placeBid({
+      const result = await placeBid({
         docRef,
         bidderId: '1',
-        bidderName: admin?.nome || 'Admin',
+        bidderName: admin.nome || 'Admin',
         increment: incremento,
       });
+
+      if (result?.accepted === false && result.reason === 'budget') {
+        alert(
+          `⛔ Offerta non consentita. Potenza economica massima: ${result.maxBid} FM.`,
+        );
+      }
     } catch (error) {
       console.error('Errore nel rilancio server: ', error);
     }
   };
 
   const completaAssegnazione = useCallback(
-    async (vincitore, prezzo) => {
-      const assegnazione = buildPlayerAssignment({
-        players: giocatori,
-        participants: partecipanti,
-        player: giocatoreInAsta,
-        winner: vincitore,
-        price: prezzo,
-        selectedLetter: filtroLettera,
-        activeRoleFilters: filtriRuoliAttivi,
-      });
+    async (vincitore, prezzo, switchPlayerId = null) => {
+      if (!giocatoreInAsta) return;
 
-      setFiltroLettera(assegnazione.nextLetter);
-      setTimer(10);
-      await saveSession({
-        players: assegnazione.remainingPlayers,
-        participants: assegnazione.updatedParticipants,
-        ...createReadyAuctionState(assegnazione.nextPlayer),
-        lastPurchase: assegnazione.lastPurchase,
-      });
+      try {
+        const result = await settleAuctionWinner({
+          docRef,
+          winnerId: vincitore.id,
+          price: prezzo,
+          selectedLetter: filtroLettera,
+          activeRoleFilters: filtriRuoliAttivi,
+          expectedPlayerId: giocatoreInAsta.id,
+          switchPlayerId,
+        });
+
+        if (result?.needsSwitch) {
+          // La transaction ha creato pendingSwitch su Firestore.
+          setTimer(0);
+          return result;
+        }
+
+        if (result?.assigned) {
+          if (result.nextLetter) setFiltroLettera(result.nextLetter);
+          setTimer(10);
+        }
+
+        return result;
+      } catch (error) {
+        console.error("Errore nell'assegnazione atomica:", error);
+        alert(error.message || "Errore durante l'assegnazione.");
+        return null;
+      }
     },
     [
-      giocatori,
-      partecipanti,
+      docRef,
       giocatoreInAsta,
       filtroLettera,
       filtriRuoliAttivi,
-      saveSession,
       setTimer,
     ],
   );
 
   const assegnaGiocatore = useCallback(async () => {
-    if (!giocatoreInAsta) return;
+    if (!giocatoreInAsta || pendingSwitch) return;
     if (!ultimoOfferenteId) {
       alert(
         'Impossibile assegnare: nessuna offerta ricevuta per questo calciatore.',
@@ -311,29 +275,15 @@ export default function useAdminAuctionController() {
       return;
     }
 
-    const vincitore = partecipanti.find(
-      (partecipante) => partecipante.id === parseInt(ultimoOfferenteId),
+    const vincitore = partecipanti.find((partecipante) =>
+      String(partecipante.id) === String(ultimoOfferenteId),
     );
     if (!vincitore) return;
-    if (vincitore.crediti < offertaCorrente) {
-      alert(`Errore: ${vincitore.nome} non possiede crediti sufficienti!`);
-      return;
-    }
-
-    const ruolo = giocatoreInAsta.ruolo;
-    const giocatoriNelRuolo = vincitore.rosa.filter(
-      (giocatore) => giocatore.ruolo === ruolo,
-    ).length;
-    if (giocatoriNelRuolo >= (ROLE_LIMITS[ruolo] || 0)) {
-      alert(
-        `❌ Limite raggiunto! ${vincitore.nome} ha già completato i ${ruolo} (${ROLE_LIMITS[ruolo]}/${ROLE_LIMITS[ruolo]}). Assegnazione bloccata.`,
-      );
-      return;
-    }
 
     await completaAssegnazione(vincitore, offertaCorrente);
   }, [
     giocatoreInAsta,
+    pendingSwitch,
     ultimoOfferenteId,
     partecipanti,
     offertaCorrente,
@@ -346,7 +296,8 @@ export default function useAdminAuctionController() {
       giocatoreInAsta &&
       ultimoOfferenteId &&
       !isPaused &&
-      isTimerStarted
+      isTimerStarted &&
+      !pendingSwitch
     ) {
       assegnaGiocatore();
     }
@@ -356,8 +307,39 @@ export default function useAdminAuctionController() {
     ultimoOfferenteId,
     isPaused,
     isTimerStarted,
+    pendingSwitch,
     assegnaGiocatore,
   ]);
+
+  const completaSwitch = async (switchPlayerId) => {
+    if (!pendingSwitch) return;
+
+    const winner = partecipanti.find((p) =>
+      String(p.id) === String(pendingSwitch.winnerId),
+    );
+    if (!winner) return;
+
+    return completaAssegnazione(
+      winner,
+      Number(pendingSwitch.price),
+      switchPlayerId,
+    );
+  };
+
+  const rimuoviGiocatoreDallaRosa = async (participantId, playerId) => {
+    try {
+      const result = await removePlayerFromRoster({
+        docRef,
+        participantId,
+        playerId,
+      });
+      return result;
+    } catch (error) {
+      console.error('Errore rimozione giocatore:', error);
+      alert(error.message || 'Errore durante la rimozione del giocatore.');
+      return null;
+    }
+  };
 
   const assegnaGiocatoreManualmente = async () => {
     if (!giocatoreInAsta) return;
@@ -366,33 +348,16 @@ export default function useAdminAuctionController() {
       return;
     }
 
-    const prezzo = parseInt(prezzoManuale);
-    if (isNaN(prezzo) || prezzo < 0) {
+    const prezzo = parseInt(prezzoManuale, 10);
+    if (Number.isNaN(prezzo) || prezzo < 0) {
       alert('Inserisci un prezzo di acquisto valido!');
       return;
     }
 
     const vincitore = partecipanti.find(
-      (partecipante) => partecipante.id === parseInt(squadraManualeId),
+      (partecipante) => String(partecipante.id) === String(squadraManualeId),
     );
     if (!vincitore) return;
-    if (vincitore.crediti < prezzo) {
-      alert(
-        `Attenzione: ${vincitore.nome} ha solo ${vincitore.crediti} FM e non può spendere ${prezzo} FM!`,
-      );
-      return;
-    }
-
-    const ruolo = giocatoreInAsta.ruolo;
-    const giocatoriNelRuolo = vincitore.rosa.filter(
-      (giocatore) => giocatore.ruolo === ruolo,
-    ).length;
-    if (giocatoriNelRuolo >= (ROLE_LIMITS[ruolo] || 0)) {
-      alert(
-        `❌ Limite raggiunto! ${vincitore.nome} ha già completato i ${ruolo} (${ROLE_LIMITS[ruolo]}/${ROLE_LIMITS[ruolo]}).`,
-      );
-      return;
-    }
 
     setSquadraManualeId('');
     setPrezzoManuale('');
@@ -411,7 +376,7 @@ export default function useAdminAuctionController() {
     filtriRuoliAttivi,
     giocatoriFiltrati,
     ultimoOfferente: partecipanti.find(
-      (partecipante) => partecipante.id === parseInt(ultimoOfferenteId),
+      (partecipante) => String(partecipante.id) === String(ultimoOfferenteId),
     ),
     gestisciCaricamentoJson,
     avviaTimerManualmente,
@@ -419,12 +384,14 @@ export default function useAdminAuctionController() {
     resettaTutto,
     esportaInExcel,
     cambiaNomeSquadra,
-    rimuoviGiocatoreDallaRosa,
     impostaModalitaConfigurazione,
     chiamaGiocatore,
     cambiaFiltroRuolo,
     faiOfferta,
     assegnaGiocatore,
     assegnaGiocatoreManualmente,
+    completaSwitch,
+    rimuoviGiocatoreDallaRosa,
+    pendingSwitch,
   };
 }

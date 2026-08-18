@@ -1,65 +1,5 @@
 import { useEffect, useState } from "react";
 
-function RetryPlayerImage({ id, alt, width, height, style = {} }) {
-  const [attempt, setAttempt] = useState(0);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    setAttempt(0);
-    setFailed(false);
-  }, [id]);
-
-  if (!id) return null;
-
-  if (failed) {
-    return (
-      <div
-        title={alt}
-        style={{
-          width,
-          height,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: "12px",
-          background: "#0f172a",
-          border: "1px solid #334155",
-          color: "#64748b",
-          fontSize: "2rem",
-          ...style,
-        }}
-      >
-        ⚽
-      </div>
-    );
-  }
-
-  const src = `/images/players/${id}.png${attempt > 0 ? `?retry=${attempt}` : ""}`;
-
-  return (
-    <img
-      key={`${id}-${attempt}`}
-      src={src}
-      alt={alt}
-      width={width}
-      height={height}
-      style={style}
-      loading="eager"
-      decoding="async"
-      onError={() => {
-        if (attempt < 3) {
-          window.setTimeout(
-            () => setAttempt((value) => value + 1),
-            150 * (attempt + 1),
-          );
-        } else {
-          setFailed(true);
-        }
-      }}
-    />
-  );
-}
-
 export default function MobileAuctionPanel({
   player,
   currentBid,
@@ -70,11 +10,34 @@ export default function MobileAuctionPanel({
   stopTimer,
   selectedTeamId,
   remainingStops,
-  maximumBid = 0,
   onBid,
   onStop,
   lastPurchase,
+  pendingSwitch,
+  selectedParticipant,
+  onSwitch,
 }) {
+  const [playerImageSrc, setPlayerImageSrc] = useState(
+    player?.id ? `/images/players/${player.id}.png` : null,
+  );
+  const [playerImageRetry, setPlayerImageRetry] = useState(0);
+  const [lastPurchaseImageSrc, setLastPurchaseImageSrc] = useState(
+    lastPurchase?.id ? `/images/players/${lastPurchase.id}.png` : null,
+  );
+  const [lastPurchaseRetry, setLastPurchaseRetry] = useState(0);
+
+  useEffect(() => {
+    setPlayerImageRetry(0);
+    setPlayerImageSrc(player?.id ? `/images/players/${player.id}.png` : null);
+  }, [player?.id]);
+
+  useEffect(() => {
+    setLastPurchaseRetry(0);
+    setLastPurchaseImageSrc(
+      lastPurchase?.id ? `/images/players/${lastPurchase.id}.png` : null,
+    );
+  }, [lastPurchase?.id]);
+
   // =====================================================
   // NESSUN GIOCATORE IN ASTA
   // =====================================================
@@ -97,11 +60,78 @@ export default function MobileAuctionPanel({
   // STATO PULSANTI
   // =====================================================
 
-  const actionsDisabled =
-    !selectedTeamId || !isTimerStarted || timer === 0 || isPaused;
+  const isSwitchWinner =
+    pendingSwitch &&
+    selectedTeamId &&
+    String(pendingSwitch.winnerId) === String(selectedTeamId);
 
-  const bidDisabled = (increment) =>
-    actionsDisabled || currentBid + increment > maximumBid;
+  const switchCandidates = pendingSwitch?.switchCandidates || [];
+  const switchPrice = Number(pendingSwitch?.price || 0);
+  const switchBalance = Number(selectedParticipant?.crediti || 0);
+
+  const switchCard = pendingSwitch ? (
+    <div
+      className="card"
+      style={{
+        marginBottom: "12px",
+        padding: "16px",
+        border: "1px solid #f59e0b",
+        background: "linear-gradient(180deg,#241504,#130b02)",
+      }}
+    >
+      <h3 style={{ color: "#fbbf24", margin: "0 0 8px" }}>
+        🔄 TAGLIO CONTESTUALE
+      </h3>
+      <div style={{ color: "#fff", fontWeight: "700", marginBottom: "6px" }}>
+        {pendingSwitch.player?.nome} aggiudicato a {switchPrice} FM
+      </div>
+      {isSwitchWinner ? (
+        <>
+          <div style={{ color: "#94a3b8", marginBottom: "10px" }}>
+            Saldo crediti: <strong style={{ color: "#10b981" }}>{switchBalance} FM</strong><br />
+            Chi vuoi svincolare?
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
+            {switchCandidates.map((candidate) => {
+              const budget = switchBalance + Number(candidate.prezzo || 0);
+              const enabled = budget >= switchPrice;
+              return (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  disabled={!enabled}
+                  onClick={() => onSwitch(candidate.id)}
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    borderRadius: "8px",
+                    border: "1px solid #475569",
+                    background: enabled ? "#14532d" : "#1e293b",
+                    color: enabled ? "#fff" : "#64748b",
+                    opacity: enabled ? 1 : 0.55,
+                    cursor: enabled ? "pointer" : "not-allowed",
+                    textAlign: "left",
+                  }}
+                >
+                  🔄 {candidate.nome} — {candidate.prezzo} FM
+                  <span style={{ float: "right" }}>
+                    {enabled ? "SWITCH" : "🔒"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <div style={{ color: "#94a3b8" }}>
+          ⏳ In attesa dello switch di <strong>{pendingSwitch.winnerName}</strong>...
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  const actionsDisabled =
+    !selectedTeamId || !isTimerStarted || timer === 0 || isPaused || pendingSwitch;
 
   /*
    * STOP disponibile SOLO dopo un'offerta
@@ -119,6 +149,9 @@ export default function MobileAuctionPanel({
   // =====================================================
 
   return (
+    <>
+      {switchCard}
+
     <div
       className="card"
       style={{
@@ -152,16 +185,25 @@ export default function MobileAuctionPanel({
             justifyContent: "center",
           }}
         >
-          <RetryPlayerImage
-            id={player.id}
+          <img
+            src={playerImageSrc}
             alt={player.nome}
-            width={105}
-            height={150}
             style={{
               width: "105px",
               height: "150px",
               objectFit: "contain",
               borderRadius: "12px",
+            }}
+            onError={() => {
+              if (playerImageRetry < 3) {
+                const nextRetry = playerImageRetry + 1;
+                setPlayerImageRetry(nextRetry);
+                setTimeout(() => {
+                  setPlayerImageSrc(`/images/players/${player.id}.png?v=${nextRetry}`);
+                }, 250 * nextRetry);
+              } else {
+                setPlayerImageSrc(null);
+              }
             }}
           />
         </div>
@@ -332,17 +374,6 @@ export default function MobileAuctionPanel({
         </div>
       </div>
 
-      <div
-        style={{
-          marginBottom: "10px",
-          color: "#94a3b8",
-          fontSize: "0.85rem",
-          textAlign: "center",
-        }}
-      >
-        Potenza economica massima: {maximumBid} FM
-      </div>
-
       {/* =================================================
           PULSANTI OFFERTE
       ================================================= */}
@@ -358,7 +389,7 @@ export default function MobileAuctionPanel({
 
         <button
           onClick={() => onBid(1)}
-          disabled={bidDisabled(1)}
+          disabled={actionsDisabled}
           className="btn"
           style={{
             flex: 1,
@@ -368,7 +399,7 @@ export default function MobileAuctionPanel({
             background: "#2854a6",
             border: "none",
             color: "#fff",
-            opacity: bidDisabled(1) ? 0.5 : 1,
+            opacity: actionsDisabled ? 0.5 : 1,
           }}
         >
           +1 FM
@@ -378,7 +409,7 @@ export default function MobileAuctionPanel({
 
         <button
           onClick={() => onBid(5)}
-          disabled={bidDisabled(5)}
+          disabled={actionsDisabled}
           className="btn"
           style={{
             flex: 1,
@@ -388,7 +419,7 @@ export default function MobileAuctionPanel({
             background: "#18794e",
             border: "none",
             color: "#fff",
-            opacity: bidDisabled(5) ? 0.5 : 1,
+            opacity: actionsDisabled ? 0.5 : 1,
           }}
         >
           +5 FM
@@ -398,7 +429,7 @@ export default function MobileAuctionPanel({
 
         <button
           onClick={() => onBid(10)}
-          disabled={bidDisabled(10)}
+          disabled={actionsDisabled}
           className="btn"
           style={{
             flex: 1,
@@ -408,7 +439,7 @@ export default function MobileAuctionPanel({
             background: "#5935a8",
             border: "none",
             color: "#fff",
-            opacity: bidDisabled(10) ? 0.5 : 1,
+            opacity: actionsDisabled ? 0.5 : 1,
           }}
         >
           +10 FM
@@ -464,11 +495,9 @@ export default function MobileAuctionPanel({
           {/* CAMPIONCINO ULTIMO ACQUISTO */}
 
           {lastPurchase.id && (
-            <RetryPlayerImage
-              id={lastPurchase.id}
+            <img
+              src={lastPurchaseImageSrc}
               alt={lastPurchase.calciatore}
-              width={80}
-              height={80}
               style={{
                 width: "80px",
                 height: "80px",
@@ -477,6 +506,17 @@ export default function MobileAuctionPanel({
                 background: "#0f172a",
                 border: "1px solid #334155",
                 marginBottom: "8px",
+              }}
+              onError={() => {
+                if (lastPurchaseRetry < 3) {
+                  const nextRetry = lastPurchaseRetry + 1;
+                  setLastPurchaseRetry(nextRetry);
+                  setTimeout(() => {
+                    setLastPurchaseImageSrc(`/images/players/${lastPurchase.id}.png?v=${nextRetry}`);
+                  }, 250 * nextRetry);
+                } else {
+                  setLastPurchaseImageSrc(null);
+                }
               }}
             />
           )}
@@ -521,5 +561,6 @@ export default function MobileAuctionPanel({
         </div>
       )}
     </div>
+    </>
   );
 }
