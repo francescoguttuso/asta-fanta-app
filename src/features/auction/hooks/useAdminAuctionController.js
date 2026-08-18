@@ -306,7 +306,7 @@ export default function useAdminAuctionController() {
           target.crediti = dati.creditiImportati != null && Number.isFinite(dati.creditiImportati)
             ? dati.creditiImportati
             : 500 - somma;
-        }
+        });
 
         if (!window.confirm(
           'Importare le squadre dal file selezionato? Le rose e i crediti attuali verranno sostituiti.'
