@@ -77,11 +77,11 @@ export default function useAuctionSession({ isMobileView }) {
         );
 
         const catalogoParsed = (
-          data.playersCatalog || data.giocatoriCatalogo || data.giocatori || INITIAL_PLAYERS
+          data.playersCatalog || INITIAL_PLAYERS
         ).map(normalizePlayer);
 
         setGiocatori(sortPlayersAlphabetically(giocatoriParsed));
-        setGiocatoriCatalogo(catalogoParsed);
+        setGiocatoriCatalogo(sortPlayersAlphabetically(catalogoParsed));
         setPartecipanti(data.partecipanti || INITIAL_PARTICIPANTS);
         setIsConfigMode(
           data.isConfigMode !== undefined ? data.isConfigMode : true,
