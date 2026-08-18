@@ -28,11 +28,11 @@ export default function useAuctionSession({ isMobileView }) {
   const [timer, setTimer] = useState(10);
   const [timerEndsAt, setTimerEndsAt] = useState(null);
   const [stopTimer, setStopTimer] = useState(30);
-  const [pendingSwitch, setPendingSwitch] = useState(null);
 
   const currentSessionRef = useRef(null);
   currentSessionRef.current = {
     players: giocatori,
+    playersCatalog: giocatoriCatalogo,
     participants: partecipanti,
     configMode: isConfigMode,
     playerInAuction: giocatoreInAsta,
@@ -46,8 +46,6 @@ export default function useAuctionSession({ isMobileView }) {
     bidHistory: storicoOfferte,
     timer,
     timerEndsAt,
-    playersCatalog: giocatoriCatalogo,
-    pendingSwitch,
   };
 
   const saveSession = useCallback(async (changes = {}) => {
@@ -64,8 +62,6 @@ export default function useAuctionSession({ isMobileView }) {
           nextTimerStarted && !nextSession.paused
             ? (changes.endsAt ?? nextSession.timerEndsAt)
             : null,
-        playersCatalog: nextSession.playersCatalog,
-        pendingSwitch: nextSession.pendingSwitch,
       });
     } catch (err) {
       console.error('Errore nel salvataggio su Firestore: ', err);
@@ -76,16 +72,16 @@ export default function useAuctionSession({ isMobileView }) {
     const unsubscribe = onSnapshot(AUCTION_SESSION_REF, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        const catalogParsed = (data.giocatoriCatalogo || data.giocatori || INITIAL_PLAYERS).map(
+        const catalogoParsed = (
+          data.giocatoriCatalogo || data.giocatori || INITIAL_PLAYERS
+        ).map(normalizePlayer);
+
+        const giocatoriParsed = (data.giocatori || catalogoParsed).map(
           normalizePlayer,
         );
 
-        const giocatoriParsed = (data.giocatori || INITIAL_PLAYERS).map(
-          normalizePlayer,
-        );
-
+        setGiocatoriCatalogo(sortPlayersAlphabetically(catalogoParsed));
         setGiocatori(sortPlayersAlphabetically(giocatoriParsed));
-        setGiocatoriCatalogo(sortPlayersAlphabetically(catalogParsed));
         setPartecipanti(data.partecipanti || INITIAL_PARTICIPANTS);
         setIsConfigMode(
           data.isConfigMode !== undefined ? data.isConfigMode : true,
@@ -104,7 +100,6 @@ export default function useAuctionSession({ isMobileView }) {
 
         const timerSalvato = data.timer !== undefined ? data.timer : 10;
         setTimer(timerSalvato);
-        setPendingSwitch(data.pendingSwitch || null);
         setTimerEndsAt(
           data.timerEndsAt ||
             (data.isTimerStarted && !data.isPaused && timerSalvato > 0
@@ -114,6 +109,7 @@ export default function useAuctionSession({ isMobileView }) {
       } else {
         saveSession({
           players: INITIAL_PLAYERS,
+          playersCatalog: INITIAL_PLAYERS,
           participants: INITIAL_PARTICIPANTS,
           configMode: true,
           playerInAuction: null,
@@ -125,8 +121,6 @@ export default function useAuctionSession({ isMobileView }) {
           stopStartedAt: null,
           lastPurchase: null,
           bidHistory: [],
-          playersCatalog: INITIAL_PLAYERS,
-          pendingSwitch: null,
         });
       }
     });
@@ -211,7 +205,6 @@ export default function useAuctionSession({ isMobileView }) {
     timer,
     setTimer,
     stopTimer,
-    pendingSwitch,
     saveSession,
   };
 }

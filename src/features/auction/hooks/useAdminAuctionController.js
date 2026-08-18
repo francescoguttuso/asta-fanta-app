@@ -31,6 +31,8 @@ export default function useAdminAuctionController() {
     docRef,
     giocatori,
     setGiocatori,
+    giocatoriCatalogo,
+    setGiocatoriCatalogo,
     partecipanti,
     setPartecipanti,
     isConfigMode,
@@ -65,7 +67,11 @@ export default function useAdminAuctionController() {
         );
 
         setGiocatori(nuoviGiocatori);
-        saveSession({ players: nuoviGiocatori });
+        setGiocatoriCatalogo(nuoviGiocatori);
+        saveSession({
+          players: nuoviGiocatori,
+          playersCatalog: nuoviGiocatori,
+        });
         alert('File JSON importato e aggiornato con successo!');
       } catch (errore) {
         console.error('Errore durante il parsing del JSON:', errore);
@@ -116,7 +122,8 @@ export default function useAdminAuctionController() {
     }
 
     saveSession({
-      players: INITIAL_PLAYERS,
+      players: giocatoriCatalogo || INITIAL_PLAYERS,
+      playersCatalog: giocatoriCatalogo || INITIAL_PLAYERS,
       participants: INITIAL_PARTICIPANTS,
       configMode: true,
       playerInAuction: null,
@@ -184,18 +191,20 @@ export default function useAdminAuctionController() {
         const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
         if (!lines.length) throw new Error('File vuoto.');
 
-        // Supportiamo sia il vecchio CSV esportato dall'app:
-        // squadra,giocatoreId,prezzo
-        // sia il nuovo formato con intestazione e separatore ';':
-        // squadra;crediti;giocatoreId;prezzo
-        const parseCsvLine = (line, separator) => {
+        const delimiter = (() => {
+          const firstLine = lines[0];
+          const semicolons = (firstLine.match(/;/g) || []).length;
+          const commas = (firstLine.match(/,/g) || []).length;
+          return semicolons >= commas ? ';' : ',';
+        })();
+
+        const parseCsvLine = (line) => {
           const values = [];
           let current = '';
           let quoted = false;
 
           for (let i = 0; i < line.length; i += 1) {
             const char = line[i];
-
             if (char === '"') {
               if (quoted && line[i + 1] === '"') {
                 current += '"';
@@ -203,7 +212,7 @@ export default function useAdminAuctionController() {
               } else {
                 quoted = !quoted;
               }
-            } else if (char === separator && !quoted) {
+            } else if (char === delimiter && !quoted) {
               values.push(current.trim());
               current = '';
             } else {
@@ -215,15 +224,13 @@ export default function useAdminAuctionController() {
           return values;
         };
 
-        // Il vecchio export usa ',', quello nuovo usa ';'.
-        const firstLine = lines[0];
-        const separator = firstLine.includes(';') ? ';' : ',';
-        const rows = lines.map((line) => parseCsvLine(line, separator));
-
-        const header = rows[0].map((value) => value.toLowerCase().replace(/^"|"$/g, ''));
+        const rows = lines.map(parseCsvLine);
+        const header = rows[0].map((value) => value.toLowerCase());
         const hasHeader =
           header[0] === 'squadra' &&
-          (header[1] === 'crediti' || header[1] === 'giocatoreid');
+          header[1] === 'crediti' &&
+          header[2] === 'giocatoreid' &&
+          header[3] === 'prezzo';
 
         const dataRows = hasHeader ? rows.slice(1) : rows;
         const grouped = new Map();
@@ -232,7 +239,7 @@ export default function useAdminAuctionController() {
           const nomeSquadra = row[0]?.trim();
           if (!nomeSquadra) return;
 
-          const crediti = hasHeader && row.length >= 4 ? Number(row[1]) : null;
+          const crediti = hasHeader ? Number(row[1]) : null;
           const playerId = hasHeader ? row[2] : row[1];
           const prezzo = Number(hasHeader ? row[3] : row[2]);
 
@@ -261,9 +268,11 @@ export default function useAdminAuctionController() {
           );
         }
 
-        const catalogo = giocatori || [];
+        const catalogo = giocatoriCatalogo?.length
+          ? giocatoriCatalogo
+          : (giocatori || []);
         const catalogoById = new Map(
-          catalogo.map((player) => [Number(player.id), player]),
+          catalogo.map((player) => [String(player.id).trim(), player]),
         );
         const usedIds = new Set();
         const importate = Array.from(grouped.entries());
@@ -282,7 +291,7 @@ export default function useAdminAuctionController() {
               throw new Error(`Il giocatore con ID ${item.id} è presente più volte nel file.`);
             }
 
-            const player = catalogoById.get(item.id);
+            const player = catalogoById.get(String(item.id).trim());
             if (!player) {
               throw new Error(`Giocatore con ID ${item.id} non trovato nel catalogo.`);
             }
