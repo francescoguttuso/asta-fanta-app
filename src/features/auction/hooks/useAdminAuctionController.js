@@ -6,9 +6,9 @@ import {
 } from '@/data/auctionDefaults';
 import { filterPlayers, normalizePlayers } from '@/utils/playerUtils';
 import {
+  assignPlayer,
+  changePlayerManual,
   placeBid,
-  removePlayerFromRoster,
-  settleAuctionWinner,
   startAuctionTimer,
 } from '../auctionActions';
 import { useAuctionSessionContext } from '../context/useAuctionContexts';
@@ -24,7 +24,6 @@ const createReadyAuctionState = (playerInAuction) => ({
   bidHistory: [],
   timer: 10,
   timerEndsAt: null,
-  pendingSwitch: null,
 });
 
 export default function useAdminAuctionController() {
@@ -46,7 +45,6 @@ export default function useAdminAuctionController() {
     isPaused,
     setTimer,
     timer,
-    pendingSwitch,
     saveSession,
   } = session;
 
@@ -69,11 +67,14 @@ export default function useAdminAuctionController() {
           contenutoJson.players || contenutoJson,
         );
 
-        setGiocatori(nuoviGiocatori);
-        setGiocatoriCatalogo(nuoviGiocatori);
+        const giocatoriNormalizzati = normalizePlayers(nuoviGiocatori);
+
+        setGiocatori(giocatoriNormalizzati);
+        setGiocatoriCatalogo(giocatoriNormalizzati);
+
         await saveSession({
-          players: nuoviGiocatori,
-          playersCatalog: nuoviGiocatori,
+          players: giocatoriNormalizzati,
+          playersCatalog: giocatoriNormalizzati,
         });
         alert('File JSON importato e aggiornato con successo!');
       } catch (errore) {
@@ -99,98 +100,258 @@ export default function useAdminAuctionController() {
   );
 
   const cambiaGiocatoreManuale = async (direzione) => {
-    if (!giocatoreInAsta || isConfigMode || pendingSwitch) return;
+    if (!giocatoreInAsta || isConfigMode) return;
 
-    const indiceAttuale = giocatoriFiltrati.findIndex(
-      (giocatore) => giocatore.id === giocatoreInAsta.id,
-    );
-    const nuovoIndice =
-      direzione === 'avanti' ? indiceAttuale + 1 : indiceAttuale - 1;
-
-    if (nuovoIndice >= 0 && nuovoIndice < giocatoriFiltrati.length) {
-      setTimer(10);
-      await saveSession({
-        ...createReadyAuctionState(giocatoriFiltrati[nuovoIndice]),
+    try {
+      const result = await changePlayerManual({
+        docRef,
+        direction: direzione,
+        selectedLetter: filtroLettera,
+        activeRoleFilters: filtriRuoliAttivi,
       });
+
+      if (result?.nextLetter) {
+        setTimer(10);
+      }
+    } catch (error) {
+      console.error('Errore nel cambio manuale del giocatore:', error);
     }
   };
 
   const resettaTutto = async () => {
     if (
       !window.confirm(
-        "Attenzione! Vuoi resettare l'intera sessione d'asta usando l'ultimo JSON caricato?",
+        "Attenzione! Vuoi resettare l'intera sessione d'asta e ricaricare i giocatori dal file JSON?",
       )
     ) {
       return;
     }
 
-    const catalogo = giocatoriCatalogo?.length
-      ? giocatoriCatalogo
-      : giocatori;
+    try {
+      await saveSession({
+        players: giocatoriCatalogo,
+        playersCatalog: giocatoriCatalogo,
+        participants: INITIAL_PARTICIPANTS,
+        configMode: true,
+        playerInAuction: null,
+        currentBid: 0,
+        timerStarted: false,
+        lastBidderId: null,
+        paused: false,
+        stopCalledBy: null,
+        stopStartedAt: null,
+        lastPurchase: null,
+        bidHistory: [],
+        timer: 10,
+        timerEndsAt: null,
+      });
+      setTimer(10);
+    } catch (error) {
+      console.error('Errore nel reset della sessione:', error);
+    }
+  };
 
-    await saveSession({
-      players: catalogo,
-      playersCatalog: catalogo,
-      participants: INITIAL_PARTICIPANTS,
-      configMode: true,
-      playerInAuction: null,
-      currentBid: 0,
-      timerStarted: false,
-      lastBidderId: null,
-      paused: false,
-      stopCalledBy: null,
-      stopStartedAt: null,
-      lastPurchase: null,
-      bidHistory: [],
-      timer: 10,
-      timerEndsAt: null,
-      pendingSwitch: null,
-    });
-    setTimer(10);
+  const escapeCsv = (value) => {
+    const text = value == null ? '' : String(value);
+    return `"${text.replaceAll('"', '""')}"`;
   };
 
   const esportaInExcel = () => {
-    let csvContent = 'data:text/csv;charset=utf-8,';
+    const righe = [
+      ['squadra', 'crediti', 'giocatoreId', 'prezzo'],
+    ];
 
     partecipanti.forEach((partecipante) => {
-      partecipante.rosa?.forEach((giocatore) => {
-        csvContent += `${partecipante.nome},${giocatore.id},${giocatore.prezzo}\n`;
+      if (!partecipante.rosa?.length) {
+        righe.push([partecipante.nome, partecipante.crediti ?? 500, '', '']);
+        return;
+      }
+
+      partecipante.rosa.forEach((giocatore) => {
+        righe.push([
+          partecipante.nome,
+          partecipante.crediti ?? 0,
+          giocatore.id,
+          giocatore.prezzo ?? 0,
+        ]);
       });
     });
 
+    const csvContent = '\uFEFF' + righe
+      .map((riga) => riga.map(escapeCsv).join(';'))
+      .join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodeURI(csvContent));
-    link.setAttribute('download', 'fantariggio_rosters.csv');
+    link.href = url;
+    link.download = 'fantariggio_rosters.csv';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
-  const cambiaNomeSquadra = (id, nuovoNome) => {
+  const importaSquadre = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (loadEvent) => {
+      try {
+        const text = String(loadEvent.target.result || '').replace(/^\uFEFF/, '');
+        const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
+        if (lines.length === 0) throw new Error('File vuoto');
+
+        const parseCsvLine = (line) => {
+          const values = [];
+          let current = '';
+          let quoted = false;
+          for (let i = 0; i < line.length; i += 1) {
+            const char = line[i];
+            if (char === '"') {
+              if (quoted && line[i + 1] === '"') {
+                current += '"';
+                i += 1;
+              } else {
+                quoted = !quoted;
+              }
+            } else if (char === ';' && !quoted) {
+              values.push(current);
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          values.push(current);
+          return values.map((value) => value.trim());
+        };
+
+        const rows = lines.map(parseCsvLine);
+        const header = rows[0].map((value) => value.toLowerCase());
+        const hasNewHeader =
+          header[0] === 'squadra' &&
+          header[1] === 'crediti' &&
+          header[2] === 'giocatoreid' &&
+          header[3] === 'prezzo';
+
+        const dataRows = hasNewHeader ? rows.slice(1) : rows;
+        const grouped = new Map();
+
+        dataRows.forEach((row) => {
+          const squadra = row[0]?.trim();
+          if (!squadra) return;
+
+          const creditiImportati = hasNewHeader ? Number(row[1]) : NaN;
+          const playerId = hasNewHeader ? row[2] : row[1];
+          const prezzo = Number(hasNewHeader ? row[3] : row[2]);
+
+          if (!grouped.has(squadra)) {
+            grouped.set(squadra, {
+              creditiImportati: Number.isFinite(creditiImportati) ? creditiImportati : null,
+              giocatori: [],
+            });
+          }
+
+          if (playerId && Number.isFinite(Number(playerId)) && Number.isFinite(prezzo)) {
+            grouped.get(squadra).giocatori.push({
+              id: Number(playerId),
+              prezzo,
+            });
+          }
+        });
+
+        if (grouped.size === 0) {
+          throw new Error('Nessuna squadra trovata nel file.');
+        }
+
+        const catalogo = giocatoriCatalogo || giocatori || [];
+        const catalogoById = new Map(catalogo.map((player) => [Number(player.id), player]));
+
+        if (grouped.size > partecipanti.length) {
+          throw new Error(`Il file contiene ${grouped.size} squadre, ma la lega ne prevede ${partecipanti.length}.`);
+        }
+
+        const partecipantiImportati = partecipanti.map((participant) => ({
+          ...participant,
+          rosa: [],
+        }));
+
+        const usedIds = new Set();
+        const squadreImportate = Array.from(grouped.entries());
+
+        squadreImportate.forEach(([nomeSquadra, dati], index) => {
+          const target = partecipantiImportati[index];
+          target.nome = nomeSquadra;
+
+          for (const item of dati.giocatori) {
+            if (usedIds.has(item.id)) {
+              throw new Error(`Il giocatore con ID ${item.id} è presente più volte nel file.`);
+            }
+
+            const catalogPlayer = catalogoById.get(item.id);
+            if (!catalogPlayer) {
+              throw new Error(`Giocatore con ID ${item.id} non trovato nel catalogo.`);
+            }
+
+            usedIds.add(item.id);
+            target.rosa.push({
+              ...catalogPlayer,
+              prezzo: item.prezzo,
+            });
+          }
+
+          const somma = target.rosa.reduce((totale, player) => totale + Number(player.prezzo || 0), 0);
+          target.crediti = dati.creditiImportati != null && Number.isFinite(dati.creditiImportati)
+            ? dati.creditiImportati
+            : 500 - somma;
+        }
+
+        if (!window.confirm(
+          'Importare le squadre dal file selezionato? Le rose e i crediti attuali verranno sostituiti.'
+        )) {
+          return;
+        }
+
+        await saveSession({ participants: partecipantiImportati });
+        setPartecipanti(partecipantiImportati);
+        alert('Squadre importate con successo!');
+      } catch (error) {
+        console.error('Errore importazione squadre:', error);
+        alert(`Errore importazione squadre: ${error.message}`);
+      }
+    };
+
+    reader.readAsText(file, 'utf-8');
+  };
+
+  const cambiaNomeSquadra = async (id, nuovoNome) => {
     const partecipantiAggiornati = partecipanti.map((partecipante) =>
-      partecipante.id === id
+      String(partecipante.id) === String(id)
         ? { ...partecipante, nome: nuovoNome }
         : partecipante,
     );
 
     setPartecipanti(partecipantiAggiornati);
-    saveSession({ participants: partecipantiAggiornati });
+    await saveSession({ participants: partecipantiAggiornati });
   };
 
-  const impostaModalitaConfigurazione = (configMode) => {
+  const impostaModalitaConfigurazione = async (configMode) => {
     setIsConfigMode(configMode);
-    saveSession({ configMode });
+    await saveSession({ configMode });
   };
 
-  const chiamaGiocatore = (giocatore) => {
+  const chiamaGiocatore = async (giocatore) => {
     if (isConfigMode) {
       alert('Completa e salva la configurazione prima di iniziare!');
       return;
     }
-    if (pendingSwitch) return;
 
     setTimer(10);
-    saveSession({ ...createReadyAuctionState(giocatore) });
+    await saveSession({
+      ...createReadyAuctionState(giocatore),
+    });
   };
 
   const cambiaFiltroRuolo = (ruolo) => {
@@ -203,58 +364,58 @@ export default function useAdminAuctionController() {
   const faiOfferta = async (incremento = 1) => {
     if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) return;
 
-    const admin = partecipanti.find((partecipante) => partecipante.id === 1);
-    if (!admin) return;
+    const admin = partecipanti.find((partecipante) =>
+      String(partecipante.id) === '1',
+    );
+
+    if (admin) {
+      const ruolo = giocatoreInAsta.ruolo;
+      const giocatoriNelRuolo = admin.rosa.filter(
+        (giocatore) => giocatore.ruolo === ruolo,
+      ).length;
+
+      if (giocatoriNelRuolo >= (ROLE_LIMITS[ruolo] || 0)) {
+        alert(
+          `⛔ Impossibile offrire: hai già completato i ${ruolo} (${ROLE_LIMITS[ruolo]}/${ROLE_LIMITS[ruolo]})!`,
+        );
+        return;
+      }
+    }
 
     try {
-      const result = await placeBid({
+      await placeBid({
         docRef,
         bidderId: '1',
-        bidderName: admin.nome || 'Admin',
+        bidderName: admin?.nome || 'Admin',
         increment: incremento,
       });
-
-      if (result?.accepted === false && result.reason === 'budget') {
-        alert(
-          `⛔ Offerta non consentita. Potenza economica massima: ${result.maxBid} FM.`,
-        );
-      }
     } catch (error) {
       console.error('Errore nel rilancio server: ', error);
     }
   };
 
   const completaAssegnazione = useCallback(
-    async (vincitore, prezzo, switchPlayerId = null) => {
+    async (vincitore, prezzo) => {
       if (!giocatoreInAsta) return;
 
       try {
-        const result = await settleAuctionWinner({
+        const result = await assignPlayer({
           docRef,
           winnerId: vincitore.id,
           price: prezzo,
           selectedLetter: filtroLettera,
           activeRoleFilters: filtriRuoliAttivi,
           expectedPlayerId: giocatoreInAsta.id,
-          switchPlayerId,
         });
 
-        if (result?.needsSwitch) {
-          // La transaction ha creato pendingSwitch su Firestore.
-          setTimer(0);
-          return result;
-        }
-
         if (result?.assigned) {
-          if (result.nextLetter) setFiltroLettera(result.nextLetter);
+          if (result.nextLetter) {
+            setFiltroLettera(result.nextLetter);
+          }
           setTimer(10);
         }
-
-        return result;
       } catch (error) {
-        console.error("Errore nell'assegnazione atomica:", error);
-        alert(error.message || "Errore durante l'assegnazione.");
-        return null;
+        console.error('Errore nell\'assegnazione atomica:', error);
       }
     },
     [
@@ -267,7 +428,8 @@ export default function useAdminAuctionController() {
   );
 
   const assegnaGiocatore = useCallback(async () => {
-    if (!giocatoreInAsta || pendingSwitch) return;
+    if (!giocatoreInAsta) return;
+
     if (!ultimoOfferenteId) {
       alert(
         'Impossibile assegnare: nessuna offerta ricevuta per questo calciatore.',
@@ -278,12 +440,12 @@ export default function useAdminAuctionController() {
     const vincitore = partecipanti.find((partecipante) =>
       String(partecipante.id) === String(ultimoOfferenteId),
     );
+
     if (!vincitore) return;
 
     await completaAssegnazione(vincitore, offertaCorrente);
   }, [
     giocatoreInAsta,
-    pendingSwitch,
     ultimoOfferenteId,
     partecipanti,
     offertaCorrente,
@@ -296,9 +458,13 @@ export default function useAdminAuctionController() {
       giocatoreInAsta &&
       ultimoOfferenteId &&
       !isPaused &&
-      isTimerStarted &&
-      !pendingSwitch
+      isTimerStarted
     ) {
+      /*
+       * Può essere eseguito su tutti i dispositivi.
+       * assignPlayer() usa una transaction e quindi solo uno
+       * riuscirà ad assegnare il giocatore.
+       */
       assegnaGiocatore();
     }
   }, [
@@ -307,49 +473,19 @@ export default function useAdminAuctionController() {
     ultimoOfferenteId,
     isPaused,
     isTimerStarted,
-    pendingSwitch,
     assegnaGiocatore,
   ]);
 
-  const completaSwitch = async (switchPlayerId) => {
-    if (!pendingSwitch) return;
-
-    const winner = partecipanti.find((p) =>
-      String(p.id) === String(pendingSwitch.winnerId),
-    );
-    if (!winner) return;
-
-    return completaAssegnazione(
-      winner,
-      Number(pendingSwitch.price),
-      switchPlayerId,
-    );
-  };
-
-  const rimuoviGiocatoreDallaRosa = async (participantId, playerId) => {
-    try {
-      const result = await removePlayerFromRoster({
-        docRef,
-        participantId,
-        playerId,
-      });
-      return result;
-    } catch (error) {
-      console.error('Errore rimozione giocatore:', error);
-      alert(error.message || 'Errore durante la rimozione del giocatore.');
-      return null;
-    }
-  };
-
   const assegnaGiocatoreManualmente = async () => {
     if (!giocatoreInAsta) return;
+
     if (!squadraManualeId) {
       alert('Seleziona una squadra a cui assegnare il giocatore!');
       return;
     }
 
     const prezzo = parseInt(prezzoManuale, 10);
-    if (Number.isNaN(prezzo) || prezzo < 0) {
+    if (isNaN(prezzo) || prezzo < 0) {
       alert('Inserisci un prezzo di acquisto valido!');
       return;
     }
@@ -357,6 +493,7 @@ export default function useAdminAuctionController() {
     const vincitore = partecipanti.find(
       (partecipante) => String(partecipante.id) === String(squadraManualeId),
     );
+
     if (!vincitore) return;
 
     setSquadraManualeId('');
@@ -376,13 +513,15 @@ export default function useAdminAuctionController() {
     filtriRuoliAttivi,
     giocatoriFiltrati,
     ultimoOfferente: partecipanti.find(
-      (partecipante) => String(partecipante.id) === String(ultimoOfferenteId),
+      (partecipante) =>
+        String(partecipante.id) === String(ultimoOfferenteId),
     ),
     gestisciCaricamentoJson,
     avviaTimerManualmente,
     cambiaGiocatoreManuale,
     resettaTutto,
     esportaInExcel,
+    importaSquadre,
     cambiaNomeSquadra,
     impostaModalitaConfigurazione,
     chiamaGiocatore,
@@ -390,8 +529,5 @@ export default function useAdminAuctionController() {
     faiOfferta,
     assegnaGiocatore,
     assegnaGiocatoreManualmente,
-    completaSwitch,
-    rimuoviGiocatoreDallaRosa,
-    pendingSwitch,
   };
 }

@@ -5,6 +5,7 @@ import AvailablePlayers from "./components/AvailablePlayers";
 import PlaceholderView from "./components/PlaceholderView";
 import RostersView from "./components/RostersView";
 import TeamConfiguration from "./components/TeamConfiguration";
+import TeamImportExport from "./components/TeamImportExport";
 import TeamsSummary from "./components/TeamsSummary";
 import AdminAuctionProvider from "./context/AdminAuctionProvider";
 import { useAdminAuctionContext } from "./context/useAuctionContexts";
@@ -17,6 +18,7 @@ function AdminAuctionContent() {
       <AppHeader />
       <AppNavigation />
       <TeamConfiguration />
+      <TeamImportExport />
 
       {vistaCorrente === "dashboard" ? (
         <div className="auction-layout">
