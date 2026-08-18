@@ -184,13 +184,18 @@ export default function useAdminAuctionController() {
         const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
         if (!lines.length) throw new Error('File vuoto.');
 
-        const parseCsvLine = (line) => {
+        // Supportiamo sia il vecchio CSV esportato dall'app:
+        // squadra,giocatoreId,prezzo
+        // sia il nuovo formato con intestazione e separatore ';':
+        // squadra;crediti;giocatoreId;prezzo
+        const parseCsvLine = (line, separator) => {
           const values = [];
           let current = '';
           let quoted = false;
 
           for (let i = 0; i < line.length; i += 1) {
             const char = line[i];
+
             if (char === '"') {
               if (quoted && line[i + 1] === '"') {
                 current += '"';
@@ -198,7 +203,7 @@ export default function useAdminAuctionController() {
               } else {
                 quoted = !quoted;
               }
-            } else if (char === ';' && !quoted) {
+            } else if (char === separator && !quoted) {
               values.push(current.trim());
               current = '';
             } else {
@@ -210,13 +215,15 @@ export default function useAdminAuctionController() {
           return values;
         };
 
-        const rows = lines.map(parseCsvLine);
-        const header = rows[0].map((value) => value.toLowerCase());
+        // Il vecchio export usa ',', quello nuovo usa ';'.
+        const firstLine = lines[0];
+        const separator = firstLine.includes(';') ? ';' : ',';
+        const rows = lines.map((line) => parseCsvLine(line, separator));
+
+        const header = rows[0].map((value) => value.toLowerCase().replace(/^"|"$/g, ''));
         const hasHeader =
           header[0] === 'squadra' &&
-          header[1] === 'crediti' &&
-          header[2] === 'giocatoreid' &&
-          header[3] === 'prezzo';
+          (header[1] === 'crediti' || header[1] === 'giocatoreid');
 
         const dataRows = hasHeader ? rows.slice(1) : rows;
         const grouped = new Map();
@@ -225,7 +232,7 @@ export default function useAdminAuctionController() {
           const nomeSquadra = row[0]?.trim();
           if (!nomeSquadra) return;
 
-          const crediti = hasHeader ? Number(row[1]) : null;
+          const crediti = hasHeader && row.length >= 4 ? Number(row[1]) : null;
           const playerId = hasHeader ? row[2] : row[1];
           const prezzo = Number(hasHeader ? row[3] : row[2]);
 
