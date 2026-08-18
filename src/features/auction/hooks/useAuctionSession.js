@@ -13,7 +13,6 @@ const AUCTION_SESSION_REF = doc(db, 'asta_fantacalcio', 'sessione_asta');
 
 export default function useAuctionSession({ isMobileView }) {
   const [giocatori, setGiocatori] = useState(INITIAL_PLAYERS);
-  const [giocatoriCatalogo, setGiocatoriCatalogo] = useState(INITIAL_PLAYERS);
   const [partecipanti, setPartecipanti] = useState(INITIAL_PARTICIPANTS);
   const [isConfigMode, setIsConfigMode] = useState(true);
   const [giocatoreInAsta, setGiocatoreInAsta] = useState(null);
@@ -32,7 +31,6 @@ export default function useAuctionSession({ isMobileView }) {
   const currentSessionRef = useRef(null);
   currentSessionRef.current = {
     players: giocatori,
-    playersCatalog: giocatoriCatalogo,
     participants: partecipanti,
     configMode: isConfigMode,
     playerInAuction: giocatoreInAsta,
@@ -54,7 +52,7 @@ export default function useAuctionSession({ isMobileView }) {
     const nextTimerStarted = nextSession.timerStarted;
 
     try {
-      await saveAuctionSession({
+      return await saveAuctionSession({
         docRef: AUCTION_SESSION_REF,
         ...nextSession,
         timerStarted: nextTimerStarted,
@@ -76,12 +74,7 @@ export default function useAuctionSession({ isMobileView }) {
           normalizePlayer,
         );
 
-        const catalogoParsed = (
-          data.playersCatalog || INITIAL_PLAYERS
-        ).map(normalizePlayer);
-
         setGiocatori(sortPlayersAlphabetically(giocatoriParsed));
-        setGiocatoriCatalogo(sortPlayersAlphabetically(catalogoParsed));
         setPartecipanti(data.partecipanti || INITIAL_PARTICIPANTS);
         setIsConfigMode(
           data.isConfigMode !== undefined ? data.isConfigMode : true,
@@ -109,7 +102,6 @@ export default function useAuctionSession({ isMobileView }) {
       } else {
         saveSession({
           players: INITIAL_PLAYERS,
-          playersCatalog: INITIAL_PLAYERS,
           participants: INITIAL_PARTICIPANTS,
           configMode: true,
           playerInAuction: null,
@@ -187,13 +179,12 @@ export default function useAuctionSession({ isMobileView }) {
     docRef: AUCTION_SESSION_REF,
     giocatori,
     setGiocatori,
-    giocatoriCatalogo,
-    setGiocatoriCatalogo,
     partecipanti,
     setPartecipanti,
     isConfigMode,
     setIsConfigMode,
     giocatoreInAsta,
+    setGiocatoreInAsta,
     offertaCorrente,
     isTimerStarted,
     ultimoOfferenteId,

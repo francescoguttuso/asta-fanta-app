@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getDoc } from 'firebase/firestore';
 import {
   INITIAL_PARTICIPANTS,
   INITIAL_PLAYERS,
@@ -32,13 +31,12 @@ export default function useAdminAuctionController() {
     docRef,
     giocatori,
     setGiocatori,
-    giocatoriCatalogo,
-    setGiocatoriCatalogo,
     partecipanti,
     setPartecipanti,
     isConfigMode,
     setIsConfigMode,
     giocatoreInAsta,
+    setGiocatoreInAsta,
     offertaCorrente,
     isTimerStarted,
     ultimoOfferenteId,
@@ -68,11 +66,7 @@ export default function useAdminAuctionController() {
         );
 
         setGiocatori(nuoviGiocatori);
-        setGiocatoriCatalogo(nuoviGiocatori);
-        saveSession({
-          players: nuoviGiocatori,
-          playersCatalog: nuoviGiocatori,
-        });
+        saveSession({ players: nuoviGiocatori });
         alert('File JSON importato e aggiornato con successo!');
       } catch (errore) {
         console.error('Errore durante il parsing del JSON:', errore);
@@ -123,8 +117,7 @@ export default function useAdminAuctionController() {
     }
 
     saveSession({
-      players: giocatoriCatalogo || INITIAL_PLAYERS,
-      playersCatalog: giocatoriCatalogo || INITIAL_PLAYERS,
+      players: INITIAL_PLAYERS,
       participants: INITIAL_PARTICIPANTS,
       configMode: true,
       playerInAuction: null,
@@ -141,229 +134,21 @@ export default function useAdminAuctionController() {
     setTimer(10);
   };
 
-  const escapeCsv = (value) => {
-    const text = value == null ? '' : String(value);
-    return `"${text.replaceAll('"', '""')}"`;
-  };
-
   const esportaInExcel = () => {
-    const righe = [['squadra', 'crediti', 'giocatoreId', 'prezzo']];
+    let csvContent = 'data:text/csv;charset=utf-8,';
 
     partecipanti.forEach((partecipante) => {
-      if (!partecipante.rosa?.length) {
-        righe.push([partecipante.nome, partecipante.crediti ?? 500, '', '']);
-        return;
-      }
-
-      partecipante.rosa.forEach((giocatore) => {
-        righe.push([
-          partecipante.nome,
-          partecipante.crediti ?? 0,
-          giocatore.id,
-          giocatore.prezzo ?? 0,
-        ]);
+      partecipante.rosa?.forEach((giocatore) => {
+        csvContent += `${partecipante.nome},${giocatore.id},${giocatore.prezzo}\n`;
       });
     });
 
-    const csvContent = '\uFEFF' + righe
-      .map((riga) => riga.map(escapeCsv).join(';'))
-      .join('\r\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url;
-    link.download = 'fantariggio_rosters.csv';
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', 'fantariggio_rosters.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const importaSquadre = (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (loadEvent) => {
-      try {
-        const text = String(loadEvent.target.result || '').replace(/^\uFEFF/, '');
-        const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
-        if (!lines.length) throw new Error('File vuoto.');
-
-        const delimiter = (() => {
-          const firstLine = lines[0];
-          const semicolons = (firstLine.match(/;/g) || []).length;
-          const commas = (firstLine.match(/,/g) || []).length;
-          return semicolons >= commas ? ';' : ',';
-        })();
-
-        const parseCsvLine = (line) => {
-          const values = [];
-          let current = '';
-          let quoted = false;
-
-          for (let i = 0; i < line.length; i += 1) {
-            const char = line[i];
-            if (char === '"') {
-              if (quoted && line[i + 1] === '"') {
-                current += '"';
-                i += 1;
-              } else {
-                quoted = !quoted;
-              }
-            } else if (char === delimiter && !quoted) {
-              values.push(current.trim());
-              current = '';
-            } else {
-              current += char;
-            }
-          }
-
-          values.push(current.trim());
-          return values;
-        };
-
-        const rows = lines.map(parseCsvLine);
-        const header = rows[0].map((value) => value.toLowerCase());
-        const hasHeader =
-          header[0] === 'squadra' &&
-          header[1] === 'crediti' &&
-          header[2] === 'giocatoreid' &&
-          header[3] === 'prezzo';
-
-        const dataRows = hasHeader ? rows.slice(1) : rows;
-        const grouped = new Map();
-
-        dataRows.forEach((row) => {
-          const nomeSquadra = row[0]?.trim();
-          if (!nomeSquadra) return;
-
-          const crediti = hasHeader ? Number(row[1]) : null;
-          const playerId = hasHeader ? row[2] : row[1];
-          const prezzo = Number(hasHeader ? row[3] : row[2]);
-
-          if (!grouped.has(nomeSquadra)) {
-            grouped.set(nomeSquadra, {
-              crediti: Number.isFinite(crediti) ? crediti : null,
-              rosa: [],
-            });
-          }
-
-          if (playerId && Number.isFinite(Number(playerId)) && Number.isFinite(prezzo)) {
-            grouped.get(nomeSquadra).rosa.push({
-              id: Number(playerId),
-              prezzo,
-            });
-          }
-        });
-
-        if (!grouped.size) {
-          throw new Error('Nessuna squadra trovata nel file.');
-        }
-
-        if (grouped.size > partecipanti.length) {
-          throw new Error(
-            `Il file contiene ${grouped.size} squadre, ma la lega ne prevede ${partecipanti.length}.`,
-          );
-        }
-
-        // Catalogo completo: prima usiamo quello già in memoria.
-        let catalogo = giocatoriCatalogo?.length
-          ? giocatoriCatalogo
-          : (giocatori || []);
-
-        let catalogoById = new Map(
-          catalogo.map((player) => [String(player.id).trim(), player]),
-        );
-
-        // Se manca qualche ID, rileggiamo il catalogo completo dalla
-        // sessione Firestore. Il campo corretto salvato dalla sessione è
-        // "playersCatalog".
-        const idsDaCercare = Array.from(grouped.values())
-          .flatMap((dati) => dati.rosa)
-          .map((item) => String(item.id).trim());
-
-        const idsMancanti = idsDaCercare.filter(
-          (id) => !catalogoById.has(id),
-        );
-
-        if (idsMancanti.length > 0) {
-          const snapshot = await getDoc(docRef);
-
-          if (snapshot.exists()) {
-            const datiSessione = snapshot.data();
-
-            const catalogoFirestore =
-              datiSessione.playersCatalog ||
-              datiSessione.players ||
-              [];
-
-            if (Array.isArray(catalogoFirestore) && catalogoFirestore.length) {
-              catalogo = catalogoFirestore;
-              catalogoById = new Map(
-                catalogo.map((player) => [
-                  String(player.id).trim(),
-                  player,
-                ]),
-              );
-            }
-          }
-        }
-        const usedIds = new Set();
-        const importate = Array.from(grouped.entries());
-
-        const partecipantiImportati = partecipanti.map((participant) => ({
-          ...participant,
-          rosa: [],
-        }));
-
-        importate.forEach(([nomeSquadra, dati], index) => {
-          const target = partecipantiImportati[index];
-          target.nome = nomeSquadra;
-
-          dati.rosa.forEach((item) => {
-            if (usedIds.has(item.id)) {
-              throw new Error(`Il giocatore con ID ${item.id} è presente più volte nel file.`);
-            }
-
-            const player = catalogoById.get(String(item.id).trim());
-            if (!player) {
-              throw new Error(`Giocatore con ID ${item.id} non trovato nel catalogo.`);
-            }
-
-            usedIds.add(item.id);
-            target.rosa.push({ ...player, prezzo: item.prezzo });
-          });
-
-          const speso = target.rosa.reduce(
-            (totale, player) => totale + Number(player.prezzo || 0),
-            0,
-          );
-
-          target.crediti =
-            dati.crediti != null && Number.isFinite(dati.crediti)
-              ? dati.crediti
-              : 500 - speso;
-        });
-
-        if (!window.confirm(
-          'Importare le squadre dal file selezionato? Le rose e i crediti attuali verranno sostituiti.',
-        )) {
-          return;
-        }
-
-        await saveSession({ participants: partecipantiImportati });
-        setPartecipanti(partecipantiImportati);
-        alert('Squadre importate con successo!');
-      } catch (error) {
-        console.error('Errore importazione squadre:', error);
-        alert(`Errore importazione squadre: ${error.message}`);
-      }
-    };
-
-    reader.readAsText(file, 'utf-8');
   };
 
   const cambiaNomeSquadra = (id, nuovoNome) => {
@@ -382,16 +167,26 @@ export default function useAdminAuctionController() {
     saveSession({ configMode });
   };
 
-  const chiamaGiocatore = (giocatore) => {
+  const chiamaGiocatore = async (giocatore) => {
+    if (!giocatore) return;
+
     if (isConfigMode) {
       alert('Completa e salva la configurazione prima di iniziare!');
       return;
     }
 
+    // Aggiornamento locale immediato: il giocatore compare subito
+    // anche se il salvataggio Firestore ha un problema di rete.
+    setGiocatoreInAsta(giocatore);
     setTimer(10);
-    saveSession({
-      ...createReadyAuctionState(giocatore),
-    });
+
+    try {
+      await saveSession({
+        ...createReadyAuctionState(giocatore),
+      });
+    } catch (error) {
+      console.error('Errore nella chiamata del giocatore:', error);
+    }
   };
 
   const cambiaFiltroRuolo = (ruolo) => {
@@ -579,7 +374,6 @@ export default function useAdminAuctionController() {
     cambiaGiocatoreManuale,
     resettaTutto,
     esportaInExcel,
-    importaSquadre,
     cambiaNomeSquadra,
     impostaModalitaConfigurazione,
     chiamaGiocatore,
