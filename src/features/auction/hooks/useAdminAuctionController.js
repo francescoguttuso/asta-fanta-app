@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { getDoc } from 'firebase/firestore';
 import {
   INITIAL_PARTICIPANTS,
   INITIAL_PLAYERS,
@@ -268,12 +269,49 @@ export default function useAdminAuctionController() {
           );
         }
 
-        const catalogo = giocatoriCatalogo?.length
+        // Usiamo prima il catalogo completo già presente nello stato.
+        // Se un ID non viene trovato, rileggiamo il catalogo direttamente
+        // da Firestore: così l'importazione non dipende dalla lista
+        // dei giocatori ancora disponibili all'asta o da uno stato locale
+        // rimasto indietro.
+        let catalogo = giocatoriCatalogo?.length
           ? giocatoriCatalogo
           : (giocatori || []);
+
         const catalogoById = new Map(
           catalogo.map((player) => [String(player.id).trim(), player]),
         );
+
+        // Se il catalogo locale non contiene tutti gli ID, recuperiamo
+        // il catalogo completo dalla sessione Firestore.
+        const idsDaCercare = Array.from(grouped.values())
+          .flatMap((dati) => dati.rosa)
+          .map((item) => String(item.id).trim());
+
+        const idsMancanti = idsDaCercare.filter(
+          (id) => !catalogoById.has(id),
+        );
+
+        if (idsMancanti.length > 0) {
+          const snapshot = await getDoc(docRef);
+
+          if (snapshot.exists()) {
+            const datiSessione = snapshot.data();
+
+            const catalogoFirestore =
+              datiSessione.giocatoriCatalogo ||
+              datiSessione.giocatori ||
+              [];
+
+            catalogo = catalogoFirestore;
+
+            catalogoById.clear();
+
+            catalogo.forEach((player) => {
+              catalogoById.set(String(player.id).trim(), player);
+            });
+          }
+        }
         const usedIds = new Set();
         const importate = Array.from(grouped.entries());
 

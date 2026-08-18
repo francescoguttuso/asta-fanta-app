@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { ROLE_LIMITS } from "@/data/auctionDefaults";
 
-import { placeBid, requestAuctionStop, settleAuctionWinner } from "../auction/auctionActions";
+import { placeBid, requestAuctionStop } from "../auction/auctionActions";
 
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 
@@ -95,9 +95,9 @@ export default function MobileController() {
 
     const ruoloCorrente = giocatoreInAsta.ruolo;
     const limiteRuolo = ROLE_LIMITS[ruoloCorrente] || 0;
-    const quantitaInRosa = utenteCorrente?.rosa?.filter(
-      (g) => g.ruolo === ruoloCorrente,
-    ).length || 0;
+    const quantitaInRosa =
+      utenteCorrente?.rosa?.filter((g) => g.ruolo === ruoloCorrente).length ||
+      0;
 
     const nextBid = offertaCorrente + incremento;
     let budgetMassimo = utenteCorrente?.crediti || 0;
@@ -110,7 +110,9 @@ export default function MobileController() {
     }
 
     if (nextBid > budgetMassimo) {
-      alert(`⛔ Non puoi rilanciare a ${nextBid} FM. Potenza economica massima: ${budgetMassimo} FM.`);
+      alert(
+        `⛔ Non puoi rilanciare a ${nextBid} FM. Potenza economica massima: ${budgetMassimo} FM.`,
+      );
       return;
     }
 
@@ -147,8 +149,12 @@ export default function MobileController() {
         winnerId: parseInt(mioId, 10),
         price: Number(pendingSwitch.price),
         selectedLetter: pendingSwitch.selectedLetter || "TUTTE",
-        activeRoleFilters:
-          pendingSwitch.activeRoleFilters || { P: true, D: true, C: true, A: true },
+        activeRoleFilters: pendingSwitch.activeRoleFilters || {
+          P: true,
+          D: true,
+          C: true,
+          A: true,
+        },
         expectedPlayerId: pendingSwitch.player?.id,
         switchPlayerId,
       });
