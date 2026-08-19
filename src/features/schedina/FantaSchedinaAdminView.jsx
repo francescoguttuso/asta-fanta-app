@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { onSnapshot } from "firebase/firestore";
+import { deleteField, onSnapshot, updateDoc } from "firebase/firestore";
 import { CALENDARIO_CAMPIONATO } from "@/data/calendarioData";
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 import {
@@ -109,13 +109,35 @@ export default function FantaSchedinaAdminView() {
     });
   };
 
+  const deleteSchedina = async (teamId, teamName) => {
+    if (!docRef) return;
+
+    const confirmed = window.confirm(
+      `Cancellare la schedina di ${teamName} per la ${round.label}?`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+
+      await updateDoc(docRef, {
+        [`fantaSchedina.rounds.${selectedRound}.picks.${teamId}`]:
+          deleteField(),
+      });
+    } catch (error) {
+      console.error("Errore cancellazione schedina:", error);
+      alert("Impossibile cancellare la schedina.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveResults = async () => {
     if (!docRef || !round || results.length !== round.matches.length) return;
 
     try {
       setSaving(true);
-
-      const { updateDoc } = await import("firebase/firestore");
 
       await updateDoc(docRef, {
         [`fantaSchedina.rounds.${selectedRound}.results`]: results,
@@ -301,6 +323,7 @@ export default function FantaSchedinaAdminView() {
                 ))}
                 <th style={thStyle}>Punti</th>
                 <th style={thStyle}>Stato</th>
+                <th style={thStyle}>Azioni</th>
               </tr>
             </thead>
             <tbody>
@@ -337,6 +360,28 @@ export default function FantaSchedinaAdminView() {
                       </span>
                     ) : (
                       <span style={{ color: "#64748b" }}>NON GIOCATA</span>
+                    )}
+                  </td>
+
+                  <td style={tdStyle}>
+                    {row.completed > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => deleteSchedina(row.id, row.nome)}
+                        disabled={saving}
+                        title="Cancella schedina"
+                        style={{
+                          border: "1px solid #5b1d2a",
+                          background: "#210b14",
+                          color: "#f87171",
+                          borderRadius: 7,
+                          padding: "6px 9px",
+                          cursor: saving ? "not-allowed" : "pointer",
+                          fontWeight: 900,
+                        }}
+                      >
+                        🗑️
+                      </button>
                     )}
                   </td>
                 </tr>
