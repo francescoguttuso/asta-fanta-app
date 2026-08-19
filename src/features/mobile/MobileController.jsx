@@ -9,6 +9,7 @@ import { useAuctionSessionContext } from "../auction/context/useAuctionContexts"
 import BidHistory from "./components/BidHistory";
 import MobileAuctionPanel from "./components/MobileAuctionPanel";
 import TeamSelector from "./components/TeamSelector";
+import FantaSchedinaMobile from "../schedina/FantaSchedinaMobile";
 
 const SAVED_TEAM_KEY = "fantaAstaTeamId";
 
@@ -39,6 +40,8 @@ export default function MobileController() {
   const [showTeamSelector, setShowTeamSelector] = useState(
     () => !localStorage.getItem(SAVED_TEAM_KEY),
   );
+
+  const [vistaMobile, setVistaMobile] = useState("asta");
 
   // =====================================================
   // SQUADRA SELEZIONATA
@@ -272,6 +275,21 @@ export default function MobileController() {
   }
 
   // =====================================================
+  // FANTA SCHEDINA
+  // =====================================================
+
+  if (vistaMobile === "schedina") {
+    return (
+      <FantaSchedinaMobile
+        docRef={docRef}
+        teamId={mioId}
+        teamName={utenteSelezionato?.nome || "Squadra"}
+        onBack={() => setVistaMobile("asta")}
+      />
+    );
+  }
+
+  // =====================================================
   // CONTROLLER ASTA
   // =====================================================
 
@@ -390,6 +408,55 @@ export default function MobileController() {
       ============================================== */}
 
       <BidHistory bids={storicoOfferte} />
+
+      {/* NAVIGAZIONE MOBILE: ASTA / FANTA SCHEDINA */}
+      <div
+        style={{
+          position: "sticky",
+          bottom: "10px",
+          zIndex: 20,
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "8px",
+          marginTop: "12px",
+          padding: "8px",
+          borderRadius: "12px",
+          background: "#0b0520",
+          border: "1px solid #29144d",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setVistaMobile("asta")}
+          style={{
+            border: "0",
+            borderRadius: "9px",
+            padding: "10px",
+            background: "#16083d",
+            color: "#38bdf8",
+            fontWeight: 800,
+            cursor: "pointer",
+          }}
+        >
+          🔨 ASTA
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setVistaMobile("schedina")}
+          style={{
+            border: "0",
+            borderRadius: "9px",
+            padding: "10px",
+            background: "#16083d",
+            color: "#cbd5e1",
+            fontWeight: 800,
+            cursor: "pointer",
+          }}
+        >
+          🎟️ SCHEDINA
+        </button>
+      </div>
     </div>
   );
 }

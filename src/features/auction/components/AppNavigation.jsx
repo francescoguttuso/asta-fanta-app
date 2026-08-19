@@ -3,41 +3,44 @@ import { useAdminAuctionContext } from "../context/useAuctionContexts";
 export default function AppNavigation() {
   const { vistaCorrente, setVistaCorrente } = useAdminAuctionContext();
 
+  const itemStyle = (active) => ({
+    cursor: "pointer",
+    color: active ? "#38bdf8" : "#94a3b8",
+  });
+
   return (
     <nav className="fanta-floating-nav">
       <span
         onClick={() => setVistaCorrente("dashboard")}
-        style={{
-          cursor: "pointer",
-          color: vistaCorrente === "dashboard" ? "#38bdf8" : "#94a3b8",
-        }}
+        style={itemStyle(vistaCorrente === "dashboard")}
       >
         🏠 Dashboard
       </span>
+
       <span
         onClick={() => setVistaCorrente("rose")}
-        style={{
-          cursor: "pointer",
-          color: vistaCorrente === "rose" ? "#38bdf8" : "#94a3b8",
-        }}
+        style={itemStyle(vistaCorrente === "rose")}
       >
         👥 Rose
       </span>
+
       <span
         onClick={() => setVistaCorrente("calendario")}
-        style={{
-          cursor: "pointer",
-          color: vistaCorrente === "calendario" ? "#38bdf8" : "#94a3b8",
-        }}
+        style={itemStyle(vistaCorrente === "calendario")}
       >
         📅 Calendario
       </span>
+
+      <span
+        onClick={() => setVistaCorrente("schedina")}
+        style={itemStyle(vistaCorrente === "schedina")}
+      >
+        🎟️ Fanta Schedina
+      </span>
+
       <span
         onClick={() => setVistaCorrente("classifica")}
-        style={{
-          cursor: "pointer",
-          color: vistaCorrente === "classifica" ? "#38bdf8" : "#94a3b8",
-        }}
+        style={itemStyle(vistaCorrente === "classifica")}
       >
         🏆 Classifica
       </span>
