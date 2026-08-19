@@ -6,8 +6,8 @@ import CalendarView from "./components/CalendarView";
 import PlaceholderView from "./components/PlaceholderView";
 import RostersView from "./components/RostersView";
 import TeamConfiguration from "./components/TeamConfiguration";
-import FantaSchedinaAdminView from "../schedina/FantaSchedinaAdminView";
 import TeamsSummary from "./components/TeamsSummary";
+import FantaSchedinaAdminView from "../schedina/FantaSchedinaAdminView";
 import AdminAuctionProvider from "./context/AdminAuctionProvider";
 import { useAdminAuctionContext } from "./context/useAuctionContexts";
 

@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { onSnapshot } from "firebase/firestore";
 import { CALENDARIO_CAMPIONATO } from "@/data/calendarioData";
+import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 import {
   calculateSchedinaPoints,
-  saveFantaSchedinaResults,
-  setFantaSchedinaRound,
-} from "@/features/schedina/fantaSchedinaStore";
-import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
+  getRoundResults,
+} from "./fantaSchedinaStore";
 
 const SIGNS = ["1", "X", "2"];
 
+const getParticipantName = (participant) =>
+  participant?.nome || participant?.name || `Squadra ${participant?.id ?? ""}`;
+
 export default function FantaSchedinaAdminView() {
-  const { docRef, partecipanti } = useAuctionSessionContext();
+  const { docRef, partecipanti = [] } = useAuctionSessionContext();
+
   const [session, setSession] = useState(null);
   const [selectedRound, setSelectedRound] = useState(1);
   const [results, setResults] = useState([]);
@@ -19,50 +22,124 @@ export default function FantaSchedinaAdminView() {
 
   useEffect(() => {
     if (!docRef) return undefined;
-    return onSnapshot(docRef, (snap) => {
-      if (snap.exists()) setSession(snap.data());
-    });
+
+    return onSnapshot(
+      docRef,
+      (snap) => {
+        if (snap.exists()) {
+          setSession(snap.data());
+        }
+      },
+      (error) => {
+        console.error("Errore lettura FantaSchedina:", error);
+      },
+    );
   }, [docRef]);
 
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
-  const roundState = session?.fantaSchedina?.rounds?.[selectedRound] || {};
-  const isOpen =
-    roundState.open === true ||
-    session?.fantaSchedina?.activeRound === selectedRound;
+  const roundState =
+    session?.fantaSchedina?.rounds?.[selectedRound] || {};
 
   useEffect(() => {
     setResults(roundState.results || []);
   }, [selectedRound, roundState.results]);
 
-  const ranking = useMemo(() => {
-    return (partecipanti || [])
-      .map((participant) => {
-        const picks =
-          roundState.picks?.[participant.id] || [];
+  const picksByTeam = roundState.picks || {};
+
+  const playedRows = useMemo(
+    () =>
+      partecipanti.map((participant) => {
+        const rawPicks =
+          picksByTeam[String(participant.id)] ??
+          picksByTeam[participant.id] ??
+          [];
+
+        const picks = Array.isArray(rawPicks) ? rawPicks : [];
+
         return {
           id: participant.id,
-          nome: participant.nome,
-          punti: calculateSchedinaPoints(picks, results),
-          haGiocato: picks.filter(Boolean).length === round.matches.length,
+          nome: getParticipantName(participant),
+          picks,
+          completed: picks.filter(Boolean).length,
+          points: calculateSchedinaPoints(picks, results),
+        };
+      }),
+    [partecipanti, picksByTeam, results],
+  );
+
+  const cumulativeRanking = useMemo(() => {
+    return partecipanti
+      .map((participant) => {
+        let total = 0;
+        let playedRounds = 0;
+
+        for (let roundIndex = 1; roundIndex <= CALENDARIO_CAMPIONATO.length; roundIndex += 1) {
+          const state =
+            session?.fantaSchedina?.rounds?.[roundIndex] || {};
+
+          const rawPicks =
+            state.picks?.[String(participant.id)] ??
+            state.picks?.[participant.id] ??
+            [];
+
+          const roundPicks = Array.isArray(rawPicks) ? rawPicks : [];
+          const roundResults = getRoundResults(session, roundIndex);
+
+          if (roundPicks.length > 0) {
+            playedRounds += 1;
+            total += calculateSchedinaPoints(roundPicks, roundResults);
+          }
+        }
+
+        return {
+          id: participant.id,
+          nome: getParticipantName(participant),
+          total,
+          playedRounds,
         };
       })
-      .sort((a, b) => b.punti - a.punti);
-  }, [partecipanti, round, roundState.picks, results]);
+      .sort((a, b) => b.total - a.total);
+  }, [partecipanti, session]);
+
+  const setResult = (index, sign) => {
+    setResults((current) => {
+      const next = [...current];
+      next[index] = sign;
+      return next;
+    });
+  };
 
   const saveResults = async () => {
+    if (!docRef || !round || results.length !== round.matches.length) return;
+
     try {
       setSaving(true);
-      await saveFantaSchedinaResults(docRef, selectedRound, results);
+
+      const { updateDoc } = await import("firebase/firestore");
+
+      await updateDoc(docRef, {
+        [`fantaSchedina.rounds.${selectedRound}.results`]: results,
+      });
+    } catch (error) {
+      console.error("Errore salvataggio risultati FantaSchedina:", error);
+      alert("Impossibile salvare i risultati della FantaSchedina.");
     } finally {
       setSaving(false);
     }
   };
 
-  const toggleRound = async () => {
-    await setFantaSchedinaRound(docRef, selectedRound, {
-      open: !isOpen,
-    });
-  };
+  if (!round) {
+    return (
+      <div className="card" style={{ marginTop: 20, padding: 25 }}>
+        Nessuna giornata disponibile.
+      </div>
+    );
+  }
+
+  const playedCount = playedRows.filter((row) => row.completed > 0).length;
+  const completedCount = playedRows.filter(
+    (row) => row.completed === round.matches.length,
+  ).length;
 
   return (
     <div
@@ -80,26 +157,28 @@ export default function FantaSchedinaAdminView() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          gap: "10px",
+          gap: 12,
           flexWrap: "wrap",
-          marginBottom: "15px",
+          marginBottom: 18,
         }}
       >
         <div>
-          <div style={{ color: "#38bdf8", fontSize: "22px", fontWeight: 900 }}>
+          <div style={{ color: "#38bdf8", fontSize: 23, fontWeight: 900 }}>
             🎟️ FantaSchedina
           </div>
-          <div style={{ color: "#94a3b8", fontSize: "12px" }}>
-            1 punto per ogni pronostico 1/X/2 corretto
+          <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4 }}>
+            Schedine giocate · risultati · punti · classifica
           </div>
         </div>
 
         <select
           value={selectedRound}
-          onChange={(event) =>
-            setSelectedRound(Number(event.target.value))
-          }
-          style={{ padding: "9px", borderRadius: "8px" }}
+          onChange={(event) => setSelectedRound(Number(event.target.value))}
+          style={{
+            padding: "9px 10px",
+            borderRadius: 8,
+            border: "1px solid #33214f",
+          }}
         >
           {CALENDARIO_CAMPIONATO.map((item, index) => (
             <option key={item.label} value={index + 1}>
@@ -112,104 +191,221 @@ export default function FantaSchedinaAdminView() {
       <div
         style={{
           display: "grid",
-          gap: "8px",
-          marginBottom: "15px",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gap: 8,
+          marginBottom: 18,
         }}
       >
-        {round.matches.map((match, index) => (
+        {[
+          ["👥", "Partecipanti", partecipanti.length],
+          ["🎟️", "Hanno giocato", playedCount],
+          ["✅", "Complete", completedCount],
+        ].map(([icon, label, value]) => (
           <div
-            key={`${match.home}-${match.away}`}
+            key={label}
             style={{
-              display: "grid",
-              gridTemplateColumns: "1fr repeat(3,44px)",
-              gap: "7px",
-              alignItems: "center",
-              padding: "10px",
+              background: "#100822",
               border: "1px solid #21173d",
-              borderRadius: "9px",
+              borderRadius: 9,
+              padding: 12,
+              textAlign: "center",
             }}
           >
-            <strong style={{ color: "#e5e7eb" }}>
-              {match.home} — {match.away}
-            </strong>
-
-            {SIGNS.map((sign) => (
-              <button
-                key={sign}
-                type="button"
-                onClick={() => {
-                  const next = [...results];
-                  next[index] = sign;
-                  setResults(next);
-                }}
-                style={{
-                  padding: "9px",
-                  borderRadius: "7px",
-                  border:
-                    results[index] === sign
-                      ? "2px solid #38bdf8"
-                      : "1px solid #33214f",
-                  background:
-                    results[index] === sign ? "#12304a" : "#100822",
-                  color: "#fff",
-                  fontWeight: 900,
-                }}
-              >
-                {sign}
-              </button>
-            ))}
+            <div style={{ fontSize: 18 }}>{icon}</div>
+            <div style={{ color: "#94a3b8", fontSize: 11 }}>{label}</div>
+            <strong style={{ color: "#fff", fontSize: 18 }}>{value}</strong>
           </div>
         ))}
       </div>
 
-      <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
+      <section style={{ marginBottom: 22 }}>
+        <h3 style={{ color: "#fff", marginBottom: 10 }}>
+          Risultati — {round.label}
+        </h3>
+
+        <div style={{ display: "grid", gap: 8 }}>
+          {round.matches.map((match, index) => (
+            <div
+              key={`${match.home}-${match.away}-${index}`}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr repeat(3, 42px)",
+                gap: 7,
+                alignItems: "center",
+                padding: 10,
+                border: "1px solid #21173d",
+                borderRadius: 9,
+              }}
+            >
+              <strong style={{ color: "#e5e7eb" }}>
+                {match.home} — {match.away}
+              </strong>
+
+              {SIGNS.map((sign) => (
+                <button
+                  key={sign}
+                  type="button"
+                  onClick={() => setResult(index, sign)}
+                  style={{
+                    padding: 8,
+                    borderRadius: 7,
+                    border:
+                      results[index] === sign
+                        ? "2px solid #38bdf8"
+                        : "1px solid #33214f",
+                    background:
+                      results[index] === sign ? "#12304a" : "#100822",
+                    color: "#fff",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                  }}
+                >
+                  {sign}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+
         <button
           type="button"
           className="btn btn-green"
           onClick={saveResults}
           disabled={saving || results.length !== round.matches.length}
+          style={{ marginTop: 10 }}
         >
           {saving ? "SALVATAGGIO..." : "SALVA RISULTATI"}
         </button>
+      </section>
 
-        <button type="button" className="btn" onClick={toggleRound}>
-          {isOpen ? "🔒 CHIUDI GIORNATA" : "🔓 APRI GIORNATA"}
-        </button>
-      </div>
+      <section style={{ marginBottom: 22 }}>
+        <h3 style={{ color: "#fff", marginBottom: 10 }}>
+          📋 Schedine giocate — {round.label}
+        </h3>
 
-      <div
-        style={{
-          borderTop: "1px solid #21173d",
-          paddingTop: "14px",
-        }}
-      >
-        <h3 style={{ color: "#fff" }}>Classifica giornata</h3>
-
-        {ranking.map((row, index) => (
-          <div
-            key={row.id}
+        <div style={{ overflowX: "auto" }}>
+          <table
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              padding: "9px 0",
-              borderBottom: "1px solid #170f2a",
-              color: "#cbd5e1",
+              width: "100%",
+              borderCollapse: "collapse",
+              minWidth: 720,
             }}
           >
-            <span>
-              {index + 1}. {row.nome}
-              {!row.haGiocato && (
-                <small style={{ color: "#f59e0b", marginLeft: "8px" }}>
-                  non completata
+            <thead>
+              <tr>
+                <th style={thStyle}>Squadra</th>
+                {round.matches.map((_, index) => (
+                  <th key={index} style={thStyle}>
+                    {index + 1}
+                  </th>
+                ))}
+                <th style={thStyle}>Punti</th>
+                <th style={thStyle}>Stato</th>
+              </tr>
+            </thead>
+            <tbody>
+              {playedRows.map((row) => (
+                <tr key={row.id}>
+                  <td style={tdStyle}>
+                    <strong>{row.nome}</strong>
+                  </td>
+
+                  {round.matches.map((_, index) => (
+                    <td key={index} style={tdStyle}>
+                      <strong
+                        style={{
+                          color: row.picks[index] ? "#38bdf8" : "#64748b",
+                        }}
+                      >
+                        {row.picks[index] || "—"}
+                      </strong>
+                    </td>
+                  ))}
+
+                  <td style={tdStyle}>
+                    <strong style={{ color: "#10b981" }}>
+                      {row.points}
+                    </strong>
+                  </td>
+
+                  <td style={tdStyle}>
+                    {row.completed === round.matches.length ? (
+                      <span style={{ color: "#10b981" }}>CONSEGNATA</span>
+                    ) : row.completed > 0 ? (
+                      <span style={{ color: "#f59e0b" }}>
+                        {row.completed}/{round.matches.length}
+                      </span>
+                    ) : (
+                      <span style={{ color: "#64748b" }}>NON GIOCATA</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <h3 style={{ color: "#fff", marginBottom: 10 }}>
+          🏆 Classifica FantaSchedina
+        </h3>
+
+        <div
+          style={{
+            display: "grid",
+            gap: 6,
+          }}
+        >
+          {cumulativeRanking.map((row, index) => (
+            <div
+              key={row.id}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "10px 12px",
+                borderBottom: "1px solid #170f2a",
+                color: "#cbd5e1",
+              }}
+            >
+              <span>
+                <strong style={{ color: "#fff", marginRight: 8 }}>
+                  {index + 1}.
+                </strong>
+                {row.nome}
+                <small
+                  style={{
+                    color: "#64748b",
+                    marginLeft: 8,
+                  }}
+                >
+                  {row.playedRounds} giornate
                 </small>
-              )}
-            </span>
-            <strong style={{ color: "#38bdf8" }}>
-              {row.punti} pt
-            </strong>
-          </div>
-        ))}
-      </div>
+              </span>
+
+              <strong style={{ color: "#38bdf8", fontSize: 17 }}>
+                {row.total} pt
+              </strong>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
+
+const thStyle = {
+  textAlign: "center",
+  padding: "9px 7px",
+  color: "#94a3b8",
+  fontSize: 11,
+  borderBottom: "1px solid #33214f",
+};
+
+const tdStyle = {
+  textAlign: "center",
+  padding: "9px 7px",
+  color: "#cbd5e1",
+  borderBottom: "1px solid #170f2a",
+};
