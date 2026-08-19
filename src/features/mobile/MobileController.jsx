@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { ROLE_LIMITS } from "@/data/auctionDefaults";
 
-import { completeContextualSwitch, placeBid, requestAuctionStop } from "../auction/auctionActions";
+import { placeBid, requestAuctionStop } from "../auction/auctionActions";
 
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 
@@ -24,7 +24,6 @@ export default function MobileController() {
     storicoOfferte,
     stopTimer,
     ultimoAcquisto,
-    pendingSwitch,
     docRef,
   } = useAuctionSessionContext();
 
@@ -70,21 +69,6 @@ export default function MobileController() {
     setShowTeamSelector(true);
   };
 
-  const handleContextualSwitch = async (candidateId) => {
-    if (!pendingSwitch || !mioId) return;
-    try {
-      await completeContextualSwitch({
-        docRef,
-        winnerId: pendingSwitch.winnerId,
-        candidateId,
-      });
-    } catch (error) {
-      console.error("Errore nel taglio contestuale:", error);
-      alert(error.message || "Errore nel completamento dello switch.");
-    }
-  };
-
-
   // =====================================================
   // OFFERTA MOBILE
   // =====================================================
@@ -98,28 +82,44 @@ export default function MobileController() {
       return;
     }
 
-    // ================================================
-    // CONTROLLO REPARTO
-    // ================================================
-
     const utenteCorrente = partecipanti.find(
       (participant) => participant.id === parseInt(mioId),
     );
 
-    if (utenteCorrente) {
-      const ruoloCorrente = giocatoreInAsta.ruolo;
+    if (!utenteCorrente) {
+      return;
+    }
 
-      const quantitaInRosa = utenteCorrente.rosa.filter(
-        (g) => g.ruolo === ruoloCorrente,
-      ).length;
+    // Il fatto che il reparto sia pieno NON impedisce di partecipare:
+    // il taglio avverrà solo dopo l'aggiudicazione.
+    // Durante l'asta il limite è invece il budget sostenibile.
+    const ruoloCorrente = giocatoreInAsta.ruolo;
+    const crediti = Math.max(0, Number(utenteCorrente.crediti || 0));
+    const giocatoriRuolo = utenteCorrente.rosa.filter(
+      (g) => String(g.ruolo) === String(ruoloCorrente),
+    );
 
-      if (quantitaInRosa >= (ROLE_LIMITS[ruoloCorrente] || 0)) {
-        alert(
-          `⛔ Impossibile rilanciare: hai già completato il reparto dei ${ruoloCorrente} (${ROLE_LIMITS[ruoloCorrente]}/${ROLE_LIMITS[ruoloCorrente]})!`,
-        );
+    const roleLimit = ROLE_LIMITS[ruoloCorrente] || 0;
+    const ruoloPieno =
+      roleLimit > 0 && giocatoriRuolo.length >= roleLimit;
 
-        return;
-      }
+    const valoreMassimoDaTagliare = ruoloPieno
+      ? giocatoriRuolo.reduce(
+          (max, giocatore) =>
+            Math.max(max, Number(giocatore.prezzo || 0)),
+          0,
+        )
+      : 0;
+
+    const massimoOfferta = crediti + valoreMassimoDaTagliare;
+    const prossimaOfferta =
+      Number(offertaCorrente || 0) + Number(incremento || 0);
+
+    if (prossimaOfferta > massimoOfferta) {
+      alert(
+        `⛔ Offerta non sostenibile. Massimo consentito: ${massimoOfferta} FM.`,
+      );
+      return;
     }
 
     // ================================================
@@ -363,9 +363,6 @@ export default function MobileController() {
         remainingStops={stopRimanentiSelezionato}
         onBid={faiOffertaMobile}
         onStop={fermaAstaMobile}
-        pendingSwitch={pendingSwitch}
-        selectedParticipant={utenteSelezionato}
-        onSwitch={handleContextualSwitch}
         lastPurchase={ultimoAcquisto}
       />
 
