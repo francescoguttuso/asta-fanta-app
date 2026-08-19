@@ -8,6 +8,7 @@ import {
 import { filterPlayers, normalizePlayers } from '@/utils/playerUtils';
 import {
   buildPlayerAssignment,
+  calculateMaximumBid,
   placeBid,
   startAuctionTimer,
 } from '../auctionActions';
@@ -36,7 +37,6 @@ export default function useAdminAuctionController() {
     isConfigMode,
     setIsConfigMode,
     giocatoreInAsta,
-    setGiocatoreInAsta,
     offertaCorrente,
     isTimerStarted,
     ultimoOfferenteId,
@@ -167,26 +167,16 @@ export default function useAdminAuctionController() {
     saveSession({ configMode });
   };
 
-  const chiamaGiocatore = async (giocatore) => {
-    if (!giocatore) return;
-
+  const chiamaGiocatore = (giocatore) => {
     if (isConfigMode) {
       alert('Completa e salva la configurazione prima di iniziare!');
       return;
     }
 
-    // Aggiornamento locale immediato: il giocatore compare subito
-    // anche se il salvataggio Firestore ha un problema di rete.
-    setGiocatoreInAsta(giocatore);
     setTimer(10);
-
-    try {
-      await saveSession({
-        ...createReadyAuctionState(giocatore),
-      });
-    } catch (error) {
-      console.error('Errore nella chiamata del giocatore:', error);
-    }
+    saveSession({
+      ...createReadyAuctionState(giocatore),
+    });
   };
 
   const cambiaFiltroRuolo = (ruolo) => {
@@ -200,18 +190,20 @@ export default function useAdminAuctionController() {
     if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) return;
 
     const admin = partecipanti.find((partecipante) => partecipante.id === 1);
-    if (admin) {
-      const ruolo = giocatoreInAsta.ruolo;
-      const giocatoriNelRuolo = admin.rosa.filter(
-        (giocatore) => giocatore.ruolo === ruolo,
-      ).length;
 
-      if (giocatoriNelRuolo >= (ROLE_LIMITS[ruolo] || 0)) {
-        alert(
-          `⛔ Impossibile offrire: hai già completato i ${ruolo} (${ROLE_LIMITS[ruolo]}/${ROLE_LIMITS[ruolo]})!`,
-        );
-        return;
-      }
+    if (!admin) return;
+
+    const maximumBid = calculateMaximumBid({
+      participant: admin,
+      role: giocatoreInAsta.ruolo,
+    });
+    const nextBid = Number(offertaCorrente || 0) + Number(incremento || 0);
+
+    if (nextBid > maximumBid) {
+      alert(
+        `⛔ Offerta non sostenibile. Massimo consentito: ${maximumBid} FM.`,
+      );
+      return;
     }
 
     try {

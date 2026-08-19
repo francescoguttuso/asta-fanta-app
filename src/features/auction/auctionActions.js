@@ -10,7 +10,6 @@ import { findNextPlayer, sortPlayersAlphabetically } from "@/utils/playerUtils";
 export const saveAuctionSession = async ({
   docRef,
   players,
-  playersCatalog,
   participants,
   configMode,
   playerInAuction,
@@ -27,9 +26,6 @@ export const saveAuctionSession = async ({
 }) => {
   await setDoc(docRef, {
     giocatori: sortPlayersAlphabetically(players),
-    playersCatalog: sortPlayersAlphabetically(
-      playersCatalog || players || [],
-    ),
     partecipanti: participants,
     isConfigMode: configMode,
     giocatoreInAsta: playerInAuction,
@@ -60,6 +56,24 @@ export const startAuctionTimer = async ({ docRef }) => {
   });
 };
 
+export const calculateMaximumBid = ({ participant, role }) => {
+  if (!participant) return 0;
+
+  const credits = Math.max(0, Number(participant.crediti || 0));
+  const roster = Array.isArray(participant.rosa) ? participant.rosa : [];
+
+  const sameRolePlayers = roster.filter(
+    (player) => String(player.ruolo) === String(role),
+  );
+
+  const highestCutValue = sameRolePlayers.reduce(
+    (max, player) => Math.max(max, Number(player.prezzo || 0)),
+    0,
+  );
+
+  return credits + highestCutValue;
+};
+
 export const placeBid = async ({ docRef, bidderId, bidderName, increment }) => {
   await runTransaction(db, async (transaction) => {
     const sessionSnapshot = await transaction.get(docRef);
@@ -70,7 +84,24 @@ export const placeBid = async ({ docRef, bidderId, bidderName, increment }) => {
 
     if (session.isPaused || !session.isTimerStarted) return;
 
+    const bidder = (session.partecipanti || []).find(
+      (participant) => String(participant.id) === String(bidderId),
+    );
+
+    if (!bidder || !session.giocatoreInAsta) return;
+
+    const maximumBid = calculateMaximumBid({
+      participant: bidder,
+      role: session.giocatoreInAsta.ruolo,
+    });
+
     const newBid = (session.offertaCorrente || 0) + increment;
+
+    if (newBid > maximumBid) {
+      throw new Error(
+        `Offerta non sostenibile: massimo consentito ${maximumBid} FM.`,
+      );
+    }
 
     const newHistoryEntry = {
       nome: bidderName,
@@ -220,7 +251,6 @@ export const resumeAuctionAfterStop = async ({ docRef, stopStartedAt }) => {
 
 export const buildPlayerAssignment = ({
   players,
-  playersCatalog,
   participants,
   player,
   winner,

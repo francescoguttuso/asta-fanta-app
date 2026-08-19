@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { ROLE_LIMITS } from "@/data/auctionDefaults";
 
-import { placeBid, requestAuctionStop } from "../auction/auctionActions";
+import { calculateMaximumBid, placeBid, requestAuctionStop } from "../auction/auctionActions";
 
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 
@@ -25,7 +25,6 @@ export default function MobileController() {
     stopTimer,
     ultimoAcquisto,
     docRef,
-    pendingSwitch,
   } = useAuctionSessionContext();
 
   // =====================================================
@@ -83,35 +82,22 @@ export default function MobileController() {
       return;
     }
 
-    // ================================================
-    // CONTROLLO POTENZA ECONOMICA LOCALE
-    // ================================================
-
     const utenteCorrente = partecipanti.find(
-      (participant) => participant.id === parseInt(mioId, 10),
+      (participant) => participant.id === parseInt(mioId),
     );
 
     if (!utenteCorrente) return;
 
     const ruoloCorrente = giocatoreInAsta.ruolo;
-    const limiteRuolo = ROLE_LIMITS[ruoloCorrente] || 0;
-    const quantitaInRosa =
-      utenteCorrente?.rosa?.filter((g) => g.ruolo === ruoloCorrente).length ||
-      0;
+    const maximumBid = calculateMaximumBid({
+      participant: utenteCorrente,
+      role: ruoloCorrente,
+    });
+    const nextBid = Number(offertaCorrente || 0) + Number(incremento || 0);
 
-    const nextBid = offertaCorrente + incremento;
-    let budgetMassimo = utenteCorrente?.crediti || 0;
-
-    if (quantitaInRosa >= limiteRuolo) {
-      const maxSvincolo = (utenteCorrente?.rosa || [])
-        .filter((g) => g.ruolo === ruoloCorrente)
-        .reduce((max, g) => Math.max(max, Number(g.prezzo || 0)), 0);
-      budgetMassimo += maxSvincolo;
-    }
-
-    if (nextBid > budgetMassimo) {
+    if (nextBid > maximumBid) {
       alert(
-        `⛔ Non puoi rilanciare a ${nextBid} FM. Potenza economica massima: ${budgetMassimo} FM.`,
+        `⛔ Offerta non sostenibile. Massimo consentito: ${maximumBid} FM.`,
       );
       return;
     }
@@ -132,35 +118,6 @@ export default function MobileController() {
       });
     } catch (err) {
       console.error("Errore rilancio mobile:", err);
-    }
-  };
-
-  // =====================================================
-  // SWITCH / TAGLIO CONTESTUALE MOBILE
-  // =====================================================
-
-  const completaSwitchMobile = async (switchPlayerId) => {
-    if (!pendingSwitch || !mioId) return;
-    if (String(pendingSwitch.winnerId) !== String(mioId)) return;
-
-    try {
-      await settleAuctionWinner({
-        docRef,
-        winnerId: parseInt(mioId, 10),
-        price: Number(pendingSwitch.price),
-        selectedLetter: pendingSwitch.selectedLetter || "TUTTE",
-        activeRoleFilters: pendingSwitch.activeRoleFilters || {
-          P: true,
-          D: true,
-          C: true,
-          A: true,
-        },
-        expectedPlayerId: pendingSwitch.player?.id,
-        switchPlayerId,
-      });
-    } catch (error) {
-      console.error("Errore switch mobile:", error);
-      alert(error.message || "Errore durante lo switch.");
     }
   };
 
@@ -387,9 +344,6 @@ export default function MobileController() {
         onBid={faiOffertaMobile}
         onStop={fermaAstaMobile}
         lastPurchase={ultimoAcquisto}
-        pendingSwitch={pendingSwitch}
-        selectedParticipant={utenteSelezionato}
-        onSwitch={completaSwitchMobile}
       />
 
       {/* ==============================================
