@@ -69,7 +69,8 @@ export default function MobileController() {
   const cambiaSquadra = () => {
     setShowTeamSelector(true);
   };
-\n  const handleContextualSwitch = async (candidateId) => {
+
+  const handleContextualSwitch = async (candidateId) => {
     if (!pendingSwitch || !mioId) return;
     try {
       await completeContextualSwitch({
