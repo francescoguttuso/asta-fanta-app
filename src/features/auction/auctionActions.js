@@ -1,6 +1,6 @@
 import { runTransaction, setDoc } from "firebase/firestore";
 import { db } from "@/firebaseConfig";
-import { ALPHABET } from "@/data/auctionDefaults";
+import { ALPHABET, ROLE_LIMITS } from "@/data/auctionDefaults";
 import {
   AUCTION_DURATION_MS,
   getRemainingMilliseconds,
@@ -58,11 +58,17 @@ export const startAuctionTimer = async ({ docRef }) => {
   });
 };
 
-const ROLE_LIMITS_FOR_BUDGET = {
-  P: 6,
-  D: 8,
-  C: 8,
-  A: 6,
+export const buildSwitchCandidates = (participant, role) => {
+  if (!participant?.rosa?.length || !role) return [];
+
+  return participant.rosa
+    .filter((player) => String(player.ruolo) === String(role))
+    .map((player) => ({
+      id: player.id,
+      nome: player.nome,
+      prezzo: Number(player.prezzo || 0),
+      ruolo: player.ruolo,
+    }));
 };
 
 export const calculateMaximumBid = ({ participant, role }) => {
@@ -70,20 +76,24 @@ export const calculateMaximumBid = ({ participant, role }) => {
 
   const credits = Math.max(0, Number(participant.crediti || 0));
   const roster = Array.isArray(participant.rosa) ? participant.rosa : [];
-
   const sameRolePlayers = roster.filter(
     (player) => String(player.ruolo) === String(role),
   );
 
-  const highestCutValue = sameRolePlayers.reduce(
+  const roleLimit = ROLE_LIMITS[role] || 0;
+  const roleIsFull = roleLimit > 0 && sameRolePlayers.length >= roleLimit;
+
+  if (!roleIsFull) return credits;
+
+  const candidates = buildSwitchCandidates(participant, role);
+  if (!candidates.length) return 0;
+
+  const highestCutValue = candidates.reduce(
     (max, player) => Math.max(max, Number(player.prezzo || 0)),
     0,
   );
 
-  const roleLimit = ROLE_LIMITS_FOR_BUDGET[role] || 0;
-  const roleIsFull = roleLimit > 0 && sameRolePlayers.length >= roleLimit;
-
-  return roleIsFull ? credits + highestCutValue : credits;
+  return credits + highestCutValue;
 };
 
 export const placeBid = async ({ docRef, bidderId, bidderName, increment }) => {
@@ -257,7 +267,14 @@ export const resumeAuctionAfterStop = async ({ docRef, stopStartedAt }) => {
   });
 };
 
-export const createContextualSwitch = async ({ docRef, winnerId, price }) => {
+export const createContextualSwitch = async ({
+  docRef,
+  winnerId,
+  price,
+  players,
+  selectedLetter = "TUTTE",
+  activeRoleFilters = { P: true, D: true, C: true, A: true },
+}) => {
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(docRef);
     if (!snap.exists()) return;
@@ -270,9 +287,18 @@ export const createContextualSwitch = async ({ docRef, winnerId, price }) => {
     );
     if (!winner) return;
 
-    const role = session.giocatoreInAsta.ruolo;
-    const candidates = buildSwitchCandidates(winner, role);
+    const player = session.giocatoreInAsta;
+    const role = player.ruolo;
+    const roleLimit = ROLE_LIMITS[role] || 0;
+    const roleCount = (winner.rosa || []).filter(
+      (p) => String(p.ruolo) === String(role),
+    ).length;
 
+    if (roleCount < roleLimit) {
+      throw new Error("Il taglio contestuale non è necessario per questa squadra.");
+    }
+
+    const candidates = buildSwitchCandidates(winner, role);
     if (!candidates.length) {
       throw new Error(`Nessun giocatore da svincolare nel reparto ${role}.`);
     }
@@ -284,14 +310,34 @@ export const createContextualSwitch = async ({ docRef, winnerId, price }) => {
       );
     }
 
+    const currentPlayers = Array.isArray(players)
+      ? players
+      : (session.giocatori || []);
+
+    const remainingPlayers = [
+      ...currentPlayers.filter((p) => String(p.id) !== String(player.id)),
+      ...[],
+    ];
+
+    const { player: nextPlayer, letter: nextLetter } = findNextPlayer(
+      remainingPlayers,
+      selectedLetter,
+      activeRoleFilters,
+      ALPHABET,
+    );
+
     transaction.update(docRef, {
       pendingSwitch: {
         winnerId: winner.id,
         winnerName: winner.nome,
         price: Number(price),
-        player: session.giocatoreInAsta,
+        player,
         role,
         switchCandidates: candidates,
+        nextPlayer: nextPlayer || null,
+        nextLetter: nextLetter || selectedLetter,
+        selectedLetter,
+        activeRoleFilters,
       },
       isPaused: true,
       isTimerStarted: false,
@@ -362,12 +408,15 @@ export const completeContextualSwitch = async ({ docRef, candidateId }) => {
       { ...candidate },
     ];
 
-    const { player: nextPlayer } = findNextPlayer(
+    const fallbackResult = findNextPlayer(
       remainingPlayers,
-      "TUTTE",
-      { P: true, D: true, C: true, A: true },
+      pending.selectedLetter || pending.nextLetter || "TUTTE",
+      pending.activeRoleFilters || { P: true, D: true, C: true, A: true },
       ALPHABET,
     );
+
+    const nextPlayer = fallbackResult.player || pending.nextPlayer || null;
+    const nextLetter = fallbackResult.letter || pending.nextLetter || "TUTTE";
 
     transaction.update(docRef, {
       giocatori: sortPlayersAlphabetically(remainingPlayers),
@@ -405,6 +454,7 @@ export const buildPlayerAssignment = ({
   activeRoleFilters,
 }) => {
   const lastPurchase = {
+    id: player.id,
     calciatore: player.nome,
     ruolo: player.ruolo,
     vincitoreNome: winner.nome,

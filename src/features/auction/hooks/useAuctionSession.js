@@ -116,6 +116,9 @@ export default function useAuctionSession({ isMobileView }) {
           stopStartedAt: null,
           lastPurchase: null,
           bidHistory: [],
+          pendingSwitch: null,
+          timer: 10,
+          timerEndsAt: null,
         });
       }
     });

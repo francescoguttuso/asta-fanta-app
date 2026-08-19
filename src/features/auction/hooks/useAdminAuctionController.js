@@ -25,6 +25,7 @@ const createReadyAuctionState = (playerInAuction) => ({
   stopStartedAt: null,
   bidHistory: [],
   timer: 10,
+  pendingSwitch: null,
 });
 
 export default function useAdminAuctionController() {
@@ -210,8 +211,11 @@ export default function useAdminAuctionController() {
       try {
         await createContextualSwitch({
           docRef,
-          winnerId: vincitore.id,
-          price: prezzo,
+        winnerId: vincitore.id,
+        price: prezzo,
+        players: giocatori,
+        selectedLetter: filtroLettera,
+        activeRoleFilters: filtriRuoliAttivi,
         });
         return true;
       } catch (error) {
@@ -220,7 +224,7 @@ export default function useAdminAuctionController() {
         return false;
       }
     },
-    [docRef],
+    [docRef, giocatori, filtroLettera, filtriRuoliAttivi],
   );
 
   const completaAssegnazione = useCallback(
