@@ -8,7 +8,7 @@ import {
 import { filterPlayers, normalizePlayers } from '@/utils/playerUtils';
 import {
   buildPlayerAssignment,
-  calculateMaximumBid,
+  completeContextualSwitch,
   placeBid,
   startAuctionTimer,
 } from '../auctionActions';
@@ -44,6 +44,7 @@ export default function useAdminAuctionController() {
     setTimer,
     timer,
     saveSession,
+    pendingSwitch,
   } = session;
 
   const [vistaCorrente, setVistaCorrente] = useState('dashboard');
@@ -190,20 +191,18 @@ export default function useAdminAuctionController() {
     if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) return;
 
     const admin = partecipanti.find((partecipante) => partecipante.id === 1);
+    if (admin) {
+      const ruolo = giocatoreInAsta.ruolo;
+      const giocatoriNelRuolo = admin.rosa.filter(
+        (giocatore) => giocatore.ruolo === ruolo,
+      ).length;
 
-    if (!admin) return;
-
-    const maximumBid = calculateMaximumBid({
-      participant: admin,
-      role: giocatoreInAsta.ruolo,
-    });
-    const nextBid = Number(offertaCorrente || 0) + Number(incremento || 0);
-
-    if (nextBid > maximumBid) {
-      alert(
-        `⛔ Offerta non sostenibile. Massimo consentito: ${maximumBid} FM.`,
-      );
-      return;
+      if (giocatoriNelRuolo >= (ROLE_LIMITS[ruolo] || 0)) {
+        alert(
+          `⛔ Impossibile offrire: hai già completato i ${ruolo} (${ROLE_LIMITS[ruolo]}/${ROLE_LIMITS[ruolo]})!`,
+        );
+        return;
+      }
     }
 
     try {
@@ -252,10 +251,9 @@ export default function useAdminAuctionController() {
 
   const assegnaGiocatore = useCallback(async () => {
     if (!giocatoreInAsta) return;
+
     if (!ultimoOfferenteId) {
-      alert(
-        'Impossibile assegnare: nessuna offerta ricevuta per questo calciatore.',
-      );
+      alert('Impossibile assegnare: nessuna offerta ricevuta per questo calciatore.');
       return;
     }
 
@@ -263,19 +261,39 @@ export default function useAdminAuctionController() {
       (partecipante) => partecipante.id === parseInt(ultimoOfferenteId),
     );
     if (!vincitore) return;
-    if (vincitore.crediti < offertaCorrente) {
-      alert(`Errore: ${vincitore.nome} non possiede crediti sufficienti!`);
-      return;
-    }
 
     const ruolo = giocatoreInAsta.ruolo;
-    const giocatoriNelRuolo = vincitore.rosa.filter(
-      (giocatore) => giocatore.ruolo === ruolo,
-    ).length;
-    if (giocatoriNelRuolo >= (ROLE_LIMITS[ruolo] || 0)) {
-      alert(
-        `❌ Limite raggiunto! ${vincitore.nome} ha già completato i ${ruolo} (${ROLE_LIMITS[ruolo]}/${ROLE_LIMITS[ruolo]}). Assegnazione bloccata.`,
+    const repartoPieno =
+      vincitore.rosa.filter((giocatore) => giocatore.ruolo === ruolo).length >=
+      (ROLE_LIMITS[ruolo] || 0);
+    const creditiInsufficienti =
+      Number(vincitore.crediti || 0) < Number(offertaCorrente || 0);
+
+    if (creditiInsufficienti || repartoPieno) {
+      const switchCandidates = vincitore.rosa.filter(
+        (giocatore) => giocatore.ruolo === ruolo,
       );
+
+      alert(
+        creditiInsufficienti
+          ? `Errore: ${vincitore.nome} non possiede crediti sufficienti! Ora scegli il giocatore da svincolare.`
+          : `${vincitore.nome} ha già completato il reparto dei ${ruolo}. Ora scegli il giocatore da svincolare.`,
+      );
+
+      await saveSession({
+        pendingSwitch: {
+          winnerId: vincitore.id,
+          winnerName: vincitore.nome,
+          player: giocatoreInAsta,
+          price: Number(offertaCorrente || 0),
+          switchCandidates,
+          selectedLetter: filtroLettera,
+          activeRoleFilters: filtriRuoliAttivi,
+        },
+        timerStarted: false,
+        timer: 0,
+        paused: true,
+      });
       return;
     }
 
@@ -286,7 +304,26 @@ export default function useAdminAuctionController() {
     partecipanti,
     offertaCorrente,
     completaAssegnazione,
+    saveSession,
+    filtroLettera,
+    filtriRuoliAttivi,
   ]);
+
+  const completaSwitch = useCallback(async (candidateId) => {
+    if (!pendingSwitch) return;
+
+    try {
+      await completeContextualSwitch({
+        docRef,
+        winnerId: pendingSwitch.winnerId,
+        candidateId,
+      });
+    } catch (error) {
+      console.error('Errore nel taglio contestuale:', error);
+      alert(error.message || 'Errore nel completamento dello switch.');
+    }
+  }, [docRef, pendingSwitch]);
+
 
   useEffect(() => {
     if (
@@ -372,6 +409,7 @@ export default function useAdminAuctionController() {
     cambiaFiltroRuolo,
     faiOfferta,
     assegnaGiocatore,
+    completaSwitch,
     assegnaGiocatoreManualmente,
   };
 }

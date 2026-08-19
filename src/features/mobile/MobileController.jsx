@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { ROLE_LIMITS } from "@/data/auctionDefaults";
 
-import { calculateMaximumBid, placeBid, requestAuctionStop } from "../auction/auctionActions";
+import { completeContextualSwitch, placeBid, requestAuctionStop } from "../auction/auctionActions";
 
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 
@@ -24,6 +24,7 @@ export default function MobileController() {
     storicoOfferte,
     stopTimer,
     ultimoAcquisto,
+    pendingSwitch,
     docRef,
   } = useAuctionSessionContext();
 
@@ -68,6 +69,20 @@ export default function MobileController() {
   const cambiaSquadra = () => {
     setShowTeamSelector(true);
   };
+\n  const handleContextualSwitch = async (candidateId) => {
+    if (!pendingSwitch || !mioId) return;
+    try {
+      await completeContextualSwitch({
+        docRef,
+        winnerId: pendingSwitch.winnerId,
+        candidateId,
+      });
+    } catch (error) {
+      console.error("Errore nel taglio contestuale:", error);
+      alert(error.message || "Errore nel completamento dello switch.");
+    }
+  };
+
 
   // =====================================================
   // OFFERTA MOBILE
@@ -82,24 +97,28 @@ export default function MobileController() {
       return;
     }
 
+    // ================================================
+    // CONTROLLO REPARTO
+    // ================================================
+
     const utenteCorrente = partecipanti.find(
       (participant) => participant.id === parseInt(mioId),
     );
 
-    if (!utenteCorrente) return;
+    if (utenteCorrente) {
+      const ruoloCorrente = giocatoreInAsta.ruolo;
 
-    const ruoloCorrente = giocatoreInAsta.ruolo;
-    const maximumBid = calculateMaximumBid({
-      participant: utenteCorrente,
-      role: ruoloCorrente,
-    });
-    const nextBid = Number(offertaCorrente || 0) + Number(incremento || 0);
+      const quantitaInRosa = utenteCorrente.rosa.filter(
+        (g) => g.ruolo === ruoloCorrente,
+      ).length;
 
-    if (nextBid > maximumBid) {
-      alert(
-        `⛔ Offerta non sostenibile. Massimo consentito: ${maximumBid} FM.`,
-      );
-      return;
+      if (quantitaInRosa >= (ROLE_LIMITS[ruoloCorrente] || 0)) {
+        alert(
+          `⛔ Impossibile rilanciare: hai già completato il reparto dei ${ruoloCorrente} (${ROLE_LIMITS[ruoloCorrente]}/${ROLE_LIMITS[ruoloCorrente]})!`,
+        );
+
+        return;
+      }
     }
 
     // ================================================
@@ -343,6 +362,9 @@ export default function MobileController() {
         remainingStops={stopRimanentiSelezionato}
         onBid={faiOffertaMobile}
         onStop={fermaAstaMobile}
+        pendingSwitch={pendingSwitch}
+        selectedParticipant={utenteSelezionato}
+        onSwitch={handleContextualSwitch}
         lastPurchase={ultimoAcquisto}
       />
 

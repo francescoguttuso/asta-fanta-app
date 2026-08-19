@@ -27,6 +27,7 @@ export default function useAuctionSession({ isMobileView }) {
   const [timer, setTimer] = useState(10);
   const [timerEndsAt, setTimerEndsAt] = useState(null);
   const [stopTimer, setStopTimer] = useState(30);
+  const [pendingSwitch, setPendingSwitch] = useState(null);
 
   const currentSessionRef = useRef(null);
   currentSessionRef.current = {
@@ -52,7 +53,7 @@ export default function useAuctionSession({ isMobileView }) {
     const nextTimerStarted = nextSession.timerStarted;
 
     try {
-      return await saveAuctionSession({
+      await saveAuctionSession({
         docRef: AUCTION_SESSION_REF,
         ...nextSession,
         timerStarted: nextTimerStarted,
@@ -90,6 +91,7 @@ export default function useAuctionSession({ isMobileView }) {
         setStopIniziatoAt(data.stopIniziatoAt || null);
         setUltimoAcquisto(data.ultimoAcquisto || null);
         setStoricoOfferte(data.storicoOfferte || []);
+        setPendingSwitch(data.pendingSwitch || null);
 
         const timerSalvato = data.timer !== undefined ? data.timer : 10;
         setTimer(timerSalvato);
@@ -184,7 +186,6 @@ export default function useAuctionSession({ isMobileView }) {
     isConfigMode,
     setIsConfigMode,
     giocatoreInAsta,
-    setGiocatoreInAsta,
     offertaCorrente,
     isTimerStarted,
     ultimoOfferenteId,
@@ -196,6 +197,7 @@ export default function useAuctionSession({ isMobileView }) {
     timer,
     setTimer,
     stopTimer,
+    pendingSwitch,
     saveSession,
   };
 }
