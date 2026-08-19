@@ -6,8 +6,6 @@ import {
   getRoundPicks,
   getRoundResults,
   saveFantaSchedinaPicks,
-  canSubmitFromMobile,
-  hasSubmittedRound,
 } from "@/features/schedina/fantaSchedinaStore";
 
 const SIGNS = ["1", "X", "2"];
@@ -33,19 +31,7 @@ export default function FantaSchedinaMobile({
 
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
   const roundState = session?.fantaSchedina?.rounds?.[selectedRound] || {};
-  const isOpen =
-    roundState.open === true ||
-    session?.fantaSchedina?.activeRound === selectedRound;
-
-  const alreadySubmitted = hasSubmittedRound(
-    session,
-    selectedRound,
-    teamId,
-  );
-
-  const canSubmit =
-    canSubmitFromMobile(session, selectedRound, teamId) &&
-    !alreadySubmitted;
+  const isOpen = roundState.open === true;
 
   useEffect(() => {
     setPicks(getRoundPicks(session, selectedRound, teamId));
@@ -63,7 +49,7 @@ export default function FantaSchedinaMobile({
   );
 
   const choose = (matchIndex, sign) => {
-    if (!canSubmit) return;
+    if (!isOpen) return;
     setPicks((current) => {
       const next = [...current];
       next[matchIndex] = sign;
@@ -72,12 +58,8 @@ export default function FantaSchedinaMobile({
   };
 
   const confirm = async () => {
-    if (!canSubmit) {
-      setMessage(
-        alreadySubmitted
-          ? "🔒 Schedina già consegnata. Può essere modificata solo dal server."
-          : "🔒 Giornata chiusa. Le scommesse non sono più disponibili.",
-      );
+    if (!isOpen) {
+      setMessage("🔒 Giornata chiusa. Le scommesse non sono più disponibili.");
       return;
     }
 
@@ -179,56 +161,10 @@ export default function FantaSchedinaMobile({
           <strong style={{ color: "#fff" }}>
             {round.label}
           </strong>
-          <span
-            style={{
-              color: !isOpen
-                ? "#f87171"
-                : alreadySubmitted
-                  ? "#f59e0b"
-                  : "#10b981",
-            }}
-          >
-            {!isOpen
-              ? "● CHIUSA"
-              : alreadySubmitted
-                ? "● CONSEGNATA"
-                : "● APERTA"}
+          <span style={{ color: isOpen ? "#10b981" : "#f59e0b" }}>
+            {isOpen ? "● APERTA" : "● CHIUSA"}
           </span>
         </div>
-
-        {!isOpen && (
-          <div
-            style={{
-              marginBottom: "10px",
-              padding: "10px",
-              borderRadius: "8px",
-              background: "#25101a",
-              border: "1px solid #5b1d2a",
-              color: "#f87171",
-              textAlign: "center",
-              fontWeight: 800,
-            }}
-          >
-            🔒 Giornata chiusa — non è più possibile inserire la schedina.
-          </div>
-        )}
-
-        {alreadySubmitted && (
-          <div
-            style={{
-              marginBottom: "10px",
-              padding: "10px",
-              borderRadius: "8px",
-              background: "#100822",
-              border: "1px solid #33214f",
-              color: "#cbd5e1",
-              textAlign: "center",
-            }}
-          >
-            🔒 Schedina già consegnata. Per modificarla o cancellarla devi
-            utilizzare il server.
-          </div>
-        )}
 
         {round.matches.map((match, index) => (
           <div
@@ -302,7 +238,7 @@ export default function FantaSchedinaMobile({
         <button
           type="button"
           onClick={confirm}
-          disabled={!canSubmit || saving || completed !== round.matches.length}
+          disabled={!isOpen || saving || completed !== round.matches.length}
           className="btn btn-green"
           style={{
             width: "100%",

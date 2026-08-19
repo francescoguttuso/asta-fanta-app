@@ -122,6 +122,7 @@ export default function FantaSchedinaAdminView() {
         [`fantaSchedina.rounds.${selectedRound}.lockedAt`]: nextOpen
           ? null
           : new Date().toISOString(),
+        "fantaSchedina.activeRound": nextOpen ? selectedRound : null,
       });
     } catch (error) {
       console.error("Errore apertura/chiusura giornata:", error);
