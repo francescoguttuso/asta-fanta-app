@@ -45,6 +45,7 @@ export default function useAuctionSession({ isMobileView }) {
     bidHistory: storicoOfferte,
     timer,
     timerEndsAt,
+    pendingSwitch,
   };
 
   const saveSession = useCallback(async (changes = {}) => {
@@ -90,8 +91,8 @@ export default function useAuctionSession({ isMobileView }) {
         setStopChiamatoDa(data.stopChiamatoDa || null);
         setStopIniziatoAt(data.stopIniziatoAt || null);
         setUltimoAcquisto(data.ultimoAcquisto || null);
-        setStoricoOfferte(data.storicoOfferte || []);
         setPendingSwitch(data.pendingSwitch || null);
+        setStoricoOfferte(data.storicoOfferte || []);
 
         const timerSalvato = data.timer !== undefined ? data.timer : 10;
         setTimer(timerSalvato);

@@ -23,6 +23,7 @@ export const saveAuctionSession = async ({
   bidHistory,
   timer,
   timerEndsAt,
+  pendingSwitch = null,
 }) => {
   await setDoc(docRef, {
     giocatori: sortPlayersAlphabetically(players),
@@ -39,6 +40,7 @@ export const saveAuctionSession = async ({
     storicoOfferte: bidHistory,
     timer,
     timerEndsAt,
+    pendingSwitch,
   });
 };
 
@@ -86,28 +88,24 @@ export const calculateMaximumBid = ({ participant, role }) => {
 
 export const placeBid = async ({ docRef, bidderId, bidderName, increment }) => {
   await runTransaction(db, async (transaction) => {
-    const sessionSnapshot = await transaction.get(docRef);
+    const snap = await transaction.get(docRef);
+    if (!snap.exists()) return;
 
-    if (!sessionSnapshot.exists()) return;
-
-    const session = sessionSnapshot.data();
-
-    if (session.isPaused || !session.isTimerStarted) return;
+    const session = snap.data();
+    if (session.isPaused || !session.isTimerStarted || session.pendingSwitch) return;
 
     const bidder = (session.partecipanti || []).find(
-      (participant) => String(participant.id) === String(bidderId),
+      (p) => String(p.id) === String(bidderId),
     );
-
-    if (!bidder || !session.giocatoreInAsta) {
-      return;
-    }
+    if (!bidder || !session.giocatoreInAsta) return;
 
     const maximumBid = calculateMaximumBid({
       participant: bidder,
       role: session.giocatoreInAsta.ruolo,
     });
 
-    const newBid = (session.offertaCorrente || 0) + Number(increment || 0);
+    const newBid =
+      Number(session.offertaCorrente || 0) + Number(increment || 0);
 
     if (newBid > maximumBid) {
       throw new Error(
@@ -121,11 +119,6 @@ export const placeBid = async ({ docRef, bidderId, bidderName, increment }) => {
       ora: new Date().toLocaleTimeString(),
     };
 
-    const bidHistory = [
-      newHistoryEntry,
-      ...(session.storicoOfferte || []),
-    ].slice(0, 5);
-
     transaction.update(docRef, {
       offertaCorrente: newBid,
       ultimoOfferenteId: bidderId,
@@ -134,7 +127,10 @@ export const placeBid = async ({ docRef, bidderId, bidderName, increment }) => {
       isPaused: false,
       stopChiamatoDa: null,
       stopIniziatoAt: null,
-      storicoOfferte: bidHistory,
+      storicoOfferte: [
+        newHistoryEntry,
+        ...(session.storicoOfferte || []),
+      ].slice(0, 5),
     });
   });
 };
@@ -257,6 +253,144 @@ export const resumeAuctionAfterStop = async ({ docRef, stopStartedAt }) => {
       timerRimanenteMs: null,
       timer: Math.ceil(remainingTimerMs / 1000),
       timerEndsAt: remainingTimerMs > 0 ? Date.now() + remainingTimerMs : null,
+    });
+  });
+};
+
+export const createContextualSwitch = async ({ docRef, winnerId, price }) => {
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(docRef);
+    if (!snap.exists()) return;
+
+    const session = snap.data();
+    if (session.pendingSwitch || !session.giocatoreInAsta) return;
+
+    const winner = (session.partecipanti || []).find(
+      (p) => String(p.id) === String(winnerId),
+    );
+    if (!winner) return;
+
+    const role = session.giocatoreInAsta.ruolo;
+    const candidates = buildSwitchCandidates(winner, role);
+
+    if (!candidates.length) {
+      throw new Error(`Nessun giocatore da svincolare nel reparto ${role}.`);
+    }
+
+    const maximumBid = calculateMaximumBid({ participant: winner, role });
+    if (Number(price) > maximumBid) {
+      throw new Error(
+        `Offerta non sostenibile: massimo consentito ${maximumBid} FM.`,
+      );
+    }
+
+    transaction.update(docRef, {
+      pendingSwitch: {
+        winnerId: winner.id,
+        winnerName: winner.nome,
+        price: Number(price),
+        player: session.giocatoreInAsta,
+        role,
+        switchCandidates: candidates,
+      },
+      isPaused: true,
+      isTimerStarted: false,
+      timer: 0,
+      timerEndsAt: null,
+    });
+  });
+};
+
+export const completeContextualSwitch = async ({ docRef, candidateId }) => {
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(docRef);
+    if (!snap.exists()) return;
+
+    const session = snap.data();
+    const pending = session.pendingSwitch;
+    if (!pending) return;
+
+    const winner = (session.partecipanti || []).find(
+      (p) => String(p.id) === String(pending.winnerId),
+    );
+    if (!winner) return;
+
+    const roster = Array.isArray(winner.rosa) ? winner.rosa : [];
+    const candidate = roster.find(
+      (p) =>
+        String(p.id) === String(candidateId) &&
+        String(p.ruolo) === String(pending.role),
+    );
+
+    if (!candidate) {
+      throw new Error("Giocatore da svincolare non trovato in rosa.");
+    }
+
+    const candidatePrice = Number(candidate.prezzo || 0);
+    const price = Number(pending.price || 0);
+
+    if (price > Number(winner.crediti || 0) + candidatePrice) {
+      throw new Error(
+        `Il giocatore scelto non rende sostenibile l'acquisto a ${price} FM.`,
+      );
+    }
+
+    const updatedWinner = {
+      ...winner,
+      crediti: Number(winner.crediti || 0) - price + candidatePrice,
+      rosa: [
+        ...roster.filter((p) => String(p.id) !== String(candidateId)),
+        { ...pending.player, prezzo: price },
+      ],
+      stopDisponibili: 2,
+    };
+
+    const updatedParticipants = (session.partecipanti || []).map((p) =>
+      String(p.id) === String(winner.id)
+        ? updatedWinner
+        : { ...p, stopDisponibili: 2 },
+    );
+
+    const currentPlayers = Array.isArray(session.giocatori)
+      ? session.giocatori
+      : [];
+
+    const remainingPlayers = [
+      ...currentPlayers.filter(
+        (p) => String(p.id) !== String(pending.player.id),
+      ),
+      { ...candidate },
+    ];
+
+    const { player: nextPlayer } = findNextPlayer(
+      remainingPlayers,
+      "TUTTE",
+      { P: true, D: true, C: true, A: true },
+      ALPHABET,
+    );
+
+    transaction.update(docRef, {
+      giocatori: sortPlayersAlphabetically(remainingPlayers),
+      partecipanti: updatedParticipants,
+      giocatoreInAsta: nextPlayer || null,
+      offertaCorrente: 0,
+      isTimerStarted: false,
+      ultimoOfferenteId: null,
+      isPaused: false,
+      stopChiamatoDa: null,
+      stopIniziatoAt: null,
+      ultimoAcquisto: {
+        id: pending.player.id,
+        calciatore: pending.player.nome,
+        squadra: pending.player.squadra,
+        ruolo: pending.player.ruolo,
+        vincitoreNome: winner.nome,
+        prezzo: price,
+      },
+      storicoOfferte: [],
+      timer: 10,
+      timerEndsAt: null,
+      pendingSwitch: null,
     });
   });
 };

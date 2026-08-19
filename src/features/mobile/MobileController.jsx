@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { ROLE_LIMITS } from "@/data/auctionDefaults";
 
-import { placeBid, requestAuctionStop } from "../auction/auctionActions";
+import { placeBid, requestAuctionStop, completeContextualSwitch } from "../auction/auctionActions";
 
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 
@@ -24,6 +24,7 @@ export default function MobileController() {
     storicoOfferte,
     stopTimer,
     ultimoAcquisto,
+    pendingSwitch,
     docRef,
   } = useAuctionSessionContext();
 
@@ -138,6 +139,21 @@ export default function MobileController() {
       });
     } catch (err) {
       console.error("Errore rilancio mobile:", err);
+    }
+  };
+
+  // =====================================================
+  // TAGLIO CONTESTUALE
+  // =====================================================
+
+  const gestisciSwitch = async (candidateId) => {
+    if (!mioId || !pendingSwitch) return;
+
+    try {
+      await completeContextualSwitch({ docRef, candidateId });
+    } catch (err) {
+      console.error("Errore completamento taglio contestuale:", err);
+      alert(err?.message || "Errore durante lo svincolo del giocatore.");
     }
   };
 
@@ -364,6 +380,9 @@ export default function MobileController() {
         onBid={faiOffertaMobile}
         onStop={fermaAstaMobile}
         lastPurchase={ultimoAcquisto}
+        pendingSwitch={pendingSwitch}
+        selectedParticipant={utenteSelezionato}
+        onSwitch={gestisciSwitch}
       />
 
       {/* ==============================================

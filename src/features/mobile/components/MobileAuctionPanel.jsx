@@ -91,6 +91,11 @@ export default function MobileAuctionPanel({
             Saldo crediti: <strong style={{ color: "#10b981" }}>{switchBalance} FM</strong><br />
             Chi vuoi svincolare?
           </div>
+          {switchCandidates.length === 0 ? (
+            <div style={{ padding: "12px", borderRadius: "8px", background: "#3f1d1d", color: "#fca5a5" }}>
+              Nessun calciatore disponibile da svincolare in questo reparto.
+            </div>
+          ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
             {switchCandidates.map((candidate) => {
               const budget = switchBalance + Number(candidate.prezzo || 0);
@@ -121,6 +126,7 @@ export default function MobileAuctionPanel({
               );
             })}
           </div>
+          )}
         </>
       ) : (
         <div style={{ color: "#94a3b8" }}>
