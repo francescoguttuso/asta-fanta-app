@@ -156,6 +156,31 @@ export default function FantaSchedinaAdminView() {
     }
   };
 
+  const resetResults = async () => {
+    if (!docRef || !round) return;
+
+    const confirmed = window.confirm(
+      `Azzerare tutti i risultati della ${round.label}?`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+
+      await updateDoc(docRef, {
+        [`fantaSchedina.rounds.${selectedRound}.results`]: deleteField(),
+      });
+
+      setResults([]);
+    } catch (error) {
+      console.error("Errore azzeramento risultati FantaSchedina:", error);
+      alert("Impossibile azzerare i risultati.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveResults = async () => {
     if (!docRef || !round || results.length !== round.matches.length) return;
 
@@ -359,15 +384,41 @@ export default function FantaSchedinaAdminView() {
           ))}
         </div>
 
-        <button
-          type="button"
-          className="btn btn-green"
-          onClick={saveResults}
-          disabled={saving || results.length !== round.matches.length}
-          style={{ marginTop: 10 }}
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            marginTop: 10,
+          }}
         >
-          {saving ? "SALVATAGGIO..." : "SALVA RISULTATI"}
-        </button>
+          <button
+            type="button"
+            className="btn btn-green"
+            onClick={saveResults}
+            disabled={saving || results.length !== round.matches.length}
+          >
+            {saving ? "SALVATAGGIO..." : "SALVA RISULTATI"}
+          </button>
+
+          <button
+            type="button"
+            onClick={resetResults}
+            disabled={saving || results.length === 0}
+            style={{
+              border: "1px solid #7f1d1d",
+              background: "#2a0d14",
+              color: "#f87171",
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontWeight: 900,
+              cursor: saving || results.length === 0 ? "not-allowed" : "pointer",
+              opacity: saving || results.length === 0 ? 0.5 : 1,
+            }}
+          >
+            🗑️ AZZERA RISULTATI
+          </button>
+        </div>
       </section>
 
       <section style={{ marginBottom: 22 }}>
