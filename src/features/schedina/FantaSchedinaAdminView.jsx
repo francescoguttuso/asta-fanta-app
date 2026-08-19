@@ -19,6 +19,7 @@ export default function FantaSchedinaAdminView() {
   const [selectedRound, setSelectedRound] = useState(1);
   const [results, setResults] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [roundSaving, setRoundSaving] = useState(false);
 
   useEffect(() => {
     if (!docRef) return undefined;
@@ -107,6 +108,27 @@ export default function FantaSchedinaAdminView() {
       next[index] = sign;
       return next;
     });
+  };
+
+  const toggleRound = async () => {
+    if (!docRef) return;
+
+    try {
+      setRoundSaving(true);
+      const nextOpen = !Boolean(roundState.open);
+
+      await updateDoc(docRef, {
+        [`fantaSchedina.rounds.${selectedRound}.open`]: nextOpen,
+        [`fantaSchedina.rounds.${selectedRound}.lockedAt`]: nextOpen
+          ? null
+          : new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Errore apertura/chiusura giornata:", error);
+      alert("Impossibile modificare lo stato della giornata.");
+    } finally {
+      setRoundSaving(false);
+    }
   };
 
   const deleteSchedina = async (teamId, teamName) => {
@@ -208,6 +230,53 @@ export default function FantaSchedinaAdminView() {
             </option>
           ))}
         </select>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          background: roundState.open ? "#0b2a20" : "#25101a",
+          border: `1px solid ${roundState.open ? "#14532d" : "#5b1d2a"}`,
+          borderRadius: 10,
+          padding: "11px 13px",
+          marginBottom: 12,
+        }}
+      >
+        <div>
+          <strong style={{ color: roundState.open ? "#34d399" : "#f87171" }}>
+            {roundState.open ? "🟢 GIORNATA APERTA" : "🔴 GIORNATA CHIUSA"}
+          </strong>
+          <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 3 }}>
+            {roundState.open
+              ? "Le squadre possono ancora consegnare la schedina."
+              : "Le nuove schedine e le modifiche da mobile sono bloccate."}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={toggleRound}
+          disabled={roundSaving}
+          style={{
+            border: "1px solid #33214f",
+            background: "#100822",
+            color: "#fff",
+            borderRadius: 8,
+            padding: "8px 12px",
+            cursor: roundSaving ? "not-allowed" : "pointer",
+            fontWeight: 800,
+          }}
+        >
+          {roundSaving
+            ? "AGGIORNAMENTO..."
+            : roundState.open
+              ? "🔒 CHIUDI GIORNATA"
+              : "🔓 APRI GIORNATA"}
+        </button>
       </div>
 
       <div
