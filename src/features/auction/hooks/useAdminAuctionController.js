@@ -433,8 +433,8 @@ export default function useAdminAuctionController() {
       });
 
       await saveSession({
-        partecipanti: nuoviPartecipanti,
-        giocatori: nuovaListaGiocatori,
+        participants: nuoviPartecipanti,
+        players: nuovaListaGiocatori,
       });
     } catch (error) {
       console.error("Errore rimozione giocatore:", error);
