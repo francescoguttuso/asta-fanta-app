@@ -384,6 +384,64 @@ export default function useAdminAuctionController() {
     await completaAssegnazione(vincitore, prezzo);
   };
 
+
+  const rimuoviGiocatoreDallaRosa = async (participantId, playerId) => {
+    try {
+      const participant = partecipanti.find(
+        (item) => String(item.id) === String(participantId),
+      );
+
+      if (!participant) {
+        throw new Error("Squadra non trovata.");
+      }
+
+      const playerIndex = (participant.rosa || []).findIndex(
+        (player) => String(player.id) === String(playerId),
+      );
+
+      if (playerIndex === -1) {
+        throw new Error("Giocatore non trovato nella rosa.");
+      }
+
+      const player = participant.rosa[playerIndex];
+      const prezzoRestituito = Number(player.prezzo || 0);
+
+      const nuovaRosa = participant.rosa.filter(
+        (_, index) => index !== playerIndex,
+      );
+
+      const nuovaListaGiocatori = [...(giocatori || [])];
+
+      const giaNelListone = nuovaListaGiocatori.some(
+        (item) => String(item.id) === String(player.id),
+      );
+
+      if (!giaNelListone) {
+        nuovaListaGiocatori.push(player);
+      }
+
+      const nuoviPartecipanti = partecipanti.map((item) => {
+        if (String(item.id) !== String(participantId)) {
+          return item;
+        }
+
+        return {
+          ...item,
+          rosa: nuovaRosa,
+          crediti: Number(item.crediti || 0) + prezzoRestituito,
+        };
+      });
+
+      await saveSession({
+        partecipanti: nuoviPartecipanti,
+        giocatori: nuovaListaGiocatori,
+      });
+    } catch (error) {
+      console.error("Errore rimozione giocatore:", error);
+      alert(`Errore rimozione giocatore: ${error.message}`);
+    }
+  };
+
   return {
     vistaCorrente,
     setVistaCorrente,
@@ -410,5 +468,6 @@ export default function useAdminAuctionController() {
     faiOfferta,
     assegnaGiocatore,
     assegnaGiocatoreManualmente,
+    rimuoviGiocatoreDallaRosa,
   };
 }
