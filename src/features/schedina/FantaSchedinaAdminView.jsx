@@ -6,7 +6,7 @@ import {
   saveFantaSchedinaResults,
   setFantaSchedinaRound,
 } from "@/features/schedina/fantaSchedinaStore";
-import { useAuctionSessionContext } from "../context/useAuctionContexts";
+import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 
 const SIGNS = ["1", "X", "2"];
 
