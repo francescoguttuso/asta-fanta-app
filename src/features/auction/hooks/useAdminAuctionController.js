@@ -140,7 +140,9 @@ export default function useAdminAuctionController() {
   const esportaInExcel = () => {
     let csvContent = 'data:text/csv;charset=utf-8,';
 
+    // Formato compatibile con l'importatore: ogni rosa è separata da $,$,$.
     partecipanti.forEach((partecipante) => {
+      csvContent += '$,$,$\n';
       partecipante.rosa?.forEach((giocatore) => {
         csvContent += `${partecipante.nome},${giocatore.id},${giocatore.prezzo}\n`;
       });
@@ -156,140 +158,183 @@ export default function useAdminAuctionController() {
 
   const importaSquadre = (event) => {
     const file = event.target.files?.[0];
-    event.target.value = '';
     if (!file) return;
 
+    const resetInput = () => {
+      event.target.value = '';
+    };
+
+    const parseCsvLine = (line) => {
+      const values = [];
+      let value = '';
+      let inQuotes = false;
+
+      for (let index = 0; index < line.length; index += 1) {
+        const char = line[index];
+
+        if (char === '"') {
+          if (inQuotes && line[index + 1] === '"') {
+            value += '"';
+            index += 1;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ',' && !inQuotes) {
+          values.push(value.trim());
+          value = '';
+        } else {
+          value += char;
+        }
+      }
+
+      values.push(value.trim());
+      return values;
+    };
+
     const reader = new FileReader();
-    reader.onload = async (loadEvent) => {
+
+    reader.onload = (loadEvent) => {
       try {
         const text = String(loadEvent.target.result || '').replace(/^\uFEFF/, '');
-        const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
-        if (!lines.length) throw new Error('File vuoto.');
+        const lines = text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
 
-        const parseCsvLine = (line) => {
-          const values = [];
-          let current = '';
-          let quoted = false;
-
-          for (let i = 0; i < line.length; i += 1) {
-            const char = line[i];
-            if (char === '"') {
-              if (quoted && line[i + 1] === '"') {
-                current += '"';
-                i += 1;
-              } else {
-                quoted = !quoted;
-              }
-            } else if (char === ';' && !quoted) {
-              values.push(current.trim());
-              current = '';
-            } else {
-              current += char;
-            }
-          }
-
-          values.push(current.trim());
-          return values;
-        };
-
-        const rows = lines.map(parseCsvLine);
-        const header = rows[0].map((value) => value.toLowerCase());
-        const hasHeader =
-          header[0] === 'squadra' &&
-          header[1] === 'crediti' &&
-          header[2] === 'giocatoreid' &&
-          header[3] === 'prezzo';
-
-        const dataRows = hasHeader ? rows.slice(1) : rows;
-        const grouped = new Map();
-
-        dataRows.forEach((row) => {
-          const nomeSquadra = row[0]?.trim();
-          if (!nomeSquadra) return;
-
-          const crediti = hasHeader ? Number(row[1]) : null;
-          const playerId = hasHeader ? row[2] : row[1];
-          const prezzo = Number(hasHeader ? row[3] : row[2]);
-
-          if (!grouped.has(nomeSquadra)) {
-            grouped.set(nomeSquadra, {
-              crediti: Number.isFinite(crediti) ? crediti : null,
-              rosa: [],
-            });
-          }
-
-          if (playerId && Number.isFinite(Number(playerId)) && Number.isFinite(prezzo)) {
-            grouped.get(nomeSquadra).rosa.push({
-              id: Number(playerId),
-              prezzo,
-            });
-          }
-        });
-
-        if (!grouped.size) {
-          throw new Error('Nessuna squadra trovata nel file.');
+        if (!lines.length) {
+          throw new Error('Il file CSV è vuoto.');
         }
 
-        if (grouped.size > partecipanti.length) {
+        const catalogById = new Map(
+          (giocatori || []).map((player) => [String(player.id), player]),
+        );
+
+        // Il formato storico esportato dall'app usa $,$,$ come separatore
+        // tra le rose. Supportiamo anche un CSV senza separatori, raggruppando
+        // le righe consecutive per nome squadra.
+        const gruppi = [];
+        let gruppoCorrente = [];
+        let nomeGruppoCorrente = null;
+
+        lines.forEach((line) => {
+          const row = parseCsvLine(line);
+          const isSeparator =
+            row.length >= 3 && row[0] === '$' && row[1] === '$' && row[2] === '$';
+
+          if (isSeparator) {
+            if (gruppoCorrente.length) {
+              gruppi.push(gruppoCorrente);
+              gruppoCorrente = [];
+              nomeGruppoCorrente = null;
+            }
+            return;
+          }
+
+          if (row.length < 3) return;
+
+          const nomeSquadra = String(row[0] || '').trim();
+          if (!nomeSquadra) return;
+
+          if (nomeGruppoCorrente !== null && nomeSquadra !== nomeGruppoCorrente) {
+            gruppi.push(gruppoCorrente);
+            gruppoCorrente = [];
+          }
+
+          nomeGruppoCorrente = nomeSquadra;
+          gruppoCorrente.push(row);
+        });
+
+        if (gruppoCorrente.length) gruppi.push(gruppoCorrente);
+
+        if (gruppi.length !== partecipanti.length) {
           throw new Error(
-            `Il file contiene ${grouped.size} squadre, ma la lega ne prevede ${partecipanti.length}.`,
+            `Il file contiene ${gruppi.length} squadre, ma la lega ne prevede ${partecipanti.length}.`,
           );
         }
 
-        const catalogo = giocatori || [];
-        const catalogoById = new Map(
-          catalogo.map((player) => [Number(player.id), player]),
-        );
-        const usedIds = new Set();
-        const importate = Array.from(grouped.entries());
+        const giocatoriUsati = new Set();
 
-        const partecipantiImportati = partecipanti.map((participant) => ({
-          ...participant,
-          rosa: [],
-        }));
+        const nuoviPartecipanti = partecipanti.map((participant, participantIndex) => {
+          const gruppo = gruppi[participantIndex];
+          const nomeSquadra = String(gruppo[0]?.[0] || '').trim();
 
-        importate.forEach(([nomeSquadra, dati], index) => {
-          const target = partecipantiImportati[index];
-          target.nome = nomeSquadra;
+          if (!nomeSquadra) {
+            throw new Error(`Nome squadra mancante per la squadra ${participantIndex + 1}.`);
+          }
 
-          dati.rosa.forEach((item) => {
-            if (usedIds.has(item.id)) {
-              throw new Error(`Il giocatore con ID ${item.id} è presente più volte nel file.`);
+          if (gruppo.length !== 25) {
+            throw new Error(
+              `La squadra "${nomeSquadra}" contiene ${gruppo.length} giocatori invece dei 25 previsti.`,
+            );
+          }
+
+          const rosa = gruppo.map((row, rowIndex) => {
+            const playerId = String(row[1] || '').trim();
+            const prezzo = Number(String(row[2] || '').trim().replace(',', '.'));
+
+            if (!playerId) {
+              throw new Error(
+                `ID giocatore mancante nella rosa "${nomeSquadra}", riga ${rowIndex + 1}.`,
+              );
             }
 
-            const player = catalogoById.get(item.id);
-            if (!player) {
-              throw new Error(`Giocatore con ID ${item.id} non trovato nel catalogo.`);
+            if (!Number.isFinite(prezzo) || prezzo < 0) {
+              throw new Error(
+                `Prezzo non valido per il giocatore con ID ${playerId}.`,
+              );
             }
 
-            usedIds.add(item.id);
-            target.rosa.push({ ...player, prezzo: item.prezzo });
+            const catalogPlayer = catalogById.get(playerId);
+            if (!catalogPlayer) {
+              throw new Error(`Giocatore con ID ${playerId} non trovato nel catalogo.`);
+            }
+
+            if (giocatoriUsati.has(playerId)) {
+              throw new Error(
+                `Il giocatore con ID ${playerId} compare più di una volta nel file.`,
+              );
+            }
+
+            giocatoriUsati.add(playerId);
+            return { ...catalogPlayer, prezzo };
           });
 
-          const speso = target.rosa.reduce(
+          const spesa = rosa.reduce(
             (totale, player) => totale + Number(player.prezzo || 0),
             0,
           );
 
-          target.crediti =
-            dati.crediti != null && Number.isFinite(dati.crediti)
-              ? dati.crediti
-              : 500 - speso;
+          if (spesa > 500) {
+            throw new Error(
+              `La squadra "${nomeSquadra}" supera i 500 FM (${spesa} FM).`,
+            );
+          }
+
+          return {
+            ...participant,
+            // Il nome esportato fa parte del backup e viene quindi ripristinato.
+            nome: nomeSquadra,
+            rosa,
+            crediti: 500 - spesa,
+          };
         });
 
-        if (!window.confirm(
-          'Importare le squadre dal file selezionato? Le rose e i crediti attuali verranno sostituiti.',
-        )) {
-          return;
-        }
-
-        await saveSession({ participants: partecipantiImportati });
-        setPartecipanti(partecipantiImportati);
-        alert('Squadre importate con successo!');
+        // Salviamo solo le rose/nomi/crediti: lo stato dell'asta corrente
+        // (timer, giocatore in asta, offerte, ecc.) non viene toccato.
+        saveSession({ participants: nuoviPartecipanti });
+        setPartecipanti(nuoviPartecipanti);
+        alert('Rose importate con successo!');
       } catch (error) {
         console.error('Errore importazione squadre:', error);
         alert(`Errore importazione squadre: ${error.message}`);
+      } finally {
+        resetInput();
       }
+    };
+
+    reader.onerror = () => {
+      alert('Impossibile leggere il file CSV.');
+      resetInput();
     };
 
     reader.readAsText(file, 'utf-8');
