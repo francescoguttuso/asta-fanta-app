@@ -5,7 +5,8 @@ import {
   calculateSchedinaPoints,
   getRoundPicks,
   getRoundResults,
-  saveFantaSchedinaPicks,
+  hasSubmittedRound,
+  submitFantaSchedina,
 } from "@/features/schedina/fantaSchedinaStore";
 
 const SIGNS = ["1", "X", "2"];
@@ -33,6 +34,7 @@ export default function FantaSchedinaMobile({
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
   const roundState = session?.fantaSchedina?.rounds?.[selectedRound] || {};
   const isOpen = roundState.open === true;
+  const submitted = hasSubmittedRound(session, selectedRound, teamId);
 
   useEffect(() => {
     setPicks(getRoundPicks(session, selectedRound, teamId));
@@ -69,7 +71,7 @@ export default function FantaSchedinaMobile({
   }, [partecipanti, roundState, round]);
 
   const choose = (matchIndex, sign) => {
-    if (!isOpen) return;
+    if (!isOpen || submitted) return;
     setPicks((current) => {
       const next = [...current];
       next[matchIndex] = sign;
@@ -78,6 +80,11 @@ export default function FantaSchedinaMobile({
   };
 
   const confirm = async () => {
+    if (submitted) {
+      setMessage("🔒 Schedina già confermata. Non è più modificabile.");
+      return;
+    }
+
     if (!isOpen) {
       setMessage("🔒 Giornata chiusa. Le scommesse non sono più disponibili.");
       return;
@@ -90,13 +97,13 @@ export default function FantaSchedinaMobile({
 
     try {
       setSaving(true);
-      await saveFantaSchedinaPicks(
+      await submitFantaSchedina(
         docRef,
         selectedRound,
         teamId,
         picks,
       );
-      setMessage("✅ Schedina salvata.");
+      setMessage("🔒 Schedina confermata.");
     } catch (error) {
       console.error(error);
       setMessage("❌ Errore nel salvataggio della schedina.");
@@ -181,8 +188,8 @@ export default function FantaSchedinaMobile({
           <strong style={{ color: "#fff" }}>
             {round.label}
           </strong>
-          <span style={{ color: isOpen ? "#10b981" : "#f59e0b" }}>
-            {isOpen ? "● APERTA" : "● CHIUSA"}
+          <span style={{ color: submitted ? "#38bdf8" : isOpen ? "#10b981" : "#f59e0b" }}>
+            {submitted ? "🔒 SCHEDINA CONFERMATA" : isOpen ? "● APERTA" : "● CHIUSA"}
           </span>
         </div>
 
@@ -219,7 +226,7 @@ export default function FantaSchedinaMobile({
                   <button
                     key={sign}
                     type="button"
-                    disabled={!isOpen}
+                    disabled={!isOpen || submitted}
                     onClick={() => choose(index, sign)}
                     style={{
                       flex: 1,
@@ -231,7 +238,7 @@ export default function FantaSchedinaMobile({
                       background: active ? "#12304a" : "#100822",
                       color: active ? "#38bdf8" : "#cbd5e1",
                       fontWeight: 900,
-                      cursor: isOpen ? "pointer" : "not-allowed",
+                      cursor: isOpen && !submitted ? "pointer" : "not-allowed",
                     }}
                   >
                     {sign}
@@ -244,6 +251,43 @@ export default function FantaSchedinaMobile({
       </div>
 
       <div
+        className="card"
+        style={{
+          padding: "12px",
+          marginBottom: "10px",
+          textAlign: "center",
+        }}
+      >
+        <strong style={{ color: "#fff" }}>
+          {completed} / {round.matches.length} pronostici
+        </strong>
+
+        <button
+          type="button"
+          onClick={confirm}
+          disabled={!isOpen || submitted || saving || completed !== round.matches.length}
+          className="btn btn-green"
+          style={{
+            width: "100%",
+            marginTop: "10px",
+            padding: "12px",
+          }}
+        >
+          {saving ? "SALVATAGGIO..." : submitted ? "🔒 SCHEDINA CONFERMATA" : "CONFERMA SCHEDINA"}
+        </button>
+
+        {message && (
+          <div style={{ marginTop: "10px", color: "#cbd5e1" }}>
+            {message}
+          </div>
+        )}
+
+        {getRoundResults(session, selectedRound).length > 0 && (
+          <div style={{ marginTop: "12px", color: "#10b981" }}>
+            Punti giornata: <strong>{points}</strong>
+          </div>
+        )}
+      </div>
         className="card"
         style={{
           padding: "12px",
@@ -292,62 +336,6 @@ export default function FantaSchedinaMobile({
                     gridTemplateColumns: "1fr auto",
                     gap: "10px",
                     alignItems: "center",
-                    padding: "7px 0",
-                    borderTop: index === 0 ? "1px solid #21173d" : "0",
-                    borderBottom: index < round.matches.length - 1 ? "1px solid #21173d" : "0",
-                  }}
-                >
-                  <span style={{ color: "#cbd5e1", fontSize: "0.86rem" }}>
-                    {match.home} - {match.away}
-                  </span>
-                  <strong style={{ color: "#38bdf8", minWidth: 24, textAlign: "center" }}>
-                    {card.picks[index] || "-"}
-                  </strong>
-                </div>
-              ))}
-            </div>
-          ))
-        )}
-      </div>
-
-      <div
-        className="card"
-        style={{
-          padding: "12px",
-          marginBottom: "10px",
-          textAlign: "center",
-        }}
-      >
-        <strong style={{ color: "#fff" }}>
-          {completed} / {round.matches.length} pronostici
-        </strong>
-
-        <button
-          type="button"
-          onClick={confirm}
-          disabled={!isOpen || saving || completed !== round.matches.length}
-          className="btn btn-green"
-          style={{
-            width: "100%",
-            marginTop: "10px",
-            padding: "12px",
-          }}
-        >
-          {saving ? "SALVATAGGIO..." : "CONFERMA SCHEDINA"}
-        </button>
-
-        {message && (
-          <div style={{ marginTop: "10px", color: "#cbd5e1" }}>
-            {message}
-          </div>
-        )}
-
-        {getRoundResults(session, selectedRound).length > 0 && (
-          <div style={{ marginTop: "12px", color: "#10b981" }}>
-            Punti giornata: <strong>{points}</strong>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
