@@ -6,7 +6,7 @@ import {
   getRoundPicks,
   getRoundResults,
   hasSubmittedRound,
-  saveFantaSchedinaPicks,
+  submitFantaSchedina,
 } from "@/features/schedina/fantaSchedinaStore";
 
 const SIGNS = ["1", "X", "2"];
@@ -34,7 +34,6 @@ export default function FantaSchedinaMobile({
   const roundState = session?.fantaSchedina?.rounds?.[selectedRound] || {};
   const isOpen = roundState.open === true;
   const submitted = hasSubmittedRound(session, selectedRound, teamId);
-  const submittedAt = roundState?.submittedAt?.[teamId] || null;
 
   useEffect(() => {
     setPicks(getRoundPicks(session, selectedRound, teamId));
@@ -62,7 +61,7 @@ export default function FantaSchedinaMobile({
 
   const confirm = async () => {
     if (submitted) {
-      setMessage("🔒 Schedina già confermata. Non è più possibile modificarla.");
+      setMessage("🔒 Schedina già confermata. Non è più modificabile.");
       return;
     }
 
@@ -78,13 +77,13 @@ export default function FantaSchedinaMobile({
 
     try {
       setSaving(true);
-      await saveFantaSchedinaPicks(
+      await submitFantaSchedina(
         docRef,
         selectedRound,
         teamId,
         picks,
       );
-      setMessage("🔒 Schedina confermata. Non è più modificabile.");
+      setMessage("🔒 Schedina confermata.");
     } catch (error) {
       console.error(error);
       setMessage("❌ Errore nel salvataggio della schedina.");
@@ -133,9 +132,9 @@ export default function FantaSchedinaMobile({
 
         <select
           value={selectedRound}
-          onChange={(event) => {
-            if (!submitted) setSelectedRound(Number(event.target.value));
-          }}
+          onChange={(event) =>
+            setSelectedRound(Number(event.target.value))
+          }
           style={{
             width: "100%",
             marginTop: "10px",
@@ -150,26 +149,6 @@ export default function FantaSchedinaMobile({
           ))}
         </select>
       </div>
-
-      {submitted && (
-        <div
-          className="card"
-          style={{
-            padding: "12px",
-            marginBottom: "10px",
-            border: "1px solid #14532d",
-            background: "#0b2a20",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: 24 }}>🔒</div>
-          <strong style={{ color: "#34d399" }}>SCHEDINA CONFERMATA</strong>
-          <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 5 }}>
-            Non puoi più modificare o annullare l'invio.
-            {submittedAt ? ` Inviata il ${new Date(submittedAt).toLocaleString("it-IT")}.` : ""}
-          </div>
-        </div>
-      )}
 
       <div
         className="card"
@@ -189,8 +168,8 @@ export default function FantaSchedinaMobile({
           <strong style={{ color: "#fff" }}>
             {round.label}
           </strong>
-          <span style={{ color: isOpen ? "#10b981" : "#f59e0b" }}>
-            {isOpen ? "● APERTA" : "● CHIUSA"}
+          <span style={{ color: submitted ? "#38bdf8" : isOpen ? "#10b981" : "#f59e0b" }}>
+            {submitted ? "🔒 SCHEDINA CONFERMATA" : isOpen ? "● APERTA" : "● CHIUSA"}
           </span>
         </div>
 
@@ -239,7 +218,7 @@ export default function FantaSchedinaMobile({
                       background: active ? "#12304a" : "#100822",
                       color: active ? "#38bdf8" : "#cbd5e1",
                       fontWeight: 900,
-                      cursor: isOpen ? "pointer" : "not-allowed",
+                      cursor: isOpen && !submitted ? "pointer" : "not-allowed",
                     }}
                   >
                     {sign}
@@ -274,7 +253,7 @@ export default function FantaSchedinaMobile({
             padding: "12px",
           }}
         >
-          {submitted ? "🔒 SCHEDINA CONFERMATA" : saving ? "SALVATAGGIO..." : "CONFERMA SCHEDINA"}
+          {saving ? "SALVATAGGIO..." : submitted ? "🔒 SCHEDINA CONFERMATA" : "CONFERMA SCHEDINA"}
         </button>
 
         {message && (

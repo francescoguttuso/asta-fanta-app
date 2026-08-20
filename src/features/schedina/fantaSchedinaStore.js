@@ -3,11 +3,18 @@ import { deleteField, updateDoc } from "firebase/firestore";
 export async function saveFantaSchedinaPicks(docRef, roundIndex, teamId, picks) {
   if (!docRef) throw new Error("Sessione non disponibile.");
 
-  const safePicks = Array.isArray(picks) ? picks : [];
+  await updateDoc(docRef, {
+    [`fantaSchedina.rounds.${roundIndex}.picks.${teamId}`]:
+      Array.isArray(picks) ? picks : [],
+  });
+}
+
+export async function submitFantaSchedina(docRef, roundIndex, teamId, picks) {
+  if (!docRef) throw new Error("Sessione non disponibile.");
 
   await updateDoc(docRef, {
-    [`fantaSchedina.rounds.${roundIndex}.picks.${teamId}`]: safePicks,
-    [`fantaSchedina.rounds.${roundIndex}.submitted.${teamId}`]: true,
+    [`fantaSchedina.rounds.${roundIndex}.picks.${teamId}`]:
+      Array.isArray(picks) ? picks : [],
     [`fantaSchedina.rounds.${roundIndex}.submittedAt.${teamId}`]:
       new Date().toISOString(),
   });
@@ -17,8 +24,8 @@ export async function deleteFantaSchedinaPick(docRef, roundIndex, teamId) {
   if (!docRef) throw new Error("Sessione non disponibile.");
 
   await updateDoc(docRef, {
-    [`fantaSchedina.rounds.${roundIndex}.picks.${teamId}`]:
-      deleteField(),
+    [`fantaSchedina.rounds.${roundIndex}.picks.${teamId}`]: deleteField(),
+    [`fantaSchedina.rounds.${roundIndex}.submittedAt.${teamId}`]: deleteField(),
   });
 }
 
@@ -50,22 +57,25 @@ export function isRoundOpen(session, roundIndex) {
 }
 
 export function getRoundPicks(session, roundIndex, teamId) {
-  return getRoundState(session, roundIndex)?.picks?.[teamId] || [];
+  const picks = getRoundState(session, roundIndex)?.picks || {};
+  return picks[String(teamId)] ?? picks[teamId] ?? [];
 }
 
-/*
- * Regola mobile:
- * - giornata CHIUSA -> non si può giocare;
- * - giornata APERTA ma schedina già consegnata -> non si può modificare;
- * - giornata APERTA e nessuna schedina -> si può compilare/consegnare.
- *
- * La modifica/cancellazione amministrativa resta invece disponibile dal server.
- */
+export function hasSubmittedRound(session, roundIndex, teamId) {
+  const round = getRoundState(session, roundIndex);
+  const submittedAt = round?.submittedAt || {};
+  if (submittedAt[String(teamId)] || submittedAt[teamId]) return true;
+
+  // Compatibilità con le schedine già presenti prima di questa modifica.
+  const picks = getRoundPicks(session, roundIndex, teamId);
+  return Array.isArray(picks) && picks.length > 0;
+}
+
 export function canSubmitFromMobile(session, roundIndex, teamId) {
   return isRoundOpen(session, roundIndex) && !hasSubmittedRound(session, roundIndex, teamId);
 }
 
-export function canEditFromMobile(session, roundIndex, teamId) {
+export function canEditFromMobile() {
   return false;
 }
 

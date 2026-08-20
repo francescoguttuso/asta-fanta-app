@@ -20,6 +20,8 @@ export default function FantaSchedinaAdminView() {
   const [results, setResults] = useState([]);
   const [saving, setSaving] = useState(false);
   const [roundSaving, setRoundSaving] = useState(false);
+  const [editingTeamId, setEditingTeamId] = useState(null);
+  const [editingPicks, setEditingPicks] = useState([]);
 
   useEffect(() => {
     if (!docRef) return undefined;
@@ -132,6 +134,38 @@ export default function FantaSchedinaAdminView() {
     }
   };
 
+  const startEditSchedina = (row) => {
+    setEditingTeamId(row.id);
+    setEditingPicks([...row.picks]);
+  };
+
+  const setEditingPick = (index, sign) => {
+    setEditingPicks((current) => {
+      const next = [...current];
+      next[index] = sign;
+      return next;
+    });
+  };
+
+  const saveEditedSchedina = async (teamId, teamName) => {
+    if (!docRef || editingPicks.length !== round.matches.length) return;
+
+    try {
+      setSaving(true);
+      await updateDoc(docRef, {
+        [`fantaSchedina.rounds.${selectedRound}.picks.${teamId}`]: editingPicks,
+        [`fantaSchedina.rounds.${selectedRound}.submittedAt.${teamId}`]: new Date().toISOString(),
+      });
+      setEditingTeamId(null);
+      setEditingPicks([]);
+    } catch (error) {
+      console.error(`Errore modifica schedina di ${teamName}:`, error);
+      alert("Impossibile modificare la schedina.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const deleteSchedina = async (teamId, teamName) => {
     if (!docRef) return;
 
@@ -145,8 +179,8 @@ export default function FantaSchedinaAdminView() {
       setSaving(true);
 
       await updateDoc(docRef, {
-        [`fantaSchedina.rounds.${selectedRound}.picks.${teamId}`]:
-          deleteField(),
+        [`fantaSchedina.rounds.${selectedRound}.picks.${teamId}`]: deleteField(),
+        [`fantaSchedina.rounds.${selectedRound}.submittedAt.${teamId}`]: deleteField(),
       });
     } catch (error) {
       console.error("Errore cancellazione schedina:", error);
@@ -456,13 +490,31 @@ export default function FantaSchedinaAdminView() {
 
                   {round.matches.map((_, index) => (
                     <td key={index} style={tdStyle}>
-                      <strong
-                        style={{
-                          color: row.picks[index] ? "#38bdf8" : "#64748b",
-                        }}
-                      >
-                        {row.picks[index] || "—"}
-                      </strong>
+                      {editingTeamId === row.id ? (
+                        <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
+                          {SIGNS.map((sign) => (
+                            <button
+                              key={sign}
+                              type="button"
+                              onClick={() => setEditingPick(index, sign)}
+                              style={{
+                                border: editingPicks[index] === sign ? "2px solid #38bdf8" : "1px solid #33214f",
+                                background: editingPicks[index] === sign ? "#12304a" : "#100822",
+                                color: "#fff",
+                                borderRadius: 5,
+                                padding: "3px 6px",
+                                fontWeight: 900,
+                              }}
+                            >
+                              {sign}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <strong style={{ color: row.picks[index] ? "#38bdf8" : "#64748b" }}>
+                          {row.picks[index] || "—"}
+                        </strong>
+                      )}
                     </td>
                   ))}
 
@@ -486,23 +538,49 @@ export default function FantaSchedinaAdminView() {
 
                   <td style={tdStyle}>
                     {row.completed > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => deleteSchedina(row.id, row.nome)}
-                        disabled={saving}
-                        title="Cancella schedina"
-                        style={{
-                          border: "1px solid #5b1d2a",
-                          background: "#210b14",
-                          color: "#f87171",
-                          borderRadius: 7,
-                          padding: "6px 9px",
-                          cursor: saving ? "not-allowed" : "pointer",
-                          fontWeight: 900,
-                        }}
-                      >
-                        🗑️
-                      </button>
+                      editingTeamId === row.id ? (
+                        <div style={{ display: "flex", gap: 5, justifyContent: "center" }}>
+                          <button
+                            type="button"
+                            onClick={() => saveEditedSchedina(row.id, row.nome)}
+                            disabled={saving || editingPicks.length !== round.matches.length || editingPicks.some((pick) => !pick)}
+                            title="Salva modifica"
+                            style={{ border: "1px solid #14532d", background: "#0b2a20", color: "#34d399", borderRadius: 7, padding: "6px 9px", fontWeight: 900 }}
+                          >
+                            💾
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setEditingTeamId(null); setEditingPicks([]); }}
+                            disabled={saving}
+                            title="Annulla modifica"
+                            style={{ border: "1px solid #33214f", background: "#100822", color: "#cbd5e1", borderRadius: 7, padding: "6px 9px", fontWeight: 900 }}
+                          >
+                            ✖️
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", gap: 5, justifyContent: "center" }}>
+                          <button
+                            type="button"
+                            onClick={() => startEditSchedina(row)}
+                            disabled={saving}
+                            title="Modifica schedina"
+                            style={{ border: "1px solid #33214f", background: "#100822", color: "#38bdf8", borderRadius: 7, padding: "6px 9px", fontWeight: 900 }}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteSchedina(row.id, row.nome)}
+                            disabled={saving}
+                            title="Cancella schedina"
+                            style={{ border: "1px solid #5b1d2a", background: "#210b14", color: "#f87171", borderRadius: 7, padding: "6px 9px", fontWeight: 900 }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      )
                     )}
                   </td>
                 </tr>
