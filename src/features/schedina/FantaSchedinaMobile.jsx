@@ -82,47 +82,6 @@ export default function FantaSchedinaMobile({
       .filter(Boolean);
   }, [partecipanti, roundState, round, session, selectedRound]);
 
-  const cumulativeRanking = useMemo(() => {
-    return partecipanti
-      .map((participant) => {
-        let total = 0;
-
-        for (let roundIndex = 1; roundIndex <= CALENDARIO_CAMPIONATO.length; roundIndex += 1) {
-          const state = session?.fantaSchedina?.rounds?.[roundIndex] || {};
-          const allPicks = state.picks || {};
-          const allSubmittedAt = state.submittedAt || {};
-          const rawPicks =
-            allPicks[String(participant.id)] ??
-            allPicks[participant.id] ??
-            [];
-          const roundPicks = Array.isArray(rawPicks) ? rawPicks : [];
-          const explicitlySubmitted = Boolean(
-            allSubmittedAt[String(participant.id)] ||
-            allSubmittedAt[participant.id],
-          );
-          const roundMatches = CALENDARIO_CAMPIONATO[roundIndex - 1]?.matches || [];
-          const legacySubmitted =
-            !explicitlySubmitted &&
-            roundPicks.length === roundMatches.length &&
-            roundMatches.length > 0;
-
-          if (explicitlySubmitted || legacySubmitted) {
-            total += calculateSchedinaPoints(
-              roundPicks,
-              getRoundResults(session, roundIndex),
-            );
-          }
-        }
-
-        return {
-          id: participant.id,
-          nome: participant?.nome || participant?.name || `Squadra ${participant.id}`,
-          total,
-        };
-      })
-      .sort((a, b) => b.total - a.total);
-  }, [partecipanti, session]);
-
   const choose = (matchIndex, sign) => {
     if (!isOpen || submitted) return;
     setPicks((current) => {
@@ -402,55 +361,6 @@ export default function FantaSchedinaMobile({
                 </div>
               </div>
             ))}
-          </div>
-        )}
-      </div>
-
-      <div className="card" style={{ padding: "12px", marginBottom: "10px" }}>
-        <div style={{ color: "#fff", fontWeight: 900, marginBottom: "10px" }}>
-          🏆 Classifica generale FantaSchedina
-        </div>
-
-        {cumulativeRanking.length === 0 ? (
-          <div style={{ color: "#94a3b8", textAlign: "center", padding: "12px 4px" }}>
-            Nessun partecipante disponibile.
-          </div>
-        ) : (
-          <div style={{ display: "grid", gap: "6px" }}>
-            {cumulativeRanking.map((row, index) => {
-              const isMe = String(row.id) === String(teamId);
-
-              return (
-                <div
-                  key={row.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: "10px",
-                    padding: "10px 8px",
-                    borderRadius: "8px",
-                    background: isMe ? "#12304a" : "#100822",
-                    border: isMe ? "1px solid #38bdf8" : "1px solid #21173d",
-                  }}
-                >
-                  <div style={{ color: "#e5e7eb", fontWeight: isMe ? 900 : 600 }}>
-                    <span style={{ color: "#94a3b8", marginRight: "8px" }}>
-                      {index + 1}.
-                    </span>
-                    {row.nome}
-                    {isMe && (
-                      <span style={{ color: "#38bdf8", marginLeft: "6px", fontSize: "0.75rem" }}>
-                        (TU)
-                      </span>
-                    )}
-                  </div>
-                  <strong style={{ color: "#38bdf8", whiteSpace: "nowrap" }}>
-                    {row.total} pt
-                  </strong>
-                </div>
-              );
-            })}
           </div>
         )}
       </div>
