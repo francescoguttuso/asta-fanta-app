@@ -10,6 +10,7 @@ import {
   getHighlanderState,
   getSurvivors,
   resetHighlanderRoundScores,
+  resetHighlander,
   saveHighlanderFinalScores,
   saveHighlanderRoundScores,
   setHighlanderChampion,
@@ -119,6 +120,30 @@ export default function HighlanderAdminView() {
     }
   };
 
+  const resetTournament = async () => {
+    const confirmed = window.confirm(
+      "ATTENZIONE: il reset cancellerà tutti i risultati Highlander, le eliminazioni, i superstiti e la finale. Vuoi continuare?",
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+      await resetHighlander(docRef);
+      setScores({});
+      setSession((current) => ({
+        ...(current || {}),
+        highlander: {},
+      }));
+      setSelectedBlock(1);
+    } catch (error) {
+      console.error(error);
+      alert("Impossibile resettare il torneo Highlander.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const confirmElimination = async () => {
     if (!elimination?.candidate || elimination.unresolved) return;
 
@@ -201,13 +226,40 @@ export default function HighlanderAdminView() {
         background: "linear-gradient(180deg,#08021b,#050114)",
       }}
     >
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ color: "#38bdf8", fontSize: 24, fontWeight: 900 }}>
+      <div
+        style={{
+          marginBottom: 18,
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div style={{ color: "#38bdf8", fontSize: 24, fontWeight: 900 }}>
           🏆 TORNEO HIGHLANDER
         </div>
         <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4 }}>
           Gestione esclusiva server · risultati · calcolo blocchi · eliminazioni
         </div>
+
+        <button
+          type="button"
+          onClick={resetTournament}
+          disabled={saving}
+          style={{
+            border: "1px solid #7f1d1d",
+            background: "#2a0d14",
+            color: "#f87171",
+            borderRadius: 8,
+            padding: "9px 12px",
+            fontWeight: 900,
+            cursor: saving ? "not-allowed" : "pointer",
+          }}
+        >
+          🔄 RESET HIGHLANDER
+        </button>
       </div>
 
       <div
@@ -480,122 +532,9 @@ export default function HighlanderAdminView() {
       </section>
 
       {survivors.length === 2 && (
-        <section style={{ marginBottom: 22 }}>
-          <h3 style={{ color: "#fff" }}>
-            🔄 Turni intermedi — 17ª / 18ª giornata
-          </h3>
-
-          <p style={{ color: "#94a3b8", fontSize: 12 }}>
-            Le due squadre superstiti proseguono nelle giornate 17ª e 18ª.
-            Il regolamento le indica come turni intermedi prima della
-            finalissima della 19ª; non viene introdotta alcuna eliminazione
-            aggiuntiva.
-          </p>
-
-          {[17, 18].map((round) => {
-            const roundScores = getHighlanderScores(session, round);
-
-            return (
-              <div
-                key={round}
-                style={{
-                  marginTop: 10,
-                  padding: 12,
-                  border: "1px solid #21173d",
-                  borderRadius: 10,
-                }}
-              >
-                <strong style={{ color: "#fff" }}>
-                  {round}ª giornata
-                </strong>
-
-                <div style={{ display: "grid", gap: 7, marginTop: 8 }}>
-                  {survivors.map((id) => {
-                    const participant = partecipanti.find(
-                      (p) => String(p.id) === String(id),
-                    );
-
-                    return (
-                      <div
-                        key={id}
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr 120px",
-                          gap: 8,
-                          alignItems: "center",
-                        }}
-                      >
-                        <strong style={{ color: "#e5e7eb" }}>
-                          {participant?.nome || id}
-                        </strong>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.1"
-                          value={roundScores[id] ?? ""}
-                          onChange={(event) => {
-                            const next = {
-                              ...roundScores,
-                              [id]: event.target.value,
-                            };
-                            setSession((current) => ({
-                              ...current,
-                              highlander: {
-                                ...(current?.highlander || {}),
-                                scores: {
-                                  ...(current?.highlander?.scores || {}),
-                                  [round]: next,
-                                },
-                              },
-                            }));
-                          }}
-                          placeholder="Fantapunti"
-                          style={{
-                            padding: 8,
-                            borderRadius: 7,
-                            border: "1px solid #33214f",
-                            background: "#100822",
-                            color: "#fff",
-                          }}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <button
-                  type="button"
-                  className="btn btn-green"
-                  style={{ marginTop: 10 }}
-                  disabled={saving}
-                  onClick={async () => {
-                    try {
-                      setSaving(true);
-                      await saveHighlanderRoundScores(
-                        docRef,
-                        round,
-                        roundScores,
-                      );
-                    } catch (error) {
-                      console.error(error);
-                      alert("Impossibile salvare i risultati.");
-                    } finally {
-                      setSaving(false);
-                    }
-                  }}
-                >
-                  💾 SALVA {round}ª GIORNATA
-                </button>
-              </div>
-            );
-          })}
-        </section>
-      )}
-
-      {survivors.length === 2 && (
         <section>
           <h3 style={{ color: "#fff" }}>
-            🏆 Fase finale — 17ª / 18ª / 19ª giornata
+            🏆 FINALE — 19ª GIORNATA
           </h3>
 
           <p style={{ color: "#94a3b8", fontSize: 12 }}>
