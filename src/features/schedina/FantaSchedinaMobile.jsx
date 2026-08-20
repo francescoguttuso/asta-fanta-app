@@ -5,8 +5,7 @@ import {
   calculateSchedinaPoints,
   getRoundPicks,
   getRoundResults,
-  hasSubmittedRound,
-  submitFantaSchedina,
+  saveFantaSchedinaPicks,
 } from "@/features/schedina/fantaSchedinaStore";
 
 const SIGNS = ["1", "X", "2"];
@@ -15,6 +14,7 @@ export default function FantaSchedinaMobile({
   docRef,
   teamId,
   teamName,
+  partecipanti = [],
   onBack,
 }) {
   const [session, setSession] = useState(null);
@@ -33,7 +33,6 @@ export default function FantaSchedinaMobile({
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
   const roundState = session?.fantaSchedina?.rounds?.[selectedRound] || {};
   const isOpen = roundState.open === true;
-  const submitted = hasSubmittedRound(session, selectedRound, teamId);
 
   useEffect(() => {
     setPicks(getRoundPicks(session, selectedRound, teamId));
@@ -50,8 +49,27 @@ export default function FantaSchedinaMobile({
     getRoundResults(session, selectedRound),
   );
 
+  const playedCards = useMemo(() => {
+    const picksByTeam = roundState.picks || {};
+
+    return partecipanti
+      .map((participant) => {
+        const teamPicks =
+          picksByTeam[String(participant.id)] ??
+          picksByTeam[participant.id] ??
+          [];
+
+        return {
+          id: participant.id,
+          nome: participant.nome || participant.name || `Squadra ${participant.id}`,
+          picks: Array.isArray(teamPicks) ? teamPicks : [],
+        };
+      })
+      .filter((card) => card.picks.length === round.matches.length);
+  }, [partecipanti, roundState, round]);
+
   const choose = (matchIndex, sign) => {
-    if (!isOpen || submitted) return;
+    if (!isOpen) return;
     setPicks((current) => {
       const next = [...current];
       next[matchIndex] = sign;
@@ -60,11 +78,6 @@ export default function FantaSchedinaMobile({
   };
 
   const confirm = async () => {
-    if (submitted) {
-      setMessage("🔒 Schedina già confermata. Non è più modificabile.");
-      return;
-    }
-
     if (!isOpen) {
       setMessage("🔒 Giornata chiusa. Le scommesse non sono più disponibili.");
       return;
@@ -77,13 +90,13 @@ export default function FantaSchedinaMobile({
 
     try {
       setSaving(true);
-      await submitFantaSchedina(
+      await saveFantaSchedinaPicks(
         docRef,
         selectedRound,
         teamId,
         picks,
       );
-      setMessage("🔒 Schedina confermata.");
+      setMessage("✅ Schedina salvata.");
     } catch (error) {
       console.error(error);
       setMessage("❌ Errore nel salvataggio della schedina.");
@@ -168,8 +181,8 @@ export default function FantaSchedinaMobile({
           <strong style={{ color: "#fff" }}>
             {round.label}
           </strong>
-          <span style={{ color: submitted ? "#38bdf8" : isOpen ? "#10b981" : "#f59e0b" }}>
-            {submitted ? "🔒 SCHEDINA CONFERMATA" : isOpen ? "● APERTA" : "● CHIUSA"}
+          <span style={{ color: isOpen ? "#10b981" : "#f59e0b" }}>
+            {isOpen ? "● APERTA" : "● CHIUSA"}
           </span>
         </div>
 
@@ -206,7 +219,7 @@ export default function FantaSchedinaMobile({
                   <button
                     key={sign}
                     type="button"
-                    disabled={!isOpen || submitted}
+                    disabled={!isOpen}
                     onClick={() => choose(index, sign)}
                     style={{
                       flex: 1,
@@ -218,7 +231,7 @@ export default function FantaSchedinaMobile({
                       background: active ? "#12304a" : "#100822",
                       color: active ? "#38bdf8" : "#cbd5e1",
                       fontWeight: 900,
-                      cursor: isOpen && !submitted ? "pointer" : "not-allowed",
+                      cursor: isOpen ? "pointer" : "not-allowed",
                     }}
                   >
                     {sign}
@@ -228,6 +241,73 @@ export default function FantaSchedinaMobile({
             </div>
           </div>
         ))}
+      </div>
+
+      <div
+        className="card"
+        style={{
+          padding: "12px",
+          marginBottom: "10px",
+        }}
+      >
+        <div style={{ color: "#38bdf8", fontWeight: 900, marginBottom: 10 }}>
+          🎯 SCHEDINE GIOCATE — {round.label}
+        </div>
+
+        {playedCards.length === 0 ? (
+          <div style={{ color: "#94a3b8", textAlign: "center", padding: "12px 4px" }}>
+            Nessuna schedina confermata per questa giornata.
+          </div>
+        ) : (
+          playedCards.map((card) => (
+            <div
+              key={card.id}
+              style={{
+                background: "#100822",
+                border: "1px solid #33214f",
+                borderRadius: "10px",
+                padding: "12px",
+                marginBottom: "10px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "10px",
+                }}
+              >
+                <strong style={{ color: "#fff" }}>👤 {card.nome}</strong>
+                <span style={{ color: "#10b981", fontSize: "0.8rem", fontWeight: 800 }}>
+                  🔒 CONFERMATA
+                </span>
+              </div>
+
+              {round.matches.map((match, index) => (
+                <div
+                  key={`${card.id}-${match.home}-${match.away}`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto",
+                    gap: "10px",
+                    alignItems: "center",
+                    padding: "7px 0",
+                    borderTop: index === 0 ? "1px solid #21173d" : "0",
+                    borderBottom: index < round.matches.length - 1 ? "1px solid #21173d" : "0",
+                  }}
+                >
+                  <span style={{ color: "#cbd5e1", fontSize: "0.86rem" }}>
+                    {match.home} - {match.away}
+                  </span>
+                  <strong style={{ color: "#38bdf8", minWidth: 24, textAlign: "center" }}>
+                    {card.picks[index] || "-"}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          ))
+        )}
       </div>
 
       <div
@@ -245,7 +325,7 @@ export default function FantaSchedinaMobile({
         <button
           type="button"
           onClick={confirm}
-          disabled={!isOpen || submitted || saving || completed !== round.matches.length}
+          disabled={!isOpen || saving || completed !== round.matches.length}
           className="btn btn-green"
           style={{
             width: "100%",
@@ -253,7 +333,7 @@ export default function FantaSchedinaMobile({
             padding: "12px",
           }}
         >
-          {saving ? "SALVATAGGIO..." : submitted ? "🔒 SCHEDINA CONFERMATA" : "CONFERMA SCHEDINA"}
+          {saving ? "SALVATAGGIO..." : "CONFERMA SCHEDINA"}
         </button>
 
         {message && (

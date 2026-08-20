@@ -284,6 +284,7 @@ export default function MobileController() {
         docRef={docRef}
         teamId={mioId}
         teamName={utenteSelezionato?.nome || "Squadra"}
+        partecipanti={partecipanti}
         onBack={() => setVistaMobile("asta")}
       />
     );
