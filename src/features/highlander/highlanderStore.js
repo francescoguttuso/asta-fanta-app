@@ -157,3 +157,12 @@ export async function setHighlanderChampion(docRef, championId) {
     "highlander.final.confirmedAt": new Date().toISOString(),
   });
 }
+
+
+export async function resetHighlander(docRef) {
+  if (!docRef) throw new Error("Sessione non disponibile.");
+
+  await updateDoc(docRef, {
+    highlander: deleteField(),
+  });
+}

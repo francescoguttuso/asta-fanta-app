@@ -130,7 +130,7 @@ export default function HighlanderAdminView() {
     try {
       setSaving(true);
       await resetHighlander(docRef);
-      setScores({});
+      setScoresByRound({});
       setSession((current) => ({
         ...(current || {}),
         highlander: {},
@@ -231,17 +231,18 @@ export default function HighlanderAdminView() {
           marginBottom: 18,
           display: "flex",
           justifyContent: "space-between",
-          gap: 12,
           alignItems: "center",
+          gap: 12,
           flexWrap: "wrap",
         }}
       >
         <div>
           <div style={{ color: "#38bdf8", fontSize: 24, fontWeight: 900 }}>
-          🏆 TORNEO HIGHLANDER
-        </div>
-        <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4 }}>
-          Gestione esclusiva server · risultati · calcolo blocchi · eliminazioni
+            🏆 TORNEO HIGHLANDER
+          </div>
+          <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4 }}>
+            Gestione esclusiva server · risultati · calcolo blocchi · eliminazioni
+          </div>
         </div>
 
         <button
@@ -532,14 +533,126 @@ export default function HighlanderAdminView() {
       </section>
 
       {survivors.length === 2 && (
-        <section>
+        <section style={{ marginBottom: 22 }}>
           <h3 style={{ color: "#fff" }}>
-            🏆 FINALE — 19ª GIORNATA
+            🔄 Turni intermedi — 17ª / 18ª giornata
           </h3>
 
           <p style={{ color: "#94a3b8", fontSize: 12 }}>
-            Le giornate 17ª e 18ª sono mantenute come turni intermedi. La
-            finalissima è la 19ª giornata, come previsto dall'Art. 6.
+            Le due squadre superstiti proseguono nelle giornate 17ª e 18ª.
+            Il regolamento le indica come turni intermedi prima della
+            finalissima della 19ª; non viene introdotta alcuna eliminazione
+            aggiuntiva.
+          </p>
+
+          {[17, 18].map((round) => {
+            const roundScores = getHighlanderScores(session, round);
+
+            return (
+              <div
+                key={round}
+                style={{
+                  marginTop: 10,
+                  padding: 12,
+                  border: "1px solid #21173d",
+                  borderRadius: 10,
+                }}
+              >
+                <strong style={{ color: "#fff" }}>
+                  {round}ª giornata
+                </strong>
+
+                <div style={{ display: "grid", gap: 7, marginTop: 8 }}>
+                  {survivors.map((id) => {
+                    const participant = partecipanti.find(
+                      (p) => String(p.id) === String(id),
+                    );
+
+                    return (
+                      <div
+                        key={id}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 120px",
+                          gap: 8,
+                          alignItems: "center",
+                        }}
+                      >
+                        <strong style={{ color: "#e5e7eb" }}>
+                          {participant?.nome || id}
+                        </strong>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={roundScores[id] ?? ""}
+                          onChange={(event) => {
+                            const next = {
+                              ...roundScores,
+                              [id]: event.target.value,
+                            };
+                            setSession((current) => ({
+                              ...current,
+                              highlander: {
+                                ...(current?.highlander || {}),
+                                scores: {
+                                  ...(current?.highlander?.scores || {}),
+                                  [round]: next,
+                                },
+                              },
+                            }));
+                          }}
+                          placeholder="Fantapunti"
+                          style={{
+                            padding: 8,
+                            borderRadius: 7,
+                            border: "1px solid #33214f",
+                            background: "#100822",
+                            color: "#fff",
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-green"
+                  style={{ marginTop: 10 }}
+                  disabled={saving}
+                  onClick={async () => {
+                    try {
+                      setSaving(true);
+                      await saveHighlanderRoundScores(
+                        docRef,
+                        round,
+                        roundScores,
+                      );
+                    } catch (error) {
+                      console.error(error);
+                      alert("Impossibile salvare i risultati.");
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                >
+                  💾 SALVA {round}ª GIORNATA
+                </button>
+              </div>
+            );
+          })}
+        </section>
+      )}
+
+      {survivors.length === 2 && (
+        <section>
+          <h3 style={{ color: "#fff" }}>
+            🏆 Fase finale — 17ª / 18ª / 19ª giornata
+          </h3>
+
+          <p style={{ color: "#94a3b8", fontSize: 12 }}>
+            I due superstiti accedono direttamente alla finalissima della 19ª giornata.
           </p>
 
           <div style={{ display: "grid", gap: 7 }}>
