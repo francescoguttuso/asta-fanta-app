@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { onSnapshot } from "firebase/firestore";
-import { canSubmitFromMobile } from "./fantaSchedinaStore";
+import { canSubmitFromMobile, hasSubmittedRound } from "./fantaSchedinaStore";
 
 /*
  * Wrapper/guard per la FantaSchedina mobile.
@@ -33,8 +33,7 @@ export default function FantaSchedinaMobileGuard({
   if (!session) return null;
 
   const round = session?.fantaSchedina?.rounds?.[roundIndex] || {};
-  const picks = round?.picks?.[String(teamId)] || round?.picks?.[teamId] || [];
-  const alreadySubmitted = Array.isArray(picks) && picks.length > 0;
+  const alreadySubmitted = hasSubmittedRound(session, roundIndex, teamId);
   const allowed = canSubmitFromMobile(session, roundIndex, teamId);
 
   if (alreadySubmitted) {

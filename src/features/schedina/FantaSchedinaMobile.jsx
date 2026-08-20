@@ -5,6 +5,7 @@ import {
   calculateSchedinaPoints,
   getRoundPicks,
   getRoundResults,
+  hasSubmittedRound,
   saveFantaSchedinaPicks,
 } from "@/features/schedina/fantaSchedinaStore";
 
@@ -32,6 +33,8 @@ export default function FantaSchedinaMobile({
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
   const roundState = session?.fantaSchedina?.rounds?.[selectedRound] || {};
   const isOpen = roundState.open === true;
+  const submitted = hasSubmittedRound(session, selectedRound, teamId);
+  const submittedAt = roundState?.submittedAt?.[teamId] || null;
 
   useEffect(() => {
     setPicks(getRoundPicks(session, selectedRound, teamId));
@@ -49,7 +52,7 @@ export default function FantaSchedinaMobile({
   );
 
   const choose = (matchIndex, sign) => {
-    if (!isOpen) return;
+    if (!isOpen || submitted) return;
     setPicks((current) => {
       const next = [...current];
       next[matchIndex] = sign;
@@ -58,6 +61,11 @@ export default function FantaSchedinaMobile({
   };
 
   const confirm = async () => {
+    if (submitted) {
+      setMessage("🔒 Schedina già confermata. Non è più possibile modificarla.");
+      return;
+    }
+
     if (!isOpen) {
       setMessage("🔒 Giornata chiusa. Le scommesse non sono più disponibili.");
       return;
@@ -76,7 +84,7 @@ export default function FantaSchedinaMobile({
         teamId,
         picks,
       );
-      setMessage("✅ Schedina salvata.");
+      setMessage("🔒 Schedina confermata. Non è più modificabile.");
     } catch (error) {
       console.error(error);
       setMessage("❌ Errore nel salvataggio della schedina.");
@@ -125,9 +133,9 @@ export default function FantaSchedinaMobile({
 
         <select
           value={selectedRound}
-          onChange={(event) =>
-            setSelectedRound(Number(event.target.value))
-          }
+          onChange={(event) => {
+            if (!submitted) setSelectedRound(Number(event.target.value));
+          }}
           style={{
             width: "100%",
             marginTop: "10px",
@@ -142,6 +150,26 @@ export default function FantaSchedinaMobile({
           ))}
         </select>
       </div>
+
+      {submitted && (
+        <div
+          className="card"
+          style={{
+            padding: "12px",
+            marginBottom: "10px",
+            border: "1px solid #14532d",
+            background: "#0b2a20",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 24 }}>🔒</div>
+          <strong style={{ color: "#34d399" }}>SCHEDINA CONFERMATA</strong>
+          <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 5 }}>
+            Non puoi più modificare o annullare l'invio.
+            {submittedAt ? ` Inviata il ${new Date(submittedAt).toLocaleString("it-IT")}.` : ""}
+          </div>
+        </div>
+      )}
 
       <div
         className="card"
@@ -199,7 +227,7 @@ export default function FantaSchedinaMobile({
                   <button
                     key={sign}
                     type="button"
-                    disabled={!isOpen}
+                    disabled={!isOpen || submitted}
                     onClick={() => choose(index, sign)}
                     style={{
                       flex: 1,
@@ -238,7 +266,7 @@ export default function FantaSchedinaMobile({
         <button
           type="button"
           onClick={confirm}
-          disabled={!isOpen || saving || completed !== round.matches.length}
+          disabled={!isOpen || submitted || saving || completed !== round.matches.length}
           className="btn btn-green"
           style={{
             width: "100%",
@@ -246,7 +274,7 @@ export default function FantaSchedinaMobile({
             padding: "12px",
           }}
         >
-          {saving ? "SALVATAGGIO..." : "CONFERMA SCHEDINA"}
+          {submitted ? "🔒 SCHEDINA CONFERMATA" : saving ? "SALVATAGGIO..." : "CONFERMA SCHEDINA"}
         </button>
 
         {message && (

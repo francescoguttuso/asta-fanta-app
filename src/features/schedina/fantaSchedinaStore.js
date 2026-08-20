@@ -3,9 +3,13 @@ import { deleteField, updateDoc } from "firebase/firestore";
 export async function saveFantaSchedinaPicks(docRef, roundIndex, teamId, picks) {
   if (!docRef) throw new Error("Sessione non disponibile.");
 
+  const safePicks = Array.isArray(picks) ? picks : [];
+
   await updateDoc(docRef, {
-    [`fantaSchedina.rounds.${roundIndex}.picks.${teamId}`]:
-      Array.isArray(picks) ? picks : [],
+    [`fantaSchedina.rounds.${roundIndex}.picks.${teamId}`]: safePicks,
+    [`fantaSchedina.rounds.${roundIndex}.submitted.${teamId}`]: true,
+    [`fantaSchedina.rounds.${roundIndex}.submittedAt.${teamId}`]:
+      new Date().toISOString(),
   });
 }
 
@@ -49,11 +53,6 @@ export function getRoundPicks(session, roundIndex, teamId) {
   return getRoundState(session, roundIndex)?.picks?.[teamId] || [];
 }
 
-export function hasSubmittedRound(session, roundIndex, teamId) {
-  const picks = getRoundPicks(session, roundIndex, teamId);
-  return Array.isArray(picks) && picks.length > 0;
-}
-
 /*
  * Regola mobile:
  * - giornata CHIUSA -> non si può giocare;
@@ -63,10 +62,7 @@ export function hasSubmittedRound(session, roundIndex, teamId) {
  * La modifica/cancellazione amministrativa resta invece disponibile dal server.
  */
 export function canSubmitFromMobile(session, roundIndex, teamId) {
-  return (
-    isRoundOpen(session, roundIndex) &&
-    !hasSubmittedRound(session, roundIndex, teamId)
-  );
+  return isRoundOpen(session, roundIndex) && !hasSubmittedRound(session, roundIndex, teamId);
 }
 
 export function canEditFromMobile(session, roundIndex, teamId) {
