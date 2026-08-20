@@ -154,6 +154,147 @@ export default function useAdminAuctionController() {
     document.body.removeChild(link);
   };
 
+  const importaSquadre = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (loadEvent) => {
+      try {
+        const text = String(loadEvent.target.result || '').replace(/^\uFEFF/, '');
+        const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
+        if (!lines.length) throw new Error('File vuoto.');
+
+        const parseCsvLine = (line) => {
+          const values = [];
+          let current = '';
+          let quoted = false;
+
+          for (let i = 0; i < line.length; i += 1) {
+            const char = line[i];
+            if (char === '"') {
+              if (quoted && line[i + 1] === '"') {
+                current += '"';
+                i += 1;
+              } else {
+                quoted = !quoted;
+              }
+            } else if (char === ';' && !quoted) {
+              values.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+
+          values.push(current.trim());
+          return values;
+        };
+
+        const rows = lines.map(parseCsvLine);
+        const header = rows[0].map((value) => value.toLowerCase());
+        const hasHeader =
+          header[0] === 'squadra' &&
+          header[1] === 'crediti' &&
+          header[2] === 'giocatoreid' &&
+          header[3] === 'prezzo';
+
+        const dataRows = hasHeader ? rows.slice(1) : rows;
+        const grouped = new Map();
+
+        dataRows.forEach((row) => {
+          const nomeSquadra = row[0]?.trim();
+          if (!nomeSquadra) return;
+
+          const crediti = hasHeader ? Number(row[1]) : null;
+          const playerId = hasHeader ? row[2] : row[1];
+          const prezzo = Number(hasHeader ? row[3] : row[2]);
+
+          if (!grouped.has(nomeSquadra)) {
+            grouped.set(nomeSquadra, {
+              crediti: Number.isFinite(crediti) ? crediti : null,
+              rosa: [],
+            });
+          }
+
+          if (playerId && Number.isFinite(Number(playerId)) && Number.isFinite(prezzo)) {
+            grouped.get(nomeSquadra).rosa.push({
+              id: Number(playerId),
+              prezzo,
+            });
+          }
+        });
+
+        if (!grouped.size) {
+          throw new Error('Nessuna squadra trovata nel file.');
+        }
+
+        if (grouped.size > partecipanti.length) {
+          throw new Error(
+            `Il file contiene ${grouped.size} squadre, ma la lega ne prevede ${partecipanti.length}.`,
+          );
+        }
+
+        const catalogo = giocatori || [];
+        const catalogoById = new Map(
+          catalogo.map((player) => [Number(player.id), player]),
+        );
+        const usedIds = new Set();
+        const importate = Array.from(grouped.entries());
+
+        const partecipantiImportati = partecipanti.map((participant) => ({
+          ...participant,
+          rosa: [],
+        }));
+
+        importate.forEach(([nomeSquadra, dati], index) => {
+          const target = partecipantiImportati[index];
+          target.nome = nomeSquadra;
+
+          dati.rosa.forEach((item) => {
+            if (usedIds.has(item.id)) {
+              throw new Error(`Il giocatore con ID ${item.id} è presente più volte nel file.`);
+            }
+
+            const player = catalogoById.get(item.id);
+            if (!player) {
+              throw new Error(`Giocatore con ID ${item.id} non trovato nel catalogo.`);
+            }
+
+            usedIds.add(item.id);
+            target.rosa.push({ ...player, prezzo: item.prezzo });
+          });
+
+          const speso = target.rosa.reduce(
+            (totale, player) => totale + Number(player.prezzo || 0),
+            0,
+          );
+
+          target.crediti =
+            dati.crediti != null && Number.isFinite(dati.crediti)
+              ? dati.crediti
+              : 500 - speso;
+        });
+
+        if (!window.confirm(
+          'Importare le squadre dal file selezionato? Le rose e i crediti attuali verranno sostituiti.',
+        )) {
+          return;
+        }
+
+        await saveSession({ participants: partecipantiImportati });
+        setPartecipanti(partecipantiImportati);
+        alert('Squadre importate con successo!');
+      } catch (error) {
+        console.error('Errore importazione squadre:', error);
+        alert(`Errore importazione squadre: ${error.message}`);
+      }
+    };
+
+    reader.readAsText(file, 'utf-8');
+  };
+
   const cambiaNomeSquadra = (id, nuovoNome) => {
     const partecipantiAggiornati = partecipanti.map((partecipante) =>
       partecipante.id === id
@@ -461,6 +602,7 @@ export default function useAdminAuctionController() {
     cambiaGiocatoreManuale,
     resettaTutto,
     esportaInExcel,
+    importaSquadre,
     cambiaNomeSquadra,
     impostaModalitaConfigurazione,
     chiamaGiocatore,

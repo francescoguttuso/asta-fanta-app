@@ -7,6 +7,7 @@ import PlaceholderView from "./components/PlaceholderView";
 import RostersView from "./components/RostersView";
 import TeamConfiguration from "./components/TeamConfiguration";
 import TeamsSummary from "./components/TeamsSummary";
+import TeamImportExport from "./components/TeamImportExport";
 import FantaSchedinaAdminView from "../schedina/FantaSchedinaAdminView";
 import HighlanderAdminView from "../highlander/HighlanderAdminView";
 import AdminAuctionProvider from "./context/AdminAuctionProvider";
@@ -20,6 +21,7 @@ function AdminAuctionContent() {
       <AppHeader />
       <AppNavigation />
       <TeamConfiguration />
+      <TeamImportExport />
 
       {vistaCorrente === "dashboard" ? (
         <div className="auction-layout">
