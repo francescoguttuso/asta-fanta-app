@@ -205,8 +205,17 @@ export default function useAdminAuctionController() {
           throw new Error('Il file CSV è vuoto.');
         }
 
+        // IMPORTANTISSIMO: `giocatori` contiene solo i giocatori ancora
+        // disponibili all'asta. I giocatori già acquistati vengono rimossi
+        // da questa lista, ma devono comunque poter essere ricostruiti durante
+        // l'importazione di una rosa. Per questo usiamo il catalogo completo
+        // INITIAL_PLAYERS come base e sovrascriviamo con eventuali dati presenti
+        // nella lista corrente.
         const catalogById = new Map(
-          (giocatori || []).map((player) => [String(player.id), player]),
+          [...(INITIAL_PLAYERS || []), ...(giocatori || [])].map((player) => [
+            String(player.id),
+            player,
+          ]),
         );
 
         // Il formato storico esportato dall'app usa $,$,$ come separatore
