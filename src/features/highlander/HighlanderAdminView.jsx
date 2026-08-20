@@ -23,7 +23,7 @@ export default function HighlanderAdminView() {
 
   const [session, setSession] = useState(null);
   const [selectedBlock, setSelectedBlock] = useState(1);
-  const [scores, setScores] = useState({});
+  const [scoresByRound, setScoresByRound] = useState({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -47,8 +47,20 @@ export default function HighlanderAdminView() {
   const currentRound = block?.from || 1;
 
   useEffect(() => {
-    setScores(getHighlanderScores(session, currentRound));
-  }, [session, currentRound]);
+    if (!session) return;
+
+    const rounds = block ? [block.from, block.to] : [];
+
+    setScoresByRound((current) => {
+      const next = { ...current };
+
+      rounds.forEach((round) => {
+        next[round] = getHighlanderScores(session, round);
+      });
+
+      return next;
+    });
+  }, [session, block?.from, block?.to]);
 
   const ranking = useMemo(
     () => calculateBlockRanking(session, activeParticipants, selectedBlock),
@@ -64,17 +76,20 @@ export default function HighlanderAdminView() {
       (item) => !state?.blocks?.[item.id]?.completed,
     ) + 1 || HIGHLANDER_BLOCKS.length;
 
-  const setScore = (teamId, value) => {
-    setScores((current) => ({
+  const setScore = (round, teamId, value) => {
+    setScoresByRound((current) => ({
       ...current,
-      [teamId]: value === "" ? "" : Number(value),
+      [round]: {
+        ...(current[round] || {}),
+        [teamId]: value === "" ? "" : Number(value),
+      },
     }));
   };
 
   const saveRound = async (round) => {
     try {
       setSaving(true);
-      await saveHighlanderRoundScores(docRef, round, scores);
+      await saveHighlanderRoundScores(docRef, round, scoresByRound[round] || {});
     } catch (error) {
       console.error(error);
       alert("Impossibile salvare i risultati Highlander.");
@@ -91,7 +106,11 @@ export default function HighlanderAdminView() {
     try {
       setSaving(true);
       await resetHighlanderRoundScores(docRef, round);
-      setScores({});
+      setScoresByRound((current) => {
+        const next = { ...current };
+        delete next[round];
+        return next;
+      });
     } catch (error) {
       console.error(error);
       alert("Impossibile azzerare i risultati.");
@@ -269,6 +288,7 @@ export default function HighlanderAdminView() {
             <div style={{ display: "grid", gap: 6 }}>
               {activeParticipants.map((participant) => {
                 const value = getHighlanderScores(session, round)[participant.id];
+                const draftValue = scoresByRound[round]?.[participant.id];
 
                 return (
                   <div
@@ -288,12 +308,9 @@ export default function HighlanderAdminView() {
                       type="number"
                       min="0"
                       step="0.1"
-                      value={scores[participant.id] ?? value ?? ""}
+                      value={draftValue ?? value ?? ""}
                       onChange={(event) =>
-                        setScores((current) => ({
-                          ...current,
-                          [participant.id]: event.target.value,
-                        }))
+                        setScore(round, participant.id, event.target.value)
                       }
                       placeholder="Fantapunti"
                       style={{
