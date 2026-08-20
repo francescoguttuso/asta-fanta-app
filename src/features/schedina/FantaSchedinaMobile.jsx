@@ -53,8 +53,13 @@ export default function FantaSchedinaMobile({
 
   const playedCards = useMemo(() => {
     const picksByTeam = roundState.picks || {};
+    const submittedByTeam = roundState.submittedAt || {};
 
     return partecipanti
+      .filter((participant) => {
+        const id = String(participant.id);
+        return Boolean(submittedByTeam[id] || submittedByTeam[participant.id]);
+      })
       .map((participant) => {
         const teamPicks =
           picksByTeam[String(participant.id)] ??
@@ -66,9 +71,8 @@ export default function FantaSchedinaMobile({
           nome: participant.nome || participant.name || `Squadra ${participant.id}`,
           picks: Array.isArray(teamPicks) ? teamPicks : [],
         };
-      })
-      .filter((card) => card.picks.length === round.matches.length);
-  }, [partecipanti, roundState, round]);
+      });
+  }, [partecipanti, roundState]);
 
   const choose = (matchIndex, sign) => {
     if (!isOpen || submitted) return;
@@ -288,6 +292,8 @@ export default function FantaSchedinaMobile({
           </div>
         )}
       </div>
+
+      <div
         className="card"
         style={{
           padding: "12px",
@@ -336,6 +342,22 @@ export default function FantaSchedinaMobile({
                     gridTemplateColumns: "1fr auto",
                     gap: "10px",
                     alignItems: "center",
+                    padding: "8px 0",
+                    borderBottom: index < round.matches.length - 1 ? "1px solid #241735" : "none",
+                  }}
+                >
+                  <span style={{ color: "#cbd5e1", fontSize: "0.88rem" }}>
+                    {match.home} - {match.away}
+                  </span>
+                  <strong style={{ color: "#38bdf8", fontSize: "1rem" }}>
+                    {card.picks[index] || "-"}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
