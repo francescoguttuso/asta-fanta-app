@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { onSnapshot } from "firebase/firestore";
 import { CALENDARIO_CAMPIONATO } from "@/data/calendarioData";
+import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 import {
   calculateSchedinaPoints,
   getRoundPicks,
@@ -11,15 +12,13 @@ import {
 
 const SIGNS = ["1", "X", "2"];
 
-const getParticipantName = (participant) =>
-  participant?.nome || participant?.name || `Squadra ${participant?.id ?? ""}`;
-
 export default function FantaSchedinaMobile({
   docRef,
   teamId,
   teamName,
   onBack,
 }) {
+  const { partecipanti = [] } = useAuctionSessionContext();
   const [session, setSession] = useState(null);
   const [selectedRound, setSelectedRound] = useState(1);
   const [picks, setPicks] = useState([]);
@@ -53,37 +52,35 @@ export default function FantaSchedinaMobile({
     getRoundResults(session, selectedRound),
   );
 
-  // Solo le schedine realmente confermate sono pubbliche.
-  // Questo usa submittedAt, quindi una schedina semplicemente compilata
-  // ma non ancora inviata non compare agli altri.
   const playedCards = useMemo(() => {
-    const participants = Array.isArray(session?.partecipanti)
-      ? session.partecipanti
-      : [];
-    const submittedAt = roundState.submittedAt || {};
     const allPicks = roundState.picks || {};
+    const submittedAt = roundState.submittedAt || {};
+    const matchCount = round?.matches?.length || 0;
 
-    return participants
-      .filter((participant) => {
-        const id = String(participant.id);
-        return Boolean(submittedAt[id] || submittedAt[participant.id]);
-      })
+    return partecipanti
       .map((participant) => {
         const id = String(participant.id);
         const rawPicks = allPicks[id] ?? allPicks[participant.id] ?? [];
         const participantPicks = Array.isArray(rawPicks) ? rawPicks : [];
+        const explicitlySubmitted = Boolean(
+          submittedAt[id] || submittedAt[participant.id],
+        );
+        const legacySubmitted = participantPicks.length === matchCount && matchCount > 0;
+
+        if (!explicitlySubmitted && !legacySubmitted) return null;
 
         return {
           id: participant.id,
-          nome: getParticipantName(participant),
+          nome: participant?.nome || participant?.name || `Squadra ${participant.id}`,
           picks: participantPicks,
           points: calculateSchedinaPoints(
             participantPicks,
             getRoundResults(session, selectedRound),
           ),
         };
-      });
-  }, [session, roundState, selectedRound]);
+      })
+      .filter(Boolean);
+  }, [partecipanti, roundState, round, session, selectedRound]);
 
   const choose = (matchIndex, sign) => {
     if (!isOpen || submitted) return;
@@ -112,7 +109,12 @@ export default function FantaSchedinaMobile({
 
     try {
       setSaving(true);
-      await submitFantaSchedina(docRef, selectedRound, teamId, picks);
+      await submitFantaSchedina(
+        docRef,
+        selectedRound,
+        teamId,
+        picks,
+      );
       setMessage("🔒 Schedina confermata.");
     } catch (error) {
       console.error(error);
@@ -121,8 +123,6 @@ export default function FantaSchedinaMobile({
       setSaving(false);
     }
   };
-
-  if (!round) return null;
 
   return (
     <div
@@ -133,7 +133,13 @@ export default function FantaSchedinaMobile({
         padding: "10px 12px 25px",
       }}
     >
-      <div className="card" style={{ padding: "14px", marginBottom: "10px" }}>
+      <div
+        className="card"
+        style={{
+          padding: "14px",
+          marginBottom: "10px",
+        }}
+      >
         <button
           type="button"
           onClick={onBack}
@@ -158,7 +164,9 @@ export default function FantaSchedinaMobile({
 
         <select
           value={selectedRound}
-          onChange={(event) => setSelectedRound(Number(event.target.value))}
+          onChange={(event) =>
+            setSelectedRound(Number(event.target.value))
+          }
           style={{
             width: "100%",
             marginTop: "10px",
@@ -174,36 +182,36 @@ export default function FantaSchedinaMobile({
         </select>
       </div>
 
-      <div className="card" style={{ padding: "12px", marginBottom: "10px" }}>
+      <div
+        className="card"
+        style={{
+          padding: "12px",
+          marginBottom: "10px",
+        }}
+      >
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: "10px",
-            gap: "8px",
           }}
         >
-          <strong style={{ color: "#fff" }}>{round.label}</strong>
-          <span
-            style={{
-              color: submitted ? "#38bdf8" : isOpen ? "#10b981" : "#f59e0b",
-              fontSize: "0.8rem",
-              fontWeight: 800,
-            }}
-          >
-            {submitted
-              ? "🔒 SCHEDINA CONFERMATA"
-              : isOpen
-                ? "● APERTA"
-                : "● CHIUSA"}
+          <strong style={{ color: "#fff" }}>
+            {round.label}
+          </strong>
+          <span style={{ color: submitted ? "#38bdf8" : isOpen ? "#10b981" : "#f59e0b" }}>
+            {submitted ? "🔒 SCHEDINA CONFERMATA" : isOpen ? "● APERTA" : "● CHIUSA"}
           </span>
         </div>
 
         {round.matches.map((match, index) => (
           <div
             key={`${match.home}-${match.away}`}
-            style={{ padding: "12px 0", borderTop: "1px solid #21173d" }}
+            style={{
+              padding: "12px 0",
+              borderTop: "1px solid #21173d",
+            }}
           >
             <div
               style={{
@@ -218,7 +226,9 @@ export default function FantaSchedinaMobile({
                 {match.home}
               </strong>
               <span style={{ color: "#64748b" }}>vs</span>
-              <strong style={{ color: "#e5e7eb" }}>{match.away}</strong>
+              <strong style={{ color: "#e5e7eb" }}>
+                {match.away}
+              </strong>
             </div>
 
             <div style={{ display: "flex", gap: "6px" }}>
@@ -240,8 +250,7 @@ export default function FantaSchedinaMobile({
                       background: active ? "#12304a" : "#100822",
                       color: active ? "#38bdf8" : "#cbd5e1",
                       fontWeight: 900,
-                      cursor:
-                        isOpen && !submitted ? "pointer" : "not-allowed",
+                      cursor: isOpen && !submitted ? "pointer" : "not-allowed",
                     }}
                   >
                     {sign}
@@ -255,7 +264,11 @@ export default function FantaSchedinaMobile({
 
       <div
         className="card"
-        style={{ padding: "12px", marginBottom: "10px", textAlign: "center" }}
+        style={{
+          padding: "12px",
+          marginBottom: "10px",
+          textAlign: "center",
+        }}
       >
         <strong style={{ color: "#fff" }}>
           {completed} / {round.matches.length} pronostici
@@ -264,21 +277,21 @@ export default function FantaSchedinaMobile({
         <button
           type="button"
           onClick={confirm}
-          disabled={
-            !isOpen || submitted || saving || completed !== round.matches.length
-          }
+          disabled={!isOpen || submitted || saving || completed !== round.matches.length}
           className="btn btn-green"
-          style={{ width: "100%", marginTop: "10px", padding: "12px" }}
+          style={{
+            width: "100%",
+            marginTop: "10px",
+            padding: "12px",
+          }}
         >
-          {submitted
-            ? "🔒 SCHEDINA CONFERMATA"
-            : saving
-              ? "SALVATAGGIO..."
-              : "CONFERMA SCHEDINA"}
+          {saving ? "SALVATAGGIO..." : submitted ? "🔒 SCHEDINA CONFERMATA" : "CONFERMA SCHEDINA"}
         </button>
 
         {message && (
-          <div style={{ marginTop: "10px", color: "#cbd5e1" }}>{message}</div>
+          <div style={{ marginTop: "10px", color: "#cbd5e1" }}>
+            {message}
+          </div>
         )}
 
         {getRoundResults(session, selectedRound).length > 0 && (
@@ -288,50 +301,25 @@ export default function FantaSchedinaMobile({
         )}
       </div>
 
-      <section className="card" style={{ padding: "12px", marginBottom: "10px" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "12px",
-          }}
-        >
-          <div>
-            <div style={{ color: "#94a3b8", fontSize: "0.72rem" }}>
-              FANTA SCHEDINA
-            </div>
-            <h3 style={{ color: "#fff", margin: "3px 0 0" }}>
-              🎯 Schedine giocate
-            </h3>
-          </div>
-          <span style={{ color: "#64748b", fontSize: "0.75rem" }}>
-            {round.label}
-          </span>
+      <div className="card" style={{ padding: "12px", marginBottom: "10px" }}>
+        <div style={{ color: "#fff", fontWeight: 900, marginBottom: "10px" }}>
+          🎯 Schedine giocate — {round.label}
         </div>
 
         {playedCards.length === 0 ? (
-          <div
-            style={{
-              padding: "18px 10px",
-              textAlign: "center",
-              color: "#94a3b8",
-              border: "1px dashed #33214f",
-              borderRadius: "10px",
-            }}
-          >
+          <div style={{ color: "#94a3b8", textAlign: "center", padding: "12px 4px" }}>
             Nessuna schedina confermata per questa giornata.
           </div>
         ) : (
           <div style={{ display: "grid", gap: "10px" }}>
             {playedCards.map((card) => (
               <div
-                key={String(card.id)}
+                key={card.id}
                 style={{
-                  background: "#100822",
-                  border: "1px solid #21173d",
+                  border: "1px solid #33214f",
                   borderRadius: "12px",
                   padding: "12px",
+                  background: "#100822",
                 }}
               >
                 <div
@@ -339,82 +327,43 @@ export default function FantaSchedinaMobile({
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "10px",
+                    marginBottom: "8px",
                   }}
                 >
                   <strong style={{ color: "#fff" }}>👤 {card.nome}</strong>
-                  <span
-                    style={{
-                      color: "#38bdf8",
-                      fontSize: "0.72rem",
-                      fontWeight: 800,
-                    }}
-                  >
+                  <span style={{ color: "#10b981", fontSize: "0.78rem", fontWeight: 900 }}>
                     🔒 CONFERMATA
                   </span>
                 </div>
 
-                <div style={{ display: "grid", gap: "6px" }}>
-                  {round.matches.map((match, index) => (
-                    <div
-                      key={`${card.id}-${match.home}-${match.away}`}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr auto 1fr 32px",
-                        gap: "6px",
-                        alignItems: "center",
-                        padding: "7px 0",
-                        borderTop: index ? "1px solid #21173d" : "0",
-                      }}
-                    >
-                      <span
-                        style={{
-                          color: "#cbd5e1",
-                          textAlign: "right",
-                          fontSize: "0.78rem",
-                        }}
-                      >
-                        {match.home}
-                      </span>
-                      <span style={{ color: "#475569", fontSize: "0.72rem" }}>
-                        -
-                      </span>
-                      <span style={{ color: "#cbd5e1", fontSize: "0.78rem" }}>
-                        {match.away}
-                      </span>
-                      <strong
-                        style={{
-                          color: "#38bdf8",
-                          textAlign: "center",
-                          background: "#12304a",
-                          borderRadius: "6px",
-                          padding: "5px 0",
-                        }}
-                      >
-                        {card.picks[index] || "-"}
-                      </strong>
-                    </div>
-                  ))}
-                </div>
+                {round.matches.map((match, index) => (
+                  <div
+                    key={`${card.id}-${match.home}-${match.away}`}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      gap: "8px",
+                      padding: "7px 0",
+                      borderTop: index === 0 ? "1px solid #21173d" : "0",
+                    }}
+                  >
+                    <span style={{ color: "#cbd5e1", fontSize: "0.84rem" }}>
+                      {match.home} - {match.away}
+                    </span>
+                    <strong style={{ color: "#38bdf8" }}>
+                      {card.picks[index] || "—"}
+                    </strong>
+                  </div>
+                ))}
 
-                <div
-                  style={{
-                    marginTop: "10px",
-                    paddingTop: "9px",
-                    borderTop: "1px solid #21173d",
-                    textAlign: "right",
-                    color: "#94a3b8",
-                    fontSize: "0.78rem",
-                  }}
-                >
-                  Punti: <strong style={{ color: "#fff" }}>{card.points}</strong>
+                <div style={{ marginTop: "8px", color: "#10b981", textAlign: "right" }}>
+                  Punti: <strong>{card.points}</strong>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }
