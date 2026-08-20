@@ -8,6 +8,7 @@ import RostersView from "./components/RostersView";
 import TeamConfiguration from "./components/TeamConfiguration";
 import TeamsSummary from "./components/TeamsSummary";
 import FantaSchedinaAdminView from "../schedina/FantaSchedinaAdminView";
+import HighlanderAdminView from "../highlander/HighlanderAdminView";
 import AdminAuctionProvider from "./context/AdminAuctionProvider";
 import { useAdminAuctionContext } from "./context/useAuctionContexts";
 
@@ -32,6 +33,8 @@ function AdminAuctionContent() {
         <CalendarView />
       ) : vistaCorrente === "schedina" ? (
         <FantaSchedinaAdminView />
+      ) : vistaCorrente === "highlander" ? (
+        <HighlanderAdminView />
       ) : (
         <PlaceholderView />
       )}

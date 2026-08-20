@@ -38,6 +38,14 @@ export default function AppNavigation() {
         🎟️ Fanta Schedina
       </span>
 
+
+      <span
+        onClick={() => setVistaCorrente("highlander")}
+        style={itemStyle(vistaCorrente === "highlander")}
+      >
+        🏆 Highlander
+      </span>
+
       <span
         onClick={() => setVistaCorrente("classifica")}
         style={itemStyle(vistaCorrente === "classifica")}
