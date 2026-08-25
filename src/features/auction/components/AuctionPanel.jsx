@@ -3,6 +3,7 @@ import {
   useAuctionSessionContext,
 } from "../context/useAuctionContexts";
 import { completeContextualSwitch } from "../auctionActions";
+import { getTeamShirtUrl } from "@/utils/teamShirt";
 
 export default function AuctionPanel() {
   const {
@@ -59,11 +60,8 @@ export default function AuctionPanel() {
   // IMMAGINI
   // =====================================================
 
-  const playerImage = player?.id ? `/images/players/${player.id}.png` : null;
-
-  const lastPurchaseImage = lastPurchase?.id
-    ? `/images/players/${lastPurchase.id}.png`
-    : null;
+  const playerImage = getTeamShirtUrl(player?.squadra);
+  const lastPurchaseImage = getTeamShirtUrl(lastPurchase?.squadra);
 
   // =====================================================
   // DISABILITAZIONE OFFERTE
@@ -254,13 +252,13 @@ export default function AuctionPanel() {
               {lastPurchaseImage && (
                 <img
                   src={lastPurchaseImage}
-                  alt={lastPurchase.calciatore}
+                  alt={`Maglia ${lastPurchase.squadra || ""}`}
                   onError={(event) => {
                     event.currentTarget.style.display = "none";
                   }}
                   style={{
                     width: "90px",
-                    height: "110px",
+                    height: "120px",
 
                     objectFit: "contain",
 
@@ -454,7 +452,7 @@ export default function AuctionPanel() {
           {playerImage ? (
             <img
               src={playerImage}
-              alt={player.nome}
+              alt={`Maglia ${player.squadra || ""}`}
               onError={(event) => {
                 event.currentTarget.style.display = "none";
               }}

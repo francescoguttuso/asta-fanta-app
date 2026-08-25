@@ -4,6 +4,7 @@ import { CALENDARIO_CAMPIONATO } from "@/data/calendarioData";
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 import {
   calculateSchedinaPoints,
+  calculateSchedinaCumulativeRanking,
   getRoundPicks,
   getRoundResults,
   hasSubmittedRound,
@@ -82,46 +83,10 @@ export default function FantaSchedinaMobile({
       .filter(Boolean);
   }, [partecipanti, roundState, round, session, selectedRound]);
 
-  const cumulativeRanking = useMemo(() => {
-    return partecipanti
-      .map((participant) => {
-        let total = 0;
-
-        for (let roundIndex = 1; roundIndex <= CALENDARIO_CAMPIONATO.length; roundIndex += 1) {
-          const state = session?.fantaSchedina?.rounds?.[roundIndex] || {};
-          const allPicks = state.picks || {};
-          const allSubmittedAt = state.submittedAt || {};
-          const rawPicks =
-            allPicks[String(participant.id)] ??
-            allPicks[participant.id] ??
-            [];
-          const roundPicks = Array.isArray(rawPicks) ? rawPicks : [];
-          const explicitlySubmitted = Boolean(
-            allSubmittedAt[String(participant.id)] ||
-            allSubmittedAt[participant.id],
-          );
-          const roundMatches = CALENDARIO_CAMPIONATO[roundIndex - 1]?.matches || [];
-          const legacySubmitted =
-            !explicitlySubmitted &&
-            roundPicks.length === roundMatches.length &&
-            roundMatches.length > 0;
-
-          if (explicitlySubmitted || legacySubmitted) {
-            total += calculateSchedinaPoints(
-              roundPicks,
-              getRoundResults(session, roundIndex),
-            );
-          }
-        }
-
-        return {
-          id: participant.id,
-          nome: participant?.nome || participant?.name || `Squadra ${participant.id}`,
-          total,
-        };
-      })
-      .sort((a, b) => b.total - a.total);
-  }, [partecipanti, session]);
+  const cumulativeRanking = useMemo(
+    () => calculateSchedinaCumulativeRanking(session, partecipanti),
+    [partecipanti, session],
+  );
 
   const choose = (matchIndex, sign) => {
     if (!isOpen || submitted) return;
@@ -445,9 +410,16 @@ export default function FantaSchedinaMobile({
                       </span>
                     )}
                   </div>
-                  <strong style={{ color: "#38bdf8", whiteSpace: "nowrap" }}>
-                    {row.total} pt
-                  </strong>
+                  <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    <strong style={{ color: "#38bdf8" }}>
+                      {row.total} pt
+                    </strong>
+                    {row.adjustment !== 0 && (
+                      <div style={{ color: row.adjustment < 0 ? "#f87171" : "#34d399", fontSize: "0.7rem" }}>
+                        correzione {row.adjustment > 0 ? "+" : ""}{row.adjustment}
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}

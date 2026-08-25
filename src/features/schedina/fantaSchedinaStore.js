@@ -92,3 +92,71 @@ export function calculateSchedinaPoints(picks, results) {
     0,
   );
 }
+
+export function getSchedinaRankingAdjustments(session) {
+  return session?.fantaSchedina?.rankingAdjustments || {};
+}
+
+export function getSchedinaRankingAdjustment(session, teamId) {
+  const adjustments = getSchedinaRankingAdjustments(session);
+  const raw = adjustments[String(teamId)] ?? adjustments[teamId];
+  if (raw && typeof raw === "object") return Number(raw.points || 0);
+  return Number(raw || 0);
+}
+
+export function calculateSchedinaCumulativeRanking(session, participants = []) {
+  return participants
+    .map((participant) => {
+      let baseTotal = 0;
+      let playedRounds = 0;
+
+      for (let roundIndex = 1; roundIndex <= 38; roundIndex += 1) {
+        const state = session?.fantaSchedina?.rounds?.[roundIndex] || {};
+        const allPicks = state.picks || {};
+        const allSubmittedAt = state.submittedAt || {};
+        const rawPicks =
+          allPicks[String(participant.id)] ??
+          allPicks[participant.id] ??
+          [];
+        const roundPicks = Array.isArray(rawPicks) ? rawPicks : [];
+        const explicitlySubmitted = Boolean(
+          allSubmittedAt[String(participant.id)] ||
+          allSubmittedAt[participant.id],
+        );
+        const matches = state.results || [];
+        const storedPoints = state.pointsByTeam || {};
+        const storedPointsValue =
+          storedPoints[String(participant.id)] ??
+          storedPoints[participant.id];
+
+        const hasStoredPoints =
+          storedPointsValue !== undefined && storedPointsValue !== null;
+
+        const roundCalendarLength = matches.length;
+        const legacySubmitted =
+          !explicitlySubmitted &&
+          roundPicks.length > 0 &&
+          roundCalendarLength > 0;
+
+        if (explicitlySubmitted || legacySubmitted || hasStoredPoints) {
+          playedRounds += 1;
+
+          baseTotal += hasStoredPoints
+            ? Number(storedPointsValue || 0)
+            : calculateSchedinaPoints(roundPicks, matches);
+        }
+      }
+
+      const adjustment = getSchedinaRankingAdjustment(session, participant.id);
+
+      return {
+        id: participant.id,
+        nome: participant?.nome || participant?.name || `Squadra ${participant.id}`,
+        baseTotal,
+        adjustment,
+        total: baseTotal + adjustment,
+        playedRounds,
+      };
+    })
+    .sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
+}

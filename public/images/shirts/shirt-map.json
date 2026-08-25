@@ -1,0 +1,62 @@
+{
+  "atalanta": {
+    "file": "atalanta.png"
+  },
+  "bologna": {
+    "file": "bologna.png"
+  },
+  "cagliari": {
+    "file": "cagliari.png"
+  },
+  "como": {
+    "file": "como.png"
+  },
+  "fiorentina": {
+    "file": "fiorentina.png"
+  },
+  "frosinone": {
+    "file": "frosinone.png"
+  },
+  "genoa": {
+    "file": "genoa.png"
+  },
+  "inter": {
+    "file": "inter.png"
+  },
+  "juventus": {
+    "file": "juventus.png"
+  },
+  "lazio": {
+    "file": "lazio.png"
+  },
+  "lecce": {
+    "file": "lecce.png"
+  },
+  "milan": {
+    "file": "milan.png"
+  },
+  "monza": {
+    "file": "monza.png"
+  },
+  "napoli": {
+    "file": "napoli.png"
+  },
+  "parma": {
+    "file": "parma.png"
+  },
+  "roma": {
+    "file": "roma.png"
+  },
+  "sassuolo": {
+    "file": "sassuolo.png"
+  },
+  "torino": {
+    "file": "torino.png"
+  },
+  "udinese": {
+    "file": "udinese.png"
+  },
+  "venezia": {
+    "file": "venezia.png"
+  }
+}

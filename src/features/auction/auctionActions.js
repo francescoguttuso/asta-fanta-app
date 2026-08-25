@@ -456,6 +456,7 @@ export const buildPlayerAssignment = ({
   const lastPurchase = {
     id: player.id,
     calciatore: player.nome,
+    squadra: player.squadra,
     ruolo: player.ruolo,
     vincitoreNome: winner.nome,
     prezzo: price,

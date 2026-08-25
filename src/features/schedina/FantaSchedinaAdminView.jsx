@@ -4,7 +4,9 @@ import { CALENDARIO_CAMPIONATO } from "@/data/calendarioData";
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 import {
   calculateSchedinaPoints,
+  calculateSchedinaCumulativeRanking,
   getRoundResults,
+  getSchedinaRankingAdjustments,
 } from "./fantaSchedinaStore";
 
 const SIGNS = ["1", "X", "2"];
@@ -22,6 +24,8 @@ export default function FantaSchedinaAdminView() {
   const [roundSaving, setRoundSaving] = useState(false);
   const [editingTeamId, setEditingTeamId] = useState(null);
   const [editingPicks, setEditingPicks] = useState([]);
+  const [rankingAdjustments, setRankingAdjustments] = useState({});
+  const [savingAdjustment, setSavingAdjustment] = useState(null);
 
   useEffect(() => {
     if (!docRef) return undefined;
@@ -70,39 +74,14 @@ export default function FantaSchedinaAdminView() {
     [partecipanti, picksByTeam, results],
   );
 
-  const cumulativeRanking = useMemo(() => {
-    return partecipanti
-      .map((participant) => {
-        let total = 0;
-        let playedRounds = 0;
+  const cumulativeRanking = useMemo(
+    () => calculateSchedinaCumulativeRanking(session, partecipanti),
+    [partecipanti, session],
+  );
 
-        for (let roundIndex = 1; roundIndex <= CALENDARIO_CAMPIONATO.length; roundIndex += 1) {
-          const state =
-            session?.fantaSchedina?.rounds?.[roundIndex] || {};
-
-          const rawPicks =
-            state.picks?.[String(participant.id)] ??
-            state.picks?.[participant.id] ??
-            [];
-
-          const roundPicks = Array.isArray(rawPicks) ? rawPicks : [];
-          const roundResults = getRoundResults(session, roundIndex);
-
-          if (roundPicks.length > 0) {
-            playedRounds += 1;
-            total += calculateSchedinaPoints(roundPicks, roundResults);
-          }
-        }
-
-        return {
-          id: participant.id,
-          nome: getParticipantName(participant),
-          total,
-          playedRounds,
-        };
-      })
-      .sort((a, b) => b.total - a.total);
-  }, [partecipanti, session]);
+  useEffect(() => {
+    setRankingAdjustments(getSchedinaRankingAdjustments(session));
+  }, [session]);
 
   const setResult = (index, sign) => {
     setResults((current) => {
@@ -152,10 +131,18 @@ export default function FantaSchedinaAdminView() {
 
     try {
       setSaving(true);
-      await updateDoc(docRef, {
+      const roundResults = getRoundResults(session, selectedRound);
+      const updates = {
         [`fantaSchedina.rounds.${selectedRound}.picks.${teamId}`]: editingPicks,
         [`fantaSchedina.rounds.${selectedRound}.submittedAt.${teamId}`]: new Date().toISOString(),
-      });
+      };
+
+      if (roundResults.length > 0) {
+        updates[`fantaSchedina.rounds.${selectedRound}.pointsByTeam.${teamId}`] =
+          calculateSchedinaPoints(editingPicks, roundResults);
+      }
+
+      await updateDoc(docRef, updates);
       setEditingTeamId(null);
       setEditingPicks([]);
     } catch (error) {
@@ -181,6 +168,7 @@ export default function FantaSchedinaAdminView() {
       await updateDoc(docRef, {
         [`fantaSchedina.rounds.${selectedRound}.picks.${teamId}`]: deleteField(),
         [`fantaSchedina.rounds.${selectedRound}.submittedAt.${teamId}`]: deleteField(),
+        [`fantaSchedina.rounds.${selectedRound}.pointsByTeam.${teamId}`]: deleteField(),
       });
     } catch (error) {
       console.error("Errore cancellazione schedina:", error);
@@ -190,28 +178,27 @@ export default function FantaSchedinaAdminView() {
     }
   };
 
-  const resetResults = async () => {
-    if (!docRef || !round) return;
+  const saveRankingAdjustment = async (teamId) => {
+    if (!docRef) return;
 
-    const confirmed = window.confirm(
-      `Azzerare tutti i risultati della ${round.label}?`,
-    );
-
-    if (!confirmed) return;
+    const current = rankingAdjustments[String(teamId)] || {};
+    const points = Number(current.points || 0);
+    const reason = String(current.reason || "").trim();
 
     try {
-      setSaving(true);
-
+      setSavingAdjustment(teamId);
       await updateDoc(docRef, {
-        [`fantaSchedina.rounds.${selectedRound}.results`]: deleteField(),
+        [`fantaSchedina.rankingAdjustments.${teamId}`]: {
+          points: Number.isFinite(points) ? points : 0,
+          reason,
+          updatedAt: new Date().toISOString(),
+        },
       });
-
-      setResults([]);
     } catch (error) {
-      console.error("Errore azzeramento risultati FantaSchedina:", error);
-      alert("Impossibile azzerare i risultati.");
+      console.error("Errore modifica classifica FantaSchedina:", error);
+      alert("Impossibile salvare la correzione della classifica.");
     } finally {
-      setSaving(false);
+      setSavingAdjustment(null);
     }
   };
 
@@ -221,8 +208,24 @@ export default function FantaSchedinaAdminView() {
     try {
       setSaving(true);
 
+      const pointsByTeam = {};
+      const roundPicks = roundState.picks || {};
+
+      partecipanti.forEach((participant) => {
+        const picks =
+          roundPicks[String(participant.id)] ??
+          roundPicks[participant.id] ??
+          [];
+
+        pointsByTeam[String(participant.id)] = calculateSchedinaPoints(
+          Array.isArray(picks) ? picks : [],
+          results,
+        );
+      });
+
       await updateDoc(docRef, {
         [`fantaSchedina.rounds.${selectedRound}.results`]: results,
+        [`fantaSchedina.rounds.${selectedRound}.pointsByTeam`]: pointsByTeam,
       });
     } catch (error) {
       console.error("Errore salvataggio risultati FantaSchedina:", error);
@@ -434,24 +437,6 @@ export default function FantaSchedinaAdminView() {
           >
             {saving ? "SALVATAGGIO..." : "SALVA RISULTATI"}
           </button>
-
-          <button
-            type="button"
-            onClick={resetResults}
-            disabled={saving || results.length === 0}
-            style={{
-              border: "1px solid #7f1d1d",
-              background: "#2a0d14",
-              color: "#f87171",
-              borderRadius: 8,
-              padding: "10px 14px",
-              fontWeight: 900,
-              cursor: saving || results.length === 0 ? "not-allowed" : "pointer",
-              opacity: saving || results.length === 0 ? 0.5 : 1,
-            }}
-          >
-            🗑️ AZZERA RISULTATI
-          </button>
         </div>
       </section>
 
@@ -591,53 +576,107 @@ export default function FantaSchedinaAdminView() {
       </section>
 
       <section>
-        <h3 style={{ color: "#fff", marginBottom: 10 }}>
+        <h3 style={{ color: "#fff", marginBottom: 6 }}>
           🏆 Classifica FantaSchedina
         </h3>
+        <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 10 }}>
+          La classifica è cumulativa e non viene azzerata: i punti delle giornate restano salvati e vengono sommati automaticamente.
+          Le correzioni inserite qui sono separate dai risultati delle partite.
+        </div>
 
-        <div
-          style={{
-            display: "grid",
-            gap: 6,
-          }}
-        >
-          {cumulativeRanking.map((row, index) => (
-            <div
-              key={row.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "10px 12px",
-                borderBottom: "1px solid #170f2a",
-                color: "#cbd5e1",
-              }}
-            >
-              <span>
-                <strong style={{ color: "#fff", marginRight: 8 }}>
-                  {index + 1}.
+        <div style={{ display: "grid", gap: 7 }}>
+          {cumulativeRanking.map((row, index) => {
+            const adjustment = rankingAdjustments[String(row.id)] || {};
+            const value = adjustment.points ?? row.adjustment ?? 0;
+            const reason = adjustment.reason ?? "";
+
+            return (
+              <div
+                key={row.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(180px, 1fr) 90px 180px 70px 90px",
+                  gap: 8,
+                  alignItems: "center",
+                  padding: "9px 10px",
+                  borderBottom: "1px solid #170f2a",
+                }}
+              >
+                <div>
+                  <strong style={{ color: "#fff" }}>{index + 1}. {row.nome}</strong>
+                  <div style={{ color: "#64748b", fontSize: 11 }}>
+                    {row.playedRounds} giornate · base {row.baseTotal} pt
+                  </div>
+                </div>
+
+                <strong style={{ color: "#38bdf8", textAlign: "center" }}>
+                  {row.total} pt
                 </strong>
-                {row.nome}
-                <small
-                  style={{
-                    color: "#64748b",
-                    marginLeft: 8,
-                  }}
-                >
-                  {row.playedRounds} giornate
-                </small>
-              </span>
 
-              <strong style={{ color: "#38bdf8", fontSize: 17 }}>
-                {row.total} pt
-              </strong>
-            </div>
-          ))}
+                <input
+                  type="text"
+                  value={reason}
+                  placeholder="Motivo penalità/correzione"
+                  onChange={(event) =>
+                    setRankingAdjustments((current) => ({
+                      ...current,
+                      [row.id]: { ...current[String(row.id)], points: value, reason: event.target.value },
+                    }))
+                  }
+                  style={inputStyle}
+                />
+
+                <input
+                  type="number"
+                  step="1"
+                  value={value}
+                  onChange={(event) =>
+                    setRankingAdjustments((current) => ({
+                      ...current,
+                      [row.id]: { ...current[String(row.id)], points: event.target.value, reason },
+                    }))
+                  }
+                  title="Correzione punti: usare un numero negativo per una penalità"
+                  style={{ ...inputStyle, textAlign: "center" }}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => saveRankingAdjustment(row.id)}
+                  disabled={savingAdjustment === row.id}
+                  style={saveButtonStyle}
+                >
+                  {savingAdjustment === row.id ? "..." : "SALVA"}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </section>
     </div>
   );
 }
+
+const inputStyle = {
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "7px 8px",
+  borderRadius: 7,
+  border: "1px solid #33214f",
+  background: "#100822",
+  color: "#fff",
+  fontSize: 12,
+};
+
+const saveButtonStyle = {
+  border: "1px solid #14532d",
+  background: "#0b2a20",
+  color: "#34d399",
+  borderRadius: 7,
+  padding: "7px 8px",
+  fontWeight: 900,
+  cursor: "pointer",
+};
 
 const thStyle = {
   textAlign: "center",

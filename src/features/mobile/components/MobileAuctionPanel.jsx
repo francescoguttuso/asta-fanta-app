@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getTeamShirtUrl } from "@/utils/teamShirt";
 
 export default function MobileAuctionPanel({
   player,
@@ -18,25 +19,19 @@ export default function MobileAuctionPanel({
   onSwitch,
 }) {
   const [playerImageSrc, setPlayerImageSrc] = useState(
-    player?.id ? `/images/players/${player.id}.png` : null,
+    getTeamShirtUrl(player?.squadra),
   );
-  const [playerImageRetry, setPlayerImageRetry] = useState(0);
   const [lastPurchaseImageSrc, setLastPurchaseImageSrc] = useState(
-    lastPurchase?.id ? `/images/players/${lastPurchase.id}.png` : null,
+    getTeamShirtUrl(lastPurchase?.squadra),
   );
-  const [lastPurchaseRetry, setLastPurchaseRetry] = useState(0);
 
   useEffect(() => {
-    setPlayerImageRetry(0);
-    setPlayerImageSrc(player?.id ? `/images/players/${player.id}.png` : null);
-  }, [player?.id]);
+    setPlayerImageSrc(getTeamShirtUrl(player?.squadra));
+  }, [player?.id, player?.squadra]);
 
   useEffect(() => {
-    setLastPurchaseRetry(0);
-    setLastPurchaseImageSrc(
-      lastPurchase?.id ? `/images/players/${lastPurchase.id}.png` : null,
-    );
-  }, [lastPurchase?.id]);
+    setLastPurchaseImageSrc(getTeamShirtUrl(lastPurchase?.squadra));
+  }, [lastPurchase?.id, lastPurchase?.squadra]);
 
   // =====================================================
   // NESSUN GIOCATORE IN ASTA
@@ -193,23 +188,15 @@ export default function MobileAuctionPanel({
         >
           <img
             src={playerImageSrc}
-            alt={player.nome}
+            alt={`Maglia ${player.squadra || ""}`}
             style={{
               width: "105px",
               height: "150px",
               objectFit: "contain",
               borderRadius: "12px",
             }}
-            onError={() => {
-              if (playerImageRetry < 3) {
-                const nextRetry = playerImageRetry + 1;
-                setPlayerImageRetry(nextRetry);
-                setTimeout(() => {
-                  setPlayerImageSrc(`/images/players/${player.id}.png?v=${nextRetry}`);
-                }, 250 * nextRetry);
-              } else {
-                setPlayerImageSrc(null);
-              }
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
             }}
           />
         </div>
@@ -503,7 +490,7 @@ export default function MobileAuctionPanel({
           {lastPurchase.id && (
             <img
               src={lastPurchaseImageSrc}
-              alt={lastPurchase.calciatore}
+              alt={`Maglia ${lastPurchase.squadra || ""}`}
               style={{
                 width: "80px",
                 height: "80px",
@@ -513,16 +500,8 @@ export default function MobileAuctionPanel({
                 border: "1px solid #334155",
                 marginBottom: "8px",
               }}
-              onError={() => {
-                if (lastPurchaseRetry < 3) {
-                  const nextRetry = lastPurchaseRetry + 1;
-                  setLastPurchaseRetry(nextRetry);
-                  setTimeout(() => {
-                    setLastPurchaseImageSrc(`/images/players/${lastPurchase.id}.png?v=${nextRetry}`);
-                  }, 250 * nextRetry);
-                } else {
-                  setLastPurchaseImageSrc(null);
-                }
+              onError={(event) => {
+                event.currentTarget.style.display = "none";
               }}
             />
           )}
