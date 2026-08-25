@@ -32,7 +32,7 @@ export default function FantaSchedinaMobileGuard({
 
   if (!session) return null;
 
-  const round = session?.fantaSchedina?.rounds?.[roundIndex] || {};
+  const round = session?.rounds?.[roundIndex] || {};
   const alreadySubmitted = hasSubmittedRound(session, roundIndex, teamId);
   const allowed = canSubmitFromMobile(session, roundIndex, teamId);
 

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { onSnapshot } from "firebase/firestore";
 import {
+  HIGHLANDER_REF,
+  ensureHighlanderDocument,
   HIGHLANDER_BLOCKS,
   blockIsComplete,
   calculateBlockRanking,
@@ -20,7 +22,7 @@ import { useAuctionSessionContext } from "../auction/context/useAuctionContexts"
 const ROUND_OPTIONS = Array.from({ length: 19 }, (_, index) => index + 1);
 
 export default function HighlanderAdminView() {
-  const { docRef, partecipanti = [] } = useAuctionSessionContext();
+  const { docRef: auctionDocRef, partecipanti = [] } = useAuctionSessionContext();
 
   const [session, setSession] = useState(null);
   const [selectedBlock, setSelectedBlock] = useState(1);
@@ -28,12 +30,15 @@ export default function HighlanderAdminView() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!docRef) return undefined;
+    if (!auctionDocRef) return undefined;
+    ensureHighlanderDocument(auctionDocRef).catch((error) =>
+      console.error("Errore inizializzazione Highlander:", error),
+    );
 
-    return onSnapshot(docRef, (snap) => {
+    return onSnapshot(HIGHLANDER_REF, (snap) => {
       if (snap.exists()) setSession(snap.data());
     });
-  }, [docRef]);
+  }, [auctionDocRef]);
 
   const state = getHighlanderState(session);
   const survivors = getSurvivors(session);
@@ -90,7 +95,7 @@ export default function HighlanderAdminView() {
   const saveRound = async (round) => {
     try {
       setSaving(true);
-      await saveHighlanderRoundScores(docRef, round, scoresByRound[round] || {});
+      await saveHighlanderRoundScores(HIGHLANDER_REF, round, scoresByRound[round] || {});
     } catch (error) {
       console.error(error);
       alert("Impossibile salvare i risultati Highlander.");
@@ -106,7 +111,7 @@ export default function HighlanderAdminView() {
 
     try {
       setSaving(true);
-      await resetHighlanderRoundScores(docRef, round);
+      await resetHighlanderRoundScores(HIGHLANDER_REF, round);
       setScoresByRound((current) => {
         const next = { ...current };
         delete next[round];
@@ -129,7 +134,7 @@ export default function HighlanderAdminView() {
 
     try {
       setSaving(true);
-      await resetHighlander(docRef);
+      await resetHighlander(HIGHLANDER_REF);
       setScoresByRound({});
       setSession((current) => ({
         ...(current || {}),
@@ -161,7 +166,7 @@ export default function HighlanderAdminView() {
     try {
       setSaving(true);
       await confirmBlockElimination(
-        docRef,
+        HIGHLANDER_REF,
         selectedBlock,
         candidate.id,
         nextSurvivors,
@@ -183,7 +188,7 @@ export default function HighlanderAdminView() {
   const saveFinal = async () => {
     try {
       setSaving(true);
-      await saveHighlanderFinalScores(docRef, finalScores);
+      await saveHighlanderFinalScores(HIGHLANDER_REF, finalScores);
     } catch (error) {
       console.error(error);
       alert("Impossibile salvare i punteggi finali.");
@@ -213,7 +218,7 @@ export default function HighlanderAdminView() {
       return;
     }
 
-    await setHighlanderChampion(docRef, winner.id);
+    await setHighlanderChampion(HIGHLANDER_REF, winner.id);
   };
 
   return (
@@ -625,7 +630,7 @@ export default function HighlanderAdminView() {
                     try {
                       setSaving(true);
                       await saveHighlanderRoundScores(
-                        docRef,
+                        HIGHLANDER_REF,
                         round,
                         roundScores,
                       );

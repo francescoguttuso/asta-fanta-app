@@ -3,6 +3,8 @@ import { onSnapshot } from "firebase/firestore";
 import { CALENDARIO_CAMPIONATO } from "@/data/calendarioData";
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 import {
+  FANTA_SCHEDINA_REF,
+  ensureFantaSchedinaDocument,
   calculateSchedinaPoints,
   calculateSchedinaCumulativeRanking,
   getRoundPicks,
@@ -19,7 +21,7 @@ export default function FantaSchedinaMobile({
   teamName,
   onBack,
 }) {
-  const { partecipanti = [] } = useAuctionSessionContext();
+  const { partecipanti = [], docRef: auctionDocRef } = useAuctionSessionContext();
   const [session, setSession] = useState(null);
   const [selectedRound, setSelectedRound] = useState(1);
   const [picks, setPicks] = useState([]);
@@ -27,14 +29,17 @@ export default function FantaSchedinaMobile({
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!docRef) return undefined;
-    return onSnapshot(docRef, (snap) => {
+    if (!auctionDocRef) return undefined;
+    ensureFantaSchedinaDocument(auctionDocRef).catch((error) =>
+      console.error("Errore inizializzazione FantaSchedina:", error),
+    );
+    return onSnapshot(FANTA_SCHEDINA_REF, (snap) => {
       if (snap.exists()) setSession(snap.data());
     });
-  }, [docRef]);
+  }, [auctionDocRef]);
 
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
-  const roundState = session?.fantaSchedina?.rounds?.[selectedRound] || {};
+  const roundState = session?.rounds?.[selectedRound] || {};
   const isOpen = roundState.open === true;
   const submitted = hasSubmittedRound(session, selectedRound, teamId);
 
@@ -116,7 +121,7 @@ export default function FantaSchedinaMobile({
     try {
       setSaving(true);
       await submitFantaSchedina(
-        docRef,
+        FANTA_SCHEDINA_REF,
         selectedRound,
         teamId,
         picks,

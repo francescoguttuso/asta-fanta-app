@@ -1,4 +1,21 @@
-import { deleteField, updateDoc } from "firebase/firestore";
+import { deleteField, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { db } from "@/firebaseConfig";
+
+export const HIGHLANDER_REF = doc(db, "highlander", "stagione");
+
+export async function ensureHighlanderDocument(auctionDocRef) {
+  const target = await getDoc(HIGHLANDER_REF);
+  if (target.exists()) return target.data();
+  const source = auctionDocRef ? await getDoc(auctionDocRef) : null;
+  const legacy = source?.exists() ? source.data()?.highlander || {} : {};
+  const data = {
+    ...legacy,
+    migratedFromAuctionSession: Boolean(source?.exists() && source.data()?.highlander),
+    createdAt: new Date().toISOString(),
+  };
+  await setDoc(HIGHLANDER_REF, data, { merge: true });
+  return data;
+}
 
 export const HIGHLANDER_BLOCKS = [
   { id: 1, label: "Blocco 1", from: 1, to: 2 },

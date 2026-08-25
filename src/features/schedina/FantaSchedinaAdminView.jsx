@@ -3,6 +3,8 @@ import { deleteField, onSnapshot, updateDoc } from "firebase/firestore";
 import { CALENDARIO_CAMPIONATO } from "@/data/calendarioData";
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 import {
+  FANTA_SCHEDINA_REF,
+  ensureFantaSchedinaDocument,
   calculateSchedinaPoints,
   calculateSchedinaCumulativeRanking,
   getRoundResults,
@@ -15,7 +17,7 @@ const getParticipantName = (participant) =>
   participant?.nome || participant?.name || `Squadra ${participant?.id ?? ""}`;
 
 export default function FantaSchedinaAdminView() {
-  const { docRef, partecipanti = [] } = useAuctionSessionContext();
+  const { docRef: auctionDocRef, partecipanti = [] } = useAuctionSessionContext();
 
   const [session, setSession] = useState(null);
   const [selectedRound, setSelectedRound] = useState(1);
@@ -28,10 +30,13 @@ export default function FantaSchedinaAdminView() {
   const [savingAdjustment, setSavingAdjustment] = useState(null);
 
   useEffect(() => {
-    if (!docRef) return undefined;
+    if (!auctionDocRef) return undefined;
+    ensureFantaSchedinaDocument(auctionDocRef).catch((error) =>
+      console.error("Errore inizializzazione FantaSchedina:", error),
+    );
 
     return onSnapshot(
-      docRef,
+      FANTA_SCHEDINA_REF,
       (snap) => {
         if (snap.exists()) {
           setSession(snap.data());
@@ -41,11 +46,11 @@ export default function FantaSchedinaAdminView() {
         console.error("Errore lettura FantaSchedina:", error);
       },
     );
-  }, [docRef]);
+  }, [auctionDocRef]);
 
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
   const roundState =
-    session?.fantaSchedina?.rounds?.[selectedRound] || {};
+    session?.rounds?.[selectedRound] || {};
 
   useEffect(() => {
     setResults(roundState.results || []);
@@ -92,18 +97,18 @@ export default function FantaSchedinaAdminView() {
   };
 
   const toggleRound = async () => {
-    if (!docRef) return;
+    if (!FANTA_SCHEDINA_REF) return;
 
     try {
       setRoundSaving(true);
       const nextOpen = !Boolean(roundState.open);
 
-      await updateDoc(docRef, {
-        [`fantaSchedina.rounds.${selectedRound}.open`]: nextOpen,
-        [`fantaSchedina.rounds.${selectedRound}.lockedAt`]: nextOpen
+      await updateDoc(FANTA_SCHEDINA_REF, {
+        [`rounds.${selectedRound}.open`]: nextOpen,
+        [`rounds.${selectedRound}.lockedAt`]: nextOpen
           ? null
           : new Date().toISOString(),
-        "fantaSchedina.activeRound": nextOpen ? selectedRound : null,
+        "activeRound": nextOpen ? selectedRound : null,
       });
     } catch (error) {
       console.error("Errore apertura/chiusura giornata:", error);
@@ -127,22 +132,22 @@ export default function FantaSchedinaAdminView() {
   };
 
   const saveEditedSchedina = async (teamId, teamName) => {
-    if (!docRef || editingPicks.length !== round.matches.length) return;
+    if (editingPicks.length !== round.matches.length) return;
 
     try {
       setSaving(true);
       const roundResults = getRoundResults(session, selectedRound);
       const updates = {
-        [`fantaSchedina.rounds.${selectedRound}.picks.${teamId}`]: editingPicks,
-        [`fantaSchedina.rounds.${selectedRound}.submittedAt.${teamId}`]: new Date().toISOString(),
+        [`rounds.${selectedRound}.picks.${teamId}`]: editingPicks,
+        [`rounds.${selectedRound}.submittedAt.${teamId}`]: new Date().toISOString(),
       };
 
       if (roundResults.length > 0) {
-        updates[`fantaSchedina.rounds.${selectedRound}.pointsByTeam.${teamId}`] =
+        updates[`rounds.${selectedRound}.pointsByTeam.${teamId}`] =
           calculateSchedinaPoints(editingPicks, roundResults);
       }
 
-      await updateDoc(docRef, updates);
+      await updateDoc(FANTA_SCHEDINA_REF, updates);
       setEditingTeamId(null);
       setEditingPicks([]);
     } catch (error) {
@@ -154,7 +159,7 @@ export default function FantaSchedinaAdminView() {
   };
 
   const deleteSchedina = async (teamId, teamName) => {
-    if (!docRef) return;
+    if (!FANTA_SCHEDINA_REF) return;
 
     const confirmed = window.confirm(
       `Cancellare la schedina di ${teamName} per la ${round.label}?`,
@@ -165,10 +170,10 @@ export default function FantaSchedinaAdminView() {
     try {
       setSaving(true);
 
-      await updateDoc(docRef, {
-        [`fantaSchedina.rounds.${selectedRound}.picks.${teamId}`]: deleteField(),
-        [`fantaSchedina.rounds.${selectedRound}.submittedAt.${teamId}`]: deleteField(),
-        [`fantaSchedina.rounds.${selectedRound}.pointsByTeam.${teamId}`]: deleteField(),
+      await updateDoc(FANTA_SCHEDINA_REF, {
+        [`rounds.${selectedRound}.picks.${teamId}`]: deleteField(),
+        [`rounds.${selectedRound}.submittedAt.${teamId}`]: deleteField(),
+        [`rounds.${selectedRound}.pointsByTeam.${teamId}`]: deleteField(),
       });
     } catch (error) {
       console.error("Errore cancellazione schedina:", error);
@@ -179,7 +184,7 @@ export default function FantaSchedinaAdminView() {
   };
 
   const saveRankingAdjustment = async (teamId) => {
-    if (!docRef) return;
+    if (!FANTA_SCHEDINA_REF) return;
 
     const current = rankingAdjustments[String(teamId)] || {};
     const points = Number(current.points || 0);
@@ -187,8 +192,8 @@ export default function FantaSchedinaAdminView() {
 
     try {
       setSavingAdjustment(teamId);
-      await updateDoc(docRef, {
-        [`fantaSchedina.rankingAdjustments.${teamId}`]: {
+      await updateDoc(FANTA_SCHEDINA_REF, {
+        [`rankingAdjustments.${teamId}`]: {
           points: Number.isFinite(points) ? points : 0,
           reason,
           updatedAt: new Date().toISOString(),
@@ -203,7 +208,7 @@ export default function FantaSchedinaAdminView() {
   };
 
   const saveResults = async () => {
-    if (!docRef || !round || results.length !== round.matches.length) return;
+    if (!round || results.length !== round.matches.length) return;
 
     try {
       setSaving(true);
@@ -223,9 +228,9 @@ export default function FantaSchedinaAdminView() {
         );
       });
 
-      await updateDoc(docRef, {
-        [`fantaSchedina.rounds.${selectedRound}.results`]: results,
-        [`fantaSchedina.rounds.${selectedRound}.pointsByTeam`]: pointsByTeam,
+      await updateDoc(FANTA_SCHEDINA_REF, {
+        [`rounds.${selectedRound}.results`]: results,
+        [`rounds.${selectedRound}.pointsByTeam`]: pointsByTeam,
       });
     } catch (error) {
       console.error("Errore salvataggio risultati FantaSchedina:", error);

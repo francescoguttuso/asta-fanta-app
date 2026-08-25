@@ -25,6 +25,10 @@ export const saveAuctionSession = async ({
   timerEndsAt,
   pendingSwitch = null,
 }) => {
+  // IMPORTANTISSIMO: l'asta e la FantaSchedina condividono lo stesso
+  // documento Firestore. Senza merge:true, ogni salvataggio dell'asta
+  // sostituiva l'intero documento e cancellava fantaSchedina (schedine,
+  // risultati, punti e classifica).
   await setDoc(docRef, {
     giocatori: sortPlayersAlphabetically(players),
     partecipanti: participants,
@@ -41,7 +45,7 @@ export const saveAuctionSession = async ({
     timer,
     timerEndsAt,
     pendingSwitch,
-  });
+  }, { merge: true });
 };
 
 export const startAuctionTimer = async ({ docRef }) => {
