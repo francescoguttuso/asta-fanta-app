@@ -5,44 +5,78 @@ export const FANTA_SCHEDINA_REF = doc(db, "fanta_schedina", "stagione");
 
 function buildOpenRounds(existingRounds = {}) {
   const rounds = { ...existingRounds };
+
+  // Only missing rounds are created as OPEN.
+  // Existing rounds keep their exact open/closed state chosen by Admin.
   for (let i = 1; i <= 38; i += 1) {
     if (!rounds[i]) {
-      rounds[i] = { open: true, picks: {}, submittedAt: {}, results: [], pointsByTeam: {} };
-    } else {
-      rounds[i] = { ...rounds[i], open: true };
+      rounds[i] = {
+        open: true,
+        picks: {},
+        submittedAt: {},
+        results: [],
+        pointsByTeam: {},
+      };
     }
   }
+
   return rounds;
 }
 
-export async function ensureFantaSchedinaDocument(auctionDocRef) {
+/*
+ * FantaSchedina has its own Firestore document.
+ *
+ * IMPORTANT:
+ * - after the first creation, the auction document is never read again;
+ * - existing round state is preserved;
+ * - the auction cannot reset/recreate this document while the user scrolls
+ *   through players.
+ *
+ * auctionDocRef is accepted only for a ONE-TIME legacy migration when the
+ * independent document does not exist yet.
+ */
+export async function ensureFantaSchedinaDocument(auctionDocRef = null) {
   const target = await getDoc(FANTA_SCHEDINA_REF);
+
   if (target.exists()) {
     const current = target.data() || {};
     const rounds = current.rounds || {};
     const normalizedRounds = buildOpenRounds(rounds);
+
     const needsRoundInitialization = Object.keys(normalizedRounds).some(
       (key) => !rounds[key],
     );
 
     if (needsRoundInitialization) {
-      const normalized = { ...current, rounds: normalizedRounds };
-      await setDoc(FANTA_SCHEDINA_REF, { rounds: normalizedRounds }, { merge: true });
-      return normalized;
+      await updateDoc(FANTA_SCHEDINA_REF, {
+        rounds: normalizedRounds,
+      });
+
+      return {
+        ...current,
+        rounds: normalizedRounds,
+      };
     }
 
     return current;
   }
+
+  // ONE-TIME migration only if the independent FantaSchedina document
+  // has never existed. This is never executed again after creation.
   const source = auctionDocRef ? await getDoc(auctionDocRef) : null;
   const legacy = source?.exists() ? source.data()?.fantaSchedina || {} : {};
+
   const data = {
     ...legacy,
     rounds: buildOpenRounds(legacy.rounds || {}),
     activeRound: legacy.activeRound ?? null,
     rankingAdjustments: legacy.rankingAdjustments || {},
-    migratedFromAuctionSession: Boolean(source?.exists() && source.data()?.fantaSchedina),
+    migratedFromAuctionSession: Boolean(
+      source?.exists() && source.data()?.fantaSchedina,
+    ),
     createdAt: new Date().toISOString(),
   };
+
   await setDoc(FANTA_SCHEDINA_REF, data, { merge: true });
   return data;
 }
@@ -53,6 +87,22 @@ export async function saveFantaSchedinaPicks(docRef, roundIndex, teamId, picks) 
 }
 export async function submitFantaSchedina(docRef, roundIndex, teamId, picks) {
   if (!docRef) throw new Error("FantaSchedina non disponibile.");
+
+  const snapshot = await getDoc(docRef);
+  if (!snapshot.exists()) throw new Error("FantaSchedina non inizializzata.");
+
+  const session = snapshot.data() || {};
+  const round = session?.rounds?.[roundIndex] || {};
+  const submittedAt = round?.submittedAt || {};
+
+  if (submittedAt[String(teamId)] || submittedAt[teamId]) {
+    throw new Error("Schedina già confermata.");
+  }
+
+  if (round.open !== true) {
+    throw new Error("Giornata chiusa.");
+  }
+
   await updateDoc(docRef, {
     [`rounds.${roundIndex}.picks.${teamId}`]: Array.isArray(picks) ? picks : [],
     [`rounds.${roundIndex}.submittedAt.${teamId}`]: new Date().toISOString(),

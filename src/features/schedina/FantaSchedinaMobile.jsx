@@ -11,6 +11,7 @@ import {
   getRoundResults,
   hasSubmittedRound,
   submitFantaSchedina,
+  saveFantaSchedinaPicks,
 } from "@/features/schedina/fantaSchedinaStore";
 
 const SIGNS = ["1", "X", "2"];
@@ -29,14 +30,17 @@ export default function FantaSchedinaMobile({
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!auctionDocRef) return undefined;
+    // Independent FantaSchedina subscription. The auction does not control
+    // the lifecycle of this document.
     ensureFantaSchedinaDocument(auctionDocRef).catch((error) =>
       console.error("Errore inizializzazione FantaSchedina:", error),
     );
+
     return onSnapshot(FANTA_SCHEDINA_REF, (snap) => {
       if (snap.exists()) setSession(snap.data());
     });
-  }, [auctionDocRef]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
   const roundState = session?.rounds?.[selectedRound] || {};
@@ -95,9 +99,22 @@ export default function FantaSchedinaMobile({
 
   const choose = (matchIndex, sign) => {
     if (!isOpen || submitted) return;
+
     setPicks((current) => {
       const next = [...current];
       next[matchIndex] = sign;
+
+      // Persist every draft immediately. This prevents a remount/navigation
+      // from losing an unsubmitted schedina.
+      saveFantaSchedinaPicks(
+        FANTA_SCHEDINA_REF,
+        selectedRound,
+        teamId,
+        next,
+      ).catch((error) => {
+        console.error("Errore salvataggio pronostico:", error);
+      });
+
       return next;
     });
   };

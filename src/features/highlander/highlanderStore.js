@@ -3,16 +3,26 @@ import { db } from "@/firebaseConfig";
 
 export const HIGHLANDER_REF = doc(db, "highlander", "stagione");
 
-export async function ensureHighlanderDocument(auctionDocRef) {
+export async function ensureHighlanderDocument(auctionDocRef = null) {
   const target = await getDoc(HIGHLANDER_REF);
-  if (target.exists()) return target.data();
+
+  if (target.exists()) {
+    return target.data();
+  }
+
+  // ONE-TIME migration only. Once the independent document exists,
+  // Highlander never reads the auction document again.
   const source = auctionDocRef ? await getDoc(auctionDocRef) : null;
   const legacy = source?.exists() ? source.data()?.highlander || {} : {};
+
   const data = {
     ...legacy,
-    migratedFromAuctionSession: Boolean(source?.exists() && source.data()?.highlander),
+    migratedFromAuctionSession: Boolean(
+      source?.exists() && source.data()?.highlander,
+    ),
     createdAt: new Date().toISOString(),
   };
+
   await setDoc(HIGHLANDER_REF, data, { merge: true });
   return data;
 }

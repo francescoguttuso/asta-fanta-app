@@ -30,7 +30,9 @@ export default function FantaSchedinaAdminView() {
   const [savingAdjustment, setSavingAdjustment] = useState(null);
 
   useEffect(() => {
-    if (!auctionDocRef) return undefined;
+    // The FantaSchedina is independent from the auction.
+    // The auction ref is used only for a one-time migration if the new
+    // document has never existed.
     ensureFantaSchedinaDocument(auctionDocRef).catch((error) =>
       console.error("Errore inizializzazione FantaSchedina:", error),
     );
@@ -46,7 +48,8 @@ export default function FantaSchedinaAdminView() {
         console.error("Errore lettura FantaSchedina:", error);
       },
     );
-  }, [auctionDocRef]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
   const roundState =
