@@ -1,10 +1,9 @@
-import { getDoc,  useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { onSnapshot } from "firebase/firestore";
 import { CALENDARIO_CAMPIONATO } from "@/data/calendarioData";
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 import {
   FANTA_SCHEDINA_REF,
-  getRoundRef,
   ensureFantaSchedinaDocument,
   calculateSchedinaPoints,
   calculateSchedinaCumulativeRanking,
@@ -31,35 +30,17 @@ export default function FantaSchedinaMobile({
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    let alive = true;
+    // Independent FantaSchedina subscription. The auction does not control
+    // the lifecycle of this document.
+    ensureFantaSchedinaDocument(auctionDocRef).catch((error) =>
+      console.error("Errore inizializzazione FantaSchedina:", error),
+    );
 
-    const loadRound = async () => {
-      try {
-        await ensureFantaSchedinaDocument();
-        const snap = await getDoc(getRoundRef(selectedRound));
-        if (!alive) return;
-        setSession({
-          rounds: snap.exists() ? { [selectedRound]: snap.data() } : {},
-        });
-      } catch (error) {
-        console.error("Errore caricamento giornata FantaSchedina:", error);
-      }
-    };
-
-    loadRound();
-
-    const unsubscribe = onSnapshot(getRoundRef(selectedRound), (snap) => {
-      if (!alive) return;
-      setSession({
-        rounds: snap.exists() ? { [selectedRound]: snap.data() } : {},
-      });
+    return onSnapshot(FANTA_SCHEDINA_REF, (snap) => {
+      if (snap.exists()) setSession(snap.data());
     });
-
-    return () => {
-      alive = false;
-      unsubscribe();
-    };
-  }, [selectedRound]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
   const roundState = session?.rounds?.[selectedRound] || {};
@@ -127,7 +108,6 @@ export default function FantaSchedinaMobile({
       // from losing an unsubmitted schedina.
       saveFantaSchedinaPicks(
         FANTA_SCHEDINA_REF,
-  getRoundRef,
         selectedRound,
         teamId,
         next,
@@ -159,7 +139,6 @@ export default function FantaSchedinaMobile({
       setSaving(true);
       await submitFantaSchedina(
         FANTA_SCHEDINA_REF,
-  getRoundRef,
         selectedRound,
         teamId,
         picks,

@@ -1,11 +1,9 @@
-import { getDoc,  useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { deleteField, onSnapshot, updateDoc } from "firebase/firestore";
 import { CALENDARIO_CAMPIONATO } from "@/data/calendarioData";
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 import {
   FANTA_SCHEDINA_REF,
-  FANTA_SCHEDINA_CLASSIFICA_REF,
-  getRoundRef,
   ensureFantaSchedinaDocument,
   calculateSchedinaPoints,
   calculateSchedinaCumulativeRanking,
@@ -32,68 +30,25 @@ export default function FantaSchedinaAdminView() {
   const [savingAdjustment, setSavingAdjustment] = useState(null);
 
   useEffect(() => {
-    let alive = true;
-
-    const load = async () => {
-      try {
-        await ensureFantaSchedinaDocument();
-        const [configSnap, classificaSnap, ...roundSnaps] = await Promise.all([
-          getDoc(FANTA_SCHEDINA_REF),
-          getDoc(FANTA_SCHEDINA_CLASSIFICA_REF),
-          ...Array.from({ length: 38 }, (_, i) => getDoc(getRoundRef(i + 1))),
-        ]);
-
-        if (!alive) return;
-
-        const rounds = {};
-        roundSnaps.forEach((snap, index) => {
-          if (snap.exists()) rounds[index + 1] = snap.data();
-        });
-
-        const config = configSnap.exists() ? configSnap.data() : {};
-        const classifica = classificaSnap.exists() ? classificaSnap.data() : {};
-
-        setSession({
-          ...config,
-          ...classifica,
-          rounds,
-        });
-      } catch (error) {
-        console.error("Errore lettura FantaSchedina:", error);
-      }
-    };
-
-    load();
-
-    const unsubs = Array.from({ length: 38 }, (_, i) =>
-      onSnapshot(getRoundRef(i + 1), (snap) => {
-        if (!alive) return;
-        setSession((current) => ({
-          ...(current || {}),
-          rounds: {
-            ...(current?.rounds || {}),
-            [i + 1]: snap.exists() ? snap.data() : {},
-          },
-        }));
-      }),
+    // The FantaSchedina is independent from the auction.
+    // The auction ref is used only for a one-time migration if the new
+    // document has never existed.
+    ensureFantaSchedinaDocument(auctionDocRef).catch((error) =>
+      console.error("Errore inizializzazione FantaSchedina:", error),
     );
 
-    const unsubConfig = onSnapshot(FANTA_SCHEDINA_REF, (snap) => {
-      if (!alive || !snap.exists()) return;
-      setSession((current) => ({ ...(current || {}), ...snap.data() }));
-    });
-
-    const unsubClassifica = onSnapshot(FANTA_SCHEDINA_CLASSIFICA_REF, (snap) => {
-      if (!alive || !snap.exists()) return;
-      setSession((current) => ({ ...(current || {}), ...snap.data() }));
-    });
-
-    return () => {
-      alive = false;
-      unsubs.forEach((unsub) => unsub());
-      unsubConfig();
-      unsubClassifica();
-    };
+    return onSnapshot(
+      FANTA_SCHEDINA_REF,
+      (snap) => {
+        if (snap.exists()) {
+          setSession(snap.data());
+        }
+      },
+      (error) => {
+        console.error("Errore lettura FantaSchedina:", error);
+      },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
@@ -151,9 +106,7 @@ export default function FantaSchedinaAdminView() {
       setRoundSaving(true);
       const nextOpen = !Boolean(roundState.open);
 
-      await updateDoc(FANTA_SCHEDINA_REF,
-  FANTA_SCHEDINA_CLASSIFICA_REF,
-  getRoundRef, {
+      await updateDoc(FANTA_SCHEDINA_REF, {
         [`rounds.${selectedRound}.open`]: nextOpen,
         [`rounds.${selectedRound}.lockedAt`]: nextOpen
           ? null
@@ -197,9 +150,7 @@ export default function FantaSchedinaAdminView() {
           calculateSchedinaPoints(editingPicks, roundResults);
       }
 
-      await updateDoc(FANTA_SCHEDINA_REF,
-  FANTA_SCHEDINA_CLASSIFICA_REF,
-  getRoundRef, updates);
+      await updateDoc(FANTA_SCHEDINA_REF, updates);
       setEditingTeamId(null);
       setEditingPicks([]);
     } catch (error) {
@@ -222,9 +173,7 @@ export default function FantaSchedinaAdminView() {
     try {
       setSaving(true);
 
-      await updateDoc(FANTA_SCHEDINA_REF,
-  FANTA_SCHEDINA_CLASSIFICA_REF,
-  getRoundRef, {
+      await updateDoc(FANTA_SCHEDINA_REF, {
         [`rounds.${selectedRound}.picks.${teamId}`]: deleteField(),
         [`rounds.${selectedRound}.submittedAt.${teamId}`]: deleteField(),
         [`rounds.${selectedRound}.pointsByTeam.${teamId}`]: deleteField(),
@@ -246,9 +195,7 @@ export default function FantaSchedinaAdminView() {
 
     try {
       setSavingAdjustment(teamId);
-      await updateDoc(FANTA_SCHEDINA_REF,
-  FANTA_SCHEDINA_CLASSIFICA_REF,
-  getRoundRef, {
+      await updateDoc(FANTA_SCHEDINA_REF, {
         [`rankingAdjustments.${teamId}`]: {
           points: Number.isFinite(points) ? points : 0,
           reason,
@@ -284,9 +231,7 @@ export default function FantaSchedinaAdminView() {
         );
       });
 
-      await updateDoc(FANTA_SCHEDINA_REF,
-  FANTA_SCHEDINA_CLASSIFICA_REF,
-  getRoundRef, {
+      await updateDoc(FANTA_SCHEDINA_REF, {
         [`rounds.${selectedRound}.results`]: results,
         [`rounds.${selectedRound}.pointsByTeam`]: pointsByTeam,
       });

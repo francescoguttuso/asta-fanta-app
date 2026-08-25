@@ -1,194 +1,137 @@
-import {
-  collection,
-  deleteField,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-  updateDoc,
-} from "firebase/firestore";
+import { deleteField, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/firebaseConfig";
 
-export const FANTA_SCHEDINA_CONFIG_REF = doc(db, "fanta_schedina", "config");
-export const FANTA_SCHEDINA_CLASSIFICA_REF = doc(
-  db,
-  "fanta_schedina",
-  "classifica",
-);
-export const FANTA_SCHEDINA_GIORNATE_REF = collection(
-  db,
-  "fanta_schedina",
-  "giornate",
-);
+export const FANTA_SCHEDINA_REF = doc(db, "fanta_schedina", "stagione");
 
-// Kept as an alias so existing components that only need the store reference
-// continue to work while the actual data is now split into independent docs.
-export const FANTA_SCHEDINA_REF = FANTA_SCHEDINA_CONFIG_REF;
+function buildOpenRounds(existingRounds = {}) {
+  const rounds = { ...existingRounds };
 
-export function getRoundRef(roundIndex) {
-  return doc(db, "fanta_schedina", "giornate", String(roundIndex));
-}
+  // Only missing rounds are created as OPEN.
+  // Existing rounds keep their exact open/closed state chosen by Admin.
+  for (let i = 1; i <= 38; i += 1) {
+    if (!rounds[i]) {
+      rounds[i] = {
+        open: true,
+        picks: {},
+        submittedAt: {},
+        results: [],
+        pointsByTeam: {},
+      };
+    }
+  }
 
-function emptyRound(roundIndex) {
-  return {
-    round: Number(roundIndex),
-    open: true,
-    picks: {},
-    submittedAt: {},
-    results: [],
-    pointsByTeam: {},
-  };
+  return rounds;
 }
 
 /*
- * One-time migration:
- * - if independent round documents already exist, NEVER touch them;
- * - otherwise read the legacy fanta_schedina/stagione document once;
- * - after migration, no FantaSchedina function reads the auction document.
+ * FantaSchedina has its own Firestore document.
+ *
+ * IMPORTANT:
+ * - after the first creation, the auction document is never read again;
+ * - existing round state is preserved;
+ * - the auction cannot reset/recreate this document while the user scrolls
+ *   through players.
+ *
+ * auctionDocRef is accepted only for a ONE-TIME legacy migration when the
+ * independent document does not exist yet.
  */
 export async function ensureFantaSchedinaDocument(auctionDocRef = null) {
-  const configSnap = await getDoc(FANTA_SCHEDINA_CONFIG_REF);
+  const target = await getDoc(FANTA_SCHEDINA_REF);
 
-  if (!configSnap.exists()) {
-    let legacy = {};
-    if (auctionDocRef) {
-      const source = await getDoc(auctionDocRef);
-      if (source.exists()) legacy = source.data()?.fantaSchedina || {};
-    }
+  if (target.exists()) {
+    const current = target.data() || {};
+    const rounds = current.rounds || {};
+    const normalizedRounds = buildOpenRounds(rounds);
 
-    await setDoc(
-      FANTA_SCHEDINA_CONFIG_REF,
-      {
-        version: 2,
-        activeRound: legacy.activeRound ?? null,
-        migratedAt: new Date().toISOString(),
-      },
-      { merge: true },
+    const needsRoundInitialization = Object.keys(normalizedRounds).some(
+      (key) => !rounds[key],
     );
 
-    const legacyRounds = legacy.rounds || {};
-    for (let i = 1; i <= 38; i += 1) {
-      const ref = getRoundRef(i);
-      const existing = await getDoc(ref);
-      if (existing.exists()) continue;
-
-      const old = legacyRounds[i] || legacyRounds[String(i)];
-      await setDoc(ref, old ? { ...emptyRound(i), ...old } : emptyRound(i), {
-        merge: true,
+    if (needsRoundInitialization) {
+      await updateDoc(FANTA_SCHEDINA_REF, {
+        rounds: normalizedRounds,
       });
+
+      return {
+        ...current,
+        rounds: normalizedRounds,
+      };
     }
 
-    const classificaSnap = await getDoc(FANTA_SCHEDINA_CLASSIFICA_REF);
-    if (!classificaSnap.exists()) {
-      await setDoc(
-        FANTA_SCHEDINA_CLASSIFICA_REF,
-        {
-          rankingAdjustments: legacy.rankingAdjustments || {},
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true },
-      );
-    }
+    return current;
   }
 
-  // Ensure missing rounds exist, but NEVER reset existing rounds.
-  for (let i = 1; i <= 38; i += 1) {
-    const ref = getRoundRef(i);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      await setDoc(ref, emptyRound(i));
-    }
-  }
+  // ONE-TIME migration only if the independent FantaSchedina document
+  // has never existed. This is never executed again after creation.
+  const source = auctionDocRef ? await getDoc(auctionDocRef) : null;
+  const legacy = source?.exists() ? source.data()?.fantaSchedina || {} : {};
 
-  return (await getDoc(FANTA_SCHEDINA_CONFIG_REF)).data() || {};
+  const data = {
+    ...legacy,
+    rounds: buildOpenRounds(legacy.rounds || {}),
+    activeRound: legacy.activeRound ?? null,
+    rankingAdjustments: legacy.rankingAdjustments || {},
+    migratedFromAuctionSession: Boolean(
+      source?.exists() && source.data()?.fantaSchedina,
+    ),
+    createdAt: new Date().toISOString(),
+  };
+
+  await setDoc(FANTA_SCHEDINA_REF, data, { merge: true });
+  return data;
 }
 
-export async function saveFantaSchedinaPicks(docRefOrRound, roundIndexOrTeam, teamIdOrPicks, maybePicks) {
-  // Supports both the old signature and the new round-only signature.
-  const roundIndex =
-    maybePicks === undefined ? docRefOrRound : roundIndexOrTeam;
-  const teamId =
-    maybePicks === undefined ? roundIndexOrTeam : teamIdOrTeam;
-  const picks = maybePicks === undefined ? teamIdOrPicks : maybePicks;
-
-  const ref = getRoundRef(roundIndex);
-  await updateDoc(ref, {
-    [`picks.${teamId}`]: Array.isArray(picks) ? picks : [],
-  });
+export async function saveFantaSchedinaPicks(docRef, roundIndex, teamId, picks) {
+  if (!docRef) throw new Error("FantaSchedina non disponibile.");
+  await updateDoc(docRef, { [`rounds.${roundIndex}.picks.${teamId}`]: Array.isArray(picks) ? picks : [] });
 }
+export async function submitFantaSchedina(docRef, roundIndex, teamId, picks) {
+  if (!docRef) throw new Error("FantaSchedina non disponibile.");
 
-export async function submitFantaSchedina(docRefOrRound, roundIndexOrTeam, teamIdOrPicks, maybePicks) {
-  const roundIndex =
-    maybePicks === undefined ? docRefOrRound : roundIndexOrTeam;
-  const teamId =
-    maybePicks === undefined ? roundIndexOrTeam : teamIdOrPicks;
-  const picks = maybePicks === undefined ? teamIdOrPicks : maybePicks;
+  const snapshot = await getDoc(docRef);
+  if (!snapshot.exists()) throw new Error("FantaSchedina non inizializzata.");
 
-  const ref = getRoundRef(roundIndex);
-  const snapshot = await getDoc(ref);
-  if (!snapshot.exists()) throw new Error("Giornata non inizializzata.");
-
-  const round = snapshot.data() || {};
-  const submittedAt = round.submittedAt || {};
+  const session = snapshot.data() || {};
+  const round = session?.rounds?.[roundIndex] || {};
+  const submittedAt = round?.submittedAt || {};
 
   if (submittedAt[String(teamId)] || submittedAt[teamId]) {
     throw new Error("Schedina già confermata.");
   }
-  if (round.open !== true) throw new Error("Giornata chiusa.");
 
-  await updateDoc(ref, {
-    [`picks.${teamId}`]: Array.isArray(picks) ? picks : [],
-    [`submittedAt.${teamId}`]: new Date().toISOString(),
+  if (round.open !== true) {
+    throw new Error("Giornata chiusa.");
+  }
+
+  await updateDoc(docRef, {
+    [`rounds.${roundIndex}.picks.${teamId}`]: Array.isArray(picks) ? picks : [],
+    [`rounds.${roundIndex}.submittedAt.${teamId}`]: new Date().toISOString(),
   });
 }
-
-export async function deleteFantaSchedinaPick(docRefOrRound, roundIndexOrTeam, teamId) {
-  const roundIndex = typeof docRefOrRound === "number" ? docRefOrRound : roundIndexOrTeam;
-  const ref = getRoundRef(roundIndex);
-  await updateDoc(ref, {
-    [`picks.${teamId}`]: deleteField(),
-    [`submittedAt.${teamId}`]: deleteField(),
+export async function deleteFantaSchedinaPick(docRef, roundIndex, teamId) {
+  if (!docRef) throw new Error("FantaSchedina non disponibile.");
+  await updateDoc(docRef, {
+    [`rounds.${roundIndex}.picks.${teamId}`]: deleteField(),
+    [`rounds.${roundIndex}.submittedAt.${teamId}`]: deleteField(),
   });
 }
-
-export async function saveFantaSchedinaResults(docRefOrRound, roundIndexOrResults, resultsOrPoints, maybePoints) {
-  const roundIndex =
-    maybePoints === undefined ? docRefOrRound : roundIndexOrResults;
-  const results =
-    maybePoints === undefined ? roundIndexOrResults : resultsOrPoints;
-  const pointsByTeam =
-    maybePoints === undefined ? resultsOrPoints : maybePoints;
-
-  await updateDoc(getRoundRef(roundIndex), {
-    results: Array.isArray(results) ? results : [],
-    pointsByTeam: pointsByTeam || {},
+export async function saveFantaSchedinaResults(docRef, roundIndex, results, pointsByTeam = {}) {
+  if (!docRef) throw new Error("FantaSchedina non disponibile.");
+  await updateDoc(docRef, {
+    [`rounds.${roundIndex}.results`]: Array.isArray(results) ? results : [],
+    [`rounds.${roundIndex}.pointsByTeam`]: pointsByTeam,
   });
 }
-
-export async function setFantaSchedinaRound(docRefOrRound, roundIndexOrOpen, maybeOpen) {
-  const roundIndex =
-    maybeOpen === undefined ? docRefOrRound : roundIndexOrOpen;
-  const open = maybeOpen === undefined ? roundIndexOrOpen : maybeOpen;
-
-  await updateDoc(getRoundRef(roundIndex), {
-    open: Boolean(open),
-    lockedAt: open ? null : new Date().toISOString(),
+export async function setFantaSchedinaRound(docRef, roundIndex, open) {
+  if (!docRef) throw new Error("FantaSchedina non disponibile.");
+  await updateDoc(docRef, {
+    [`rounds.${roundIndex}.open`]: Boolean(open),
+    [`rounds.${roundIndex}.lockedAt`]: open ? null : new Date().toISOString(),
+    activeRound: open ? roundIndex : null,
   });
-
-  await setDoc(
-    FANTA_SCHEDINA_CONFIG_REF,
-    { activeRound: open ? Number(roundIndex) : null, updatedAt: new Date().toISOString() },
-    { merge: true },
-  );
 }
-
-export function getRoundState(session, roundIndex) {
-  // Compatibility helper for callers that still pass a session object.
-  return session?.rounds?.[roundIndex] || {};
-}
-export function isRoundOpen(session, roundIndex) {
-  return Boolean(getRoundState(session, roundIndex).open);
-}
+export function getRoundState(session, roundIndex) { return session?.rounds?.[roundIndex] || {}; }
+export function isRoundOpen(session, roundIndex) { return Boolean(getRoundState(session, roundIndex).open); }
 export function getRoundPicks(session, roundIndex, teamId) {
   const picks = getRoundState(session, roundIndex)?.picks || {};
   return picks[String(teamId)] ?? picks[teamId] ?? [];
@@ -200,65 +143,35 @@ export function hasSubmittedRound(session, roundIndex, teamId) {
   const picks = getRoundPicks(session, roundIndex, teamId);
   return Array.isArray(picks) && picks.length > 0;
 }
-export function canSubmitFromMobile(session, roundIndex, teamId) {
-  return isRoundOpen(session, roundIndex) && !hasSubmittedRound(session, roundIndex, teamId);
-}
+export function canSubmitFromMobile(session, roundIndex, teamId) { return isRoundOpen(session, roundIndex) && !hasSubmittedRound(session, roundIndex, teamId); }
 export function canEditFromMobile() { return false; }
-export function getRoundResults(session, roundIndex) {
-  return getRoundState(session, roundIndex).results || [];
-}
+export function getRoundResults(session, roundIndex) { return getRoundState(session, roundIndex).results || []; }
 export function calculateSchedinaPoints(picks, results) {
   if (!Array.isArray(picks) || !Array.isArray(results)) return 0;
   return results.reduce((p, r, i) => p + (picks[i] && picks[i] === r ? 1 : 0), 0);
 }
-
-export function getSchedinaRankingAdjustments(session) {
-  return session?.rankingAdjustments || {};
-}
+export function getSchedinaRankingAdjustments(session) { return session?.rankingAdjustments || {}; }
 export function getSchedinaRankingAdjustment(session, teamId) {
-  const raw =
-    getSchedinaRankingAdjustments(session)[String(teamId)] ??
-    getSchedinaRankingAdjustments(session)[teamId];
+  const raw = getSchedinaRankingAdjustments(session)[String(teamId)] ?? getSchedinaRankingAdjustments(session)[teamId];
   if (raw && typeof raw === "object") return Number(raw.points || 0);
   return Number(raw || 0);
 }
-
 export function calculateSchedinaCumulativeRanking(session, participants = []) {
   return participants.map((participant) => {
-    let baseTotal = 0;
-    let playedRounds = 0;
+    let baseTotal = 0, playedRounds = 0;
     for (let i = 1; i <= 38; i += 1) {
       const state = session?.rounds?.[i] || {};
       const picks = state.picks?.[String(participant.id)] ?? state.picks?.[participant.id] ?? [];
-      const submitted = Boolean(
-        state.submittedAt?.[String(participant.id)] ||
-        state.submittedAt?.[participant.id],
-      );
-      const stored =
-        state.pointsByTeam?.[String(participant.id)] ??
-        state.pointsByTeam?.[participant.id];
+      const submitted = Boolean(state.submittedAt?.[String(participant.id)] || state.submittedAt?.[participant.id]);
+      const stored = state.pointsByTeam?.[String(participant.id)] ?? state.pointsByTeam?.[participant.id];
       const hasStored = stored !== undefined && stored !== null;
-      const legacy =
-        !submitted &&
-        Array.isArray(picks) &&
-        picks.length > 0 &&
-        (state.results || []).length > 0;
+      const legacy = !submitted && Array.isArray(picks) && picks.length > 0 && (state.results || []).length > 0;
       if (submitted || legacy || hasStored) {
         playedRounds += 1;
-        baseTotal += hasStored
-          ? Number(stored || 0)
-          : calculateSchedinaPoints(picks, state.results || []);
+        baseTotal += hasStored ? Number(stored || 0) : calculateSchedinaPoints(picks, state.results || []);
       }
     }
-
     const adjustment = getSchedinaRankingAdjustment(session, participant.id);
-    return {
-      id: participant.id,
-      nome: participant?.nome || participant?.name || `Squadra ${participant.id}`,
-      baseTotal,
-      adjustment,
-      total: baseTotal + adjustment,
-      playedRounds,
-    };
-  }).sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
+    return { id: participant.id, nome: participant?.nome || participant?.name || `Squadra ${participant.id}`, baseTotal, adjustment, total: baseTotal + adjustment, playedRounds };
+  }).sort((a,b) => b.total - a.total || a.nome.localeCompare(b.nome));
 }
