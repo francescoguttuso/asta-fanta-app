@@ -16,6 +16,7 @@ export default function HighlanderMobile({
 }) {
   const [session, setSession] = useState({});
   const [loading, setLoading] = useState(true);
+  const [selectedBlockId, setSelectedBlockId] = useState(1);
 
   useEffect(() => {
     let alive = true;
@@ -99,20 +100,6 @@ export default function HighlanderMobile({
           borderRadius: 14,
         }}
       >
-        <button
-          type="button"
-          onClick={onBack}
-          style={{
-            border: 0,
-            background: "transparent",
-            color: "#94a3b8",
-            padding: 0,
-            marginBottom: 10,
-            fontWeight: 800,
-          }}
-        >
-          ← Torna all'asta
-        </button>
 
         <div style={{ color: "#38bdf8", fontSize: 22, fontWeight: 900 }}>
           🏆 HIGHLANDER
@@ -209,6 +196,120 @@ export default function HighlanderMobile({
             </strong>
           </div>
         )}
+      </div>
+
+      <div className="card" style={{ padding: 14, marginBottom: 12, borderRadius: 12 }}>
+        <div style={{ color: "#fff", fontWeight: 900, marginBottom: 10 }}>
+          📊 PUNTEGGI DELLE DUE GIORNATE
+        </div>
+
+        <select
+          value={selectedBlockId}
+          onChange={(event) => setSelectedBlockId(Number(event.target.value))}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            borderRadius: 8,
+            border: "1px solid #33214f",
+            background: "#100822",
+            color: "#fff",
+            fontWeight: 800,
+            marginBottom: 12,
+          }}
+        >
+          {HIGHLANDER_BLOCKS.map((block) => (
+            <option key={block.id} value={block.id}>
+              {block.label} · G{block.from} + G{block.to}
+            </option>
+          ))}
+        </select>
+
+        {(() => {
+          const block =
+            HIGHLANDER_BLOCKS.find((item) => item.id === selectedBlockId) ||
+            HIGHLANDER_BLOCKS[0];
+
+          const rows = partecipanti.map((participant) => {
+            const day1 = Number(
+              session?.highlander?.scores?.[block.from]?.[participant.id],
+            );
+            const day2 = Number(
+              session?.highlander?.scores?.[block.to]?.[participant.id],
+            );
+
+            return {
+              ...participant,
+              day1: Number.isFinite(day1) ? day1 : null,
+              day2: Number.isFinite(day2) ? day2 : null,
+              total:
+                Number.isFinite(day1) && Number.isFinite(day2)
+                  ? day1 + day2
+                  : null,
+            };
+          });
+
+          rows.sort((a, b) => {
+            if (a.total == null && b.total == null) return 0;
+            if (a.total == null) return 1;
+            if (b.total == null) return -1;
+            return b.total - a.total;
+          });
+
+          return (
+            <div style={{ overflowX: "auto" }}>
+              <div
+                style={{
+                  minWidth: 430,
+                  display: "grid",
+                  gridTemplateColumns: "minmax(125px, 1fr) 72px 72px 78px",
+                  gap: 6,
+                  alignItems: "center",
+                }}
+              >
+                <strong style={{ color: "#94a3b8", fontSize: 12 }}>
+                  SQUADRA
+                </strong>
+                <strong style={{ color: "#38bdf8", fontSize: 12, textAlign: "right" }}>
+                  G{block.from}
+                </strong>
+                <strong style={{ color: "#38bdf8", fontSize: 12, textAlign: "right" }}>
+                  G{block.to}
+                </strong>
+                <strong style={{ color: "#facc15", fontSize: 12, textAlign: "right" }}>
+                  TOTALE
+                </strong>
+
+                {rows.map((row) => (
+                  <div
+                    key={row.id}
+                    style={{
+                      gridColumn: "1 / -1",
+                      display: "grid",
+                      gridTemplateColumns: "minmax(125px, 1fr) 72px 72px 78px",
+                      gap: 6,
+                      alignItems: "center",
+                      padding: "9px 0",
+                      borderBottom: "1px solid #21173d",
+                    }}
+                  >
+                    <span style={{ color: "#e5e7eb", fontWeight: 800 }}>
+                      {row.nome}
+                    </span>
+                    <strong style={{ color: row.day1 != null ? "#38bdf8" : "#64748b", textAlign: "right" }}>
+                      {row.day1 != null ? row.day1 : "—"}
+                    </strong>
+                    <strong style={{ color: row.day2 != null ? "#38bdf8" : "#64748b", textAlign: "right" }}>
+                      {row.day2 != null ? row.day2 : "—"}
+                    </strong>
+                    <strong style={{ color: row.total != null ? "#facc15" : "#64748b", textAlign: "right" }}>
+                      {row.total != null ? row.total : "—"}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {currentBlock && ranking.length > 0 && (
