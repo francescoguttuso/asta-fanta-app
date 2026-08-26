@@ -139,9 +139,14 @@ export function getRoundPicks(session, roundIndex, teamId) {
 export function hasSubmittedRound(session, roundIndex, teamId) {
   const round = getRoundState(session, roundIndex);
   const submittedAt = round?.submittedAt || {};
-  if (submittedAt[String(teamId)] || submittedAt[teamId]) return true;
-  const picks = getRoundPicks(session, roundIndex, teamId);
-  return Array.isArray(picks) && picks.length > 0;
+
+  // A draft pick is NOT a submitted schedina.
+  // The mobile screen saves each single prediction immediately, so picks
+  // can exist before the user presses "Conferma schedina".
+  // Only submittedAt marks the schedina as definitively sent/locked.
+  return Boolean(
+    submittedAt[String(teamId)] || submittedAt[teamId],
+  );
 }
 export function canSubmitFromMobile(session, roundIndex, teamId) { return isRoundOpen(session, roundIndex) && !hasSubmittedRound(session, roundIndex, teamId); }
 export function canEditFromMobile() { return false; }
