@@ -10,6 +10,7 @@ import BidHistory from "./components/BidHistory";
 import MobileAuctionPanel from "./components/MobileAuctionPanel";
 import TeamSelector from "./components/TeamSelector";
 import FantaSchedinaMobile from "../schedina/FantaSchedinaMobile";
+import HighlanderMobile from "../highlander/HighlanderMobile";
 
 const SAVED_TEAM_KEY = "fantaAstaTeamId";
 
@@ -291,6 +292,20 @@ export default function MobileController() {
   }
 
   // =====================================================
+  // HIGHLANDER MOBILE
+  // =====================================================
+
+  if (vistaMobile === "highlander") {
+    return (
+      <HighlanderMobile
+        auctionDocRef={docRef}
+        partecipanti={partecipanti}
+        onBack={() => setVistaMobile("asta")}
+      />
+    );
+  }
+
+  // =====================================================
   // CONTROLLER ASTA
   // =====================================================
 
@@ -417,7 +432,7 @@ export default function MobileController() {
           bottom: "10px",
           zIndex: 20,
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          gridTemplateColumns: "1fr 1fr 1fr",
           gap: "8px",
           marginTop: "12px",
           padding: "8px",
@@ -440,6 +455,22 @@ export default function MobileController() {
           }}
         >
           🔨 ASTA
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setVistaMobile("highlander")}
+          style={{
+            border: "0",
+            borderRadius: "9px",
+            padding: "10px 6px",
+            background: "#16083d",
+            color: "#cbd5e1",
+            fontWeight: 800,
+            cursor: "pointer",
+          }}
+        >
+          🏆 HIGHLANDER
         </button>
 
         <button
