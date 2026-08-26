@@ -42,6 +42,13 @@ export default function FantaSchedinaMobile({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const active = Number(session?.activeRound);
+    if (Number.isInteger(active) && active >= 1 && active <= CALENDARIO_CAMPIONATO.length) {
+      setSelectedRound(active);
+    }
+  }, [session?.activeRound]);
+
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
   const roundState = session?.rounds?.[selectedRound] || {};
   const isOpen = roundState.open === true;

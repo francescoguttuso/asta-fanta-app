@@ -16,6 +16,7 @@ import {
   saveHighlanderFinalScores,
   saveHighlanderRoundScores,
   setHighlanderChampion,
+  exportHighlanderData,
 } from "./highlanderStore";
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 
@@ -221,6 +222,15 @@ export default function HighlanderAdminView() {
     await setHighlanderChampion(HIGHLANDER_REF, winner.id);
   };
 
+  const exportHighlander = async () => {
+    try {
+      await exportHighlanderData();
+    } catch (error) {
+      console.error(error);
+      alert("Impossibile esportare i dati Highlander.");
+    }
+  };
+
   return (
     <div
       style={{
@@ -249,6 +259,22 @@ export default function HighlanderAdminView() {
             Gestione esclusiva server · risultati · calcolo blocchi · eliminazioni
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={exportHighlander}
+          disabled={saving}
+          style={{
+            border: "1px solid #14532d",
+            background: "#0b2a20",
+            color: "#34d399",
+            borderRadius: 8,
+            padding: "9px 12px",
+            fontWeight: 900,
+          }}
+        >
+          💾 ESPORTA HIGHLANDER
+        </button>
 
         <button
           type="button"
@@ -517,8 +543,8 @@ export default function HighlanderAdminView() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {(survivors.length
             ? partecipanti.filter((p) =>
-                survivors.map(String).includes(String(p.id)),
-              )
+              survivors.map(String).includes(String(p.id)),
+            )
             : partecipanti
           ).map((p) => (
             <span

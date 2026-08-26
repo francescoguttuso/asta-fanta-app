@@ -9,6 +9,7 @@ import {
   calculateSchedinaCumulativeRanking,
   getRoundResults,
   getSchedinaRankingAdjustments,
+  exportFantaSchedinaData,
 } from "./fantaSchedinaStore";
 
 const SIGNS = ["1", "X", "2"];
@@ -50,6 +51,13 @@ export default function FantaSchedinaAdminView() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const active = Number(session?.activeRound);
+    if (Number.isInteger(active) && active >= 1 && active <= CALENDARIO_CAMPIONATO.length) {
+      setSelectedRound(active);
+    }
+  }, [session?.activeRound]);
 
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
   const roundState =
@@ -244,7 +252,16 @@ export default function FantaSchedinaAdminView() {
   };
 
   if (!round) {
-    return (
+    const exportFantaSchedina = async () => {
+    try {
+      await exportFantaSchedinaData();
+    } catch (error) {
+      console.error(error);
+      alert("Impossibile esportare i dati della FantaSchedina.");
+    }
+  };
+
+  return (
       <div className="card" style={{ marginTop: 20, padding: 25 }}>
         Nessuna giornata disponibile.
       </div>

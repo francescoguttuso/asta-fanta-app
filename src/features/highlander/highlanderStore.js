@@ -193,3 +193,27 @@ export async function resetHighlander(docRef) {
     highlander: deleteField(),
   });
 }
+
+export async function exportHighlanderData() {
+  const snap = await getDoc(HIGHLANDER_REF);
+  if (!snap.exists()) throw new Error("Nessun dato Highlander disponibile.");
+
+  const blob = new Blob(
+    [JSON.stringify({
+      type: "highlander_backup",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      document: snap.data(),
+    }, null, 2)],
+    { type: "application/json;charset=utf-8" },
+  );
+
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `Highlander_backup_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}

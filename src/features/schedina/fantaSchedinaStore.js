@@ -41,20 +41,30 @@ export async function ensureFantaSchedinaDocument(auctionDocRef = null) {
   if (target.exists()) {
     const current = target.data() || {};
     const rounds = current.rounds || {};
+    const existingActiveRound = Number(current.activeRound);
+    const firstOpenRound =
+      Number.isInteger(existingActiveRound) && existingActiveRound >= 1
+        ? existingActiveRound
+        : Object.keys(rounds)
+            .map(Number)
+            .filter((n) => Number.isInteger(n) && rounds[n]?.open === true)
+            .sort((a, b) => a - b)[0] || 1;
     const normalizedRounds = buildOpenRounds(rounds);
 
     const needsRoundInitialization = Object.keys(normalizedRounds).some(
       (key) => !rounds[key],
     );
 
-    if (needsRoundInitialization) {
+    if (needsRoundInitialization || !Number.isInteger(existingActiveRound)) {
       await updateDoc(FANTA_SCHEDINA_REF, {
-        rounds: normalizedRounds,
+        ...(needsRoundInitialization ? { rounds: normalizedRounds } : {}),
+        activeRound: firstOpenRound,
       });
 
       return {
         ...current,
         rounds: normalizedRounds,
+        activeRound: firstOpenRound,
       };
     }
 
@@ -124,12 +134,87 @@ export async function saveFantaSchedinaResults(docRef, roundIndex, results, poin
 }
 export async function setFantaSchedinaRound(docRef, roundIndex, open) {
   if (!docRef) throw new Error("FantaSchedina non disponibile.");
+
+  const snap = await getDoc(docRef);
+  if (!snap.exists()) throw new Error("FantaSchedina non inizializzata.");
+
+  const current = snap.data() || {};
+  const rounds = current.rounds || {};
+  const currentRound = Number(roundIndex);
+
+  if (open) {
+    await updateDoc(docRef, {
+      [`rounds.${currentRound}.open`]: true,
+      [`rounds.${currentRound}.lockedAt`]: null,
+      activeRound: currentRound,
+    });
+    return;
+  }
+
+  let nextRound = null;
+  for (let i = currentRound + 1; i <= 38; i += 1) {
+    const candidate = rounds[i] ?? rounds[String(i)];
+    if (candidate?.open === true) {
+      nextRound = i;
+      break;
+    }
+  }
+
+  if (nextRound === null && currentRound < 38) {
+    nextRound = currentRound + 1;
+    if (!rounds[nextRound] && !rounds[String(nextRound)]) {
+      await updateDoc(docRef, {
+        [`rounds.${nextRound}`]: {
+          open: true,
+          picks: {},
+          submittedAt: {},
+          results: [],
+          pointsByTeam: {},
+        },
+      });
+    }
+  }
+
   await updateDoc(docRef, {
-    [`rounds.${roundIndex}.open`]: Boolean(open),
-    [`rounds.${roundIndex}.lockedAt`]: open ? null : new Date().toISOString(),
-    activeRound: open ? roundIndex : null,
+    [`rounds.${currentRound}.open`]: false,
+    [`rounds.${currentRound}.lockedAt`]: new Date().toISOString(),
+    activeRound: nextRound,
   });
 }
+
+function fileStamp() {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function downloadJson(payload, filename) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportFantaSchedinaData() {
+  const snap = await getDoc(FANTA_SCHEDINA_REF);
+  if (!snap.exists()) throw new Error("Nessun dato FantaSchedina disponibile.");
+
+  downloadJson(
+    {
+      type: "fanta_schedina_backup",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      document: snap.data(),
+    },
+    `FantaSchedina_backup_${fileStamp()}.json`,
+  );
+}
+
 export function getRoundState(session, roundIndex) { return session?.rounds?.[roundIndex] || {}; }
 export function isRoundOpen(session, roundIndex) { return Boolean(getRoundState(session, roundIndex).open); }
 export function getRoundPicks(session, roundIndex, teamId) {
