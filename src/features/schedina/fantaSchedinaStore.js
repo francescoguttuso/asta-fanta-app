@@ -35,6 +35,14 @@ function buildOpenRounds(existingRounds = {}) {
  * auctionDocRef is accepted only for a ONE-TIME legacy migration when the
  * independent document does not exist yet.
  */
+function getFirstOpenRound(rounds = {}) {
+  for (let i = 1; i <= 38; i += 1) {
+    const round = rounds[i] ?? rounds[String(i)];
+    if (round?.open === true) return i;
+  }
+  return null;
+}
+
 export async function ensureFantaSchedinaDocument(auctionDocRef = null) {
   const target = await getDoc(FANTA_SCHEDINA_REF);
 
@@ -42,13 +50,15 @@ export async function ensureFantaSchedinaDocument(auctionDocRef = null) {
     const current = target.data() || {};
     const rounds = current.rounds || {};
     const existingActiveRound = Number(current.activeRound);
-    const firstOpenRound =
-      Number.isInteger(existingActiveRound) && existingActiveRound >= 1
-        ? existingActiveRound
-        : Object.keys(rounds)
-            .map(Number)
-            .filter((n) => Number.isInteger(n) && rounds[n]?.open === true)
-            .sort((a, b) => a - b)[0] || 1;
+    const activeIsOpen =
+      Number.isInteger(existingActiveRound) &&
+      existingActiveRound >= 1 &&
+      existingActiveRound <= 38 &&
+      (rounds[existingActiveRound] ?? rounds[String(existingActiveRound)])?.open === true;
+
+    const firstOpenRound = activeIsOpen
+      ? existingActiveRound
+      : getFirstOpenRound(rounds) || 1;
     const normalizedRounds = buildOpenRounds(rounds);
 
     const needsRoundInitialization = Object.keys(normalizedRounds).some(

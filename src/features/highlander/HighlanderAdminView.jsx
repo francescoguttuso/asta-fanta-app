@@ -543,8 +543,8 @@ export default function HighlanderAdminView() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {(survivors.length
             ? partecipanti.filter((p) =>
-              survivors.map(String).includes(String(p.id)),
-            )
+                survivors.map(String).includes(String(p.id)),
+              )
             : partecipanti
           ).map((p) => (
             <span

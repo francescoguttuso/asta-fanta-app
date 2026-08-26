@@ -30,24 +30,93 @@ export default function FantaSchedinaMobile({
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    // Independent FantaSchedina subscription. The auction does not control
-    // the lifecycle of this document.
-    ensureFantaSchedinaDocument(auctionDocRef).catch((error) =>
-      console.error("Errore inizializzazione FantaSchedina:", error),
-    );
+    let alive = true;
+    let unsubscribe = null;
 
-    return onSnapshot(FANTA_SCHEDINA_REF, (snap) => {
-      if (snap.exists()) setSession(snap.data());
-    });
+    const initialize = async () => {
+      try {
+        const initialData = await ensureFantaSchedinaDocument(auctionDocRef);
+
+        if (!alive) return;
+
+        const initialActive = Number(initialData?.activeRound);
+        const initialRounds = initialData?.rounds || {};
+        const initialOpenRound = Array.from(
+          { length: CALENDARIO_CAMPIONATO.length },
+          (_, index) => index + 1,
+        ).find((roundNumber) =>
+          (initialRounds[roundNumber] ?? initialRounds[String(roundNumber)])?.open === true
+        );
+
+        if (
+          Number.isInteger(initialActive) &&
+          initialActive >= 1 &&
+          initialActive <= CALENDARIO_CAMPIONATO.length &&
+          (initialRounds[initialActive] ?? initialRounds[String(initialActive)])?.open === true
+        ) {
+          setSelectedRound(initialActive);
+        } else if (initialOpenRound) {
+          setSelectedRound(initialOpenRound);
+        }
+
+        unsubscribe = onSnapshot(
+          FANTA_SCHEDINA_REF,
+          (snap) => {
+            if (!alive || !snap.exists()) return;
+
+            const data = snap.data();
+            setSession(data);
+
+            const active = Number(data?.activeRound);
+            const rounds = data?.rounds || {};
+            const firstOpenRound = Array.from(
+              { length: CALENDARIO_CAMPIONATO.length },
+              (_, index) => index + 1,
+            ).find((roundNumber) =>
+              (rounds[roundNumber] ?? rounds[String(roundNumber)])?.open === true
+            );
+
+            if (
+              Number.isInteger(active) &&
+              active >= 1 &&
+              active <= CALENDARIO_CAMPIONATO.length &&
+              (rounds[active] ?? rounds[String(active)])?.open === true
+            ) {
+              setSelectedRound(active);
+            } else if (firstOpenRound) {
+              setSelectedRound(firstOpenRound);
+            }
+          },
+          (error) => {
+            console.error("Errore lettura FantaSchedina:", error);
+          },
+        );
+      } catch (error) {
+        console.error("Errore inizializzazione FantaSchedina:", error);
+      }
+    };
+
+    initialize();
+
+    return () => {
+      alive = false;
+      if (unsubscribe) unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const active = Number(session?.activeRound);
-    if (Number.isInteger(active) && active >= 1 && active <= CALENDARIO_CAMPIONATO.length) {
-      setSelectedRound(active);
-    }
-  }, [session?.activeRound]);
+  const activeRound = Number(session?.activeRound);
+  const orderedRounds = useMemo(() => {
+    const all = CALENDARIO_CAMPIONATO.map((item, index) => ({
+      item,
+      value: index + 1,
+    }));
+    if (!Number.isInteger(activeRound) || activeRound < 1 || activeRound > all.length) return all;
+    return [
+      all.find((entry) => entry.value === activeRound),
+      ...all.filter((entry) => entry.value !== activeRound),
+    ].filter(Boolean);
+  }, [activeRound]);
 
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
   const roundState = session?.rounds?.[selectedRound] || {};
@@ -209,9 +278,9 @@ export default function FantaSchedinaMobile({
             borderRadius: "8px",
           }}
         >
-          {CALENDARIO_CAMPIONATO.map((item, index) => (
-            <option key={item.label} value={index + 1}>
-              {item.label}
+          {orderedRounds.map(({ item, value }) => (
+            <option key={item.label} value={value}>
+              {value === activeRound ? `⭐ ${item.label} — GIORNATA ATTIVA` : item.label}
             </option>
           ))}
         </select>

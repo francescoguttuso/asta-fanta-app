@@ -9,6 +9,7 @@ import {
   calculateSchedinaCumulativeRanking,
   getRoundResults,
   getSchedinaRankingAdjustments,
+  setFantaSchedinaRound,
   exportFantaSchedinaData,
 } from "./fantaSchedinaStore";
 
@@ -31,37 +32,99 @@ export default function FantaSchedinaAdminView() {
   const [savingAdjustment, setSavingAdjustment] = useState(null);
 
   useEffect(() => {
-    // The FantaSchedina is independent from the auction.
-    // The auction ref is used only for a one-time migration if the new
-    // document has never existed.
-    ensureFantaSchedinaDocument(auctionDocRef).catch((error) =>
-      console.error("Errore inizializzazione FantaSchedina:", error),
-    );
+    let alive = true;
+    let unsubscribe = null;
 
-    return onSnapshot(
-      FANTA_SCHEDINA_REF,
-      (snap) => {
-        if (snap.exists()) {
-          setSession(snap.data());
+    const initialize = async () => {
+      try {
+        const initialData = await ensureFantaSchedinaDocument(auctionDocRef);
+
+        if (!alive) return;
+
+        const initialActive = Number(initialData?.activeRound);
+        const initialRounds = initialData?.rounds || {};
+        const initialOpenRound = Array.from(
+          { length: CALENDARIO_CAMPIONATO.length },
+          (_, index) => index + 1,
+        ).find((roundNumber) =>
+          (initialRounds[roundNumber] ?? initialRounds[String(roundNumber)])?.open === true
+        );
+
+        if (
+          Number.isInteger(initialActive) &&
+          initialActive >= 1 &&
+          initialActive <= CALENDARIO_CAMPIONATO.length &&
+          (initialRounds[initialActive] ?? initialRounds[String(initialActive)])?.open === true
+        ) {
+          setSelectedRound(initialActive);
+        } else if (initialOpenRound) {
+          setSelectedRound(initialOpenRound);
         }
-      },
-      (error) => {
-        console.error("Errore lettura FantaSchedina:", error);
-      },
-    );
+
+        unsubscribe = onSnapshot(
+          FANTA_SCHEDINA_REF,
+          (snap) => {
+            if (!alive || !snap.exists()) return;
+
+            const data = snap.data();
+            setSession(data);
+
+            const active = Number(data?.activeRound);
+            const rounds = data?.rounds || {};
+            const firstOpenRound = Array.from(
+              { length: CALENDARIO_CAMPIONATO.length },
+              (_, index) => index + 1,
+            ).find((roundNumber) =>
+              (rounds[roundNumber] ?? rounds[String(roundNumber)])?.open === true
+            );
+
+            if (
+              Number.isInteger(active) &&
+              active >= 1 &&
+              active <= CALENDARIO_CAMPIONATO.length &&
+              (rounds[active] ?? rounds[String(active)])?.open === true
+            ) {
+              setSelectedRound(active);
+            } else if (firstOpenRound) {
+              setSelectedRound(firstOpenRound);
+            }
+          },
+          (error) => {
+            console.error("Errore lettura FantaSchedina:", error);
+          },
+        );
+      } catch (error) {
+        console.error("Errore inizializzazione FantaSchedina:", error);
+      }
+    };
+
+    initialize();
+
+    return () => {
+      alive = false;
+      if (unsubscribe) unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    const active = Number(session?.activeRound);
-    if (Number.isInteger(active) && active >= 1 && active <= CALENDARIO_CAMPIONATO.length) {
-      setSelectedRound(active);
-    }
-  }, [session?.activeRound]);
 
   const round = CALENDARIO_CAMPIONATO[selectedRound - 1];
   const roundState =
     session?.rounds?.[selectedRound] || {};
+
+  const activeRound = Number(session?.activeRound);
+  const orderedRounds = useMemo(() => {
+    const all = CALENDARIO_CAMPIONATO.map((item, index) => ({
+      item,
+      value: index + 1,
+    }));
+    if (!Number.isInteger(activeRound) || activeRound < 1 || activeRound > all.length) {
+      return all;
+    }
+    return [
+      all.find((entry) => entry.value === activeRound),
+      ...all.filter((entry) => entry.value !== activeRound),
+    ].filter(Boolean);
+  }, [activeRound]);
 
   useEffect(() => {
     setResults(roundState.results || []);
@@ -108,19 +171,13 @@ export default function FantaSchedinaAdminView() {
   };
 
   const toggleRound = async () => {
-    if (!FANTA_SCHEDINA_REF) return;
-
     try {
       setRoundSaving(true);
-      const nextOpen = !Boolean(roundState.open);
-
-      await updateDoc(FANTA_SCHEDINA_REF, {
-        [`rounds.${selectedRound}.open`]: nextOpen,
-        [`rounds.${selectedRound}.lockedAt`]: nextOpen
-          ? null
-          : new Date().toISOString(),
-        "activeRound": nextOpen ? selectedRound : null,
-      });
+      await setFantaSchedinaRound(
+        FANTA_SCHEDINA_REF,
+        selectedRound,
+        !Boolean(roundState.open),
+      );
     } catch (error) {
       console.error("Errore apertura/chiusura giornata:", error);
       alert("Impossibile modificare lo stato della giornata.");
@@ -251,8 +308,7 @@ export default function FantaSchedinaAdminView() {
     }
   };
 
-  if (!round) {
-    const exportFantaSchedina = async () => {
+  const exportFantaSchedina = async () => {
     try {
       await exportFantaSchedinaData();
     } catch (error) {
@@ -261,7 +317,8 @@ export default function FantaSchedinaAdminView() {
     }
   };
 
-  return (
+  if (!round) {
+    return (
       <div className="card" style={{ marginTop: 20, padding: 25 }}>
         Nessuna giornata disponibile.
       </div>
@@ -301,6 +358,22 @@ export default function FantaSchedinaAdminView() {
           <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4 }}>
             Schedine giocate · risultati · punti · classifica
           </div>
+          <button
+            type="button"
+            onClick={exportFantaSchedina}
+            disabled={!session}
+            style={{
+              marginTop: 10,
+              border: "1px solid #14532d",
+              background: "#0b2a20",
+              color: "#34d399",
+              borderRadius: 8,
+              padding: "8px 11px",
+              fontWeight: 900,
+            }}
+          >
+            💾 ESPORTA FANTASCHEDINA
+          </button>
         </div>
 
         <select
@@ -312,9 +385,9 @@ export default function FantaSchedinaAdminView() {
             border: "1px solid #33214f",
           }}
         >
-          {CALENDARIO_CAMPIONATO.map((item, index) => (
-            <option key={item.label} value={index + 1}>
-              {item.label}
+          {orderedRounds.map(({ item, value }) => (
+            <option key={item.label} value={value}>
+              {value === activeRound ? `⭐ ${item.label} — GIORNATA ATTIVA` : item.label}
             </option>
           ))}
         </select>
