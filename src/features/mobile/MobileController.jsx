@@ -215,6 +215,64 @@ export default function MobileController() {
     ? (utenteSelezionato.stopDisponibili ?? 2)
     : 2;
 
+  const MobileNavigation = () => (
+    <div
+      style={{
+        width: "100%",
+        maxWidth: "520px",
+        margin: "0 auto",
+        boxSizing: "border-box",
+        padding: "0 12px",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gap: "6px",
+          padding: "8px 0",
+          boxSizing: "border-box",
+        }}
+      >
+        {[
+          ["asta", "🔨 ASTA"],
+          ["schedina", "🎟️ SCHEDINA"],
+          ["highlander", "🏆 HIGHLANDER"],
+        ].map(([view, label]) => (
+          <button
+            key={view}
+            type="button"
+            onClick={() => setVistaMobile(view)}
+            style={{
+              width: "100%",
+              minWidth: 0,
+              border: "0",
+              borderRadius: "9px",
+              padding: "9px 4px",
+              background: vistaMobile === view ? "#24105a" : "#16083d",
+              color: vistaMobile === view ? "#38bdf8" : "#cbd5e1",
+              fontWeight: 800,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const MobileScreenHeader = ({ children }) => (
+    <div style={{ width: "100%" }}>
+      <MobileNavigation />
+      {children}
+    </div>
+  );
+
   // =====================================================
   // SCHERMATA SELEZIONE SQUADRA
   // =====================================================
@@ -281,13 +339,15 @@ export default function MobileController() {
 
   if (vistaMobile === "schedina") {
     return (
-      <FantaSchedinaMobile
-        docRef={docRef}
-        teamId={mioId}
-        teamName={utenteSelezionato?.nome || "Squadra"}
-        partecipanti={partecipanti}
-        onBack={() => setVistaMobile("asta")}
-      />
+      <MobileScreenHeader>
+        <FantaSchedinaMobile
+          docRef={docRef}
+          teamId={mioId}
+          teamName={utenteSelezionato?.nome || "Squadra"}
+          partecipanti={partecipanti}
+          onBack={() => setVistaMobile("asta")}
+        />
+      </MobileScreenHeader>
     );
   }
 
@@ -297,11 +357,13 @@ export default function MobileController() {
 
   if (vistaMobile === "highlander") {
     return (
-      <HighlanderMobile
-        auctionDocRef={docRef}
-        partecipanti={partecipanti}
-        onBack={() => setVistaMobile("asta")}
-      />
+      <MobileScreenHeader>
+        <HighlanderMobile
+          auctionDocRef={docRef}
+          partecipanti={partecipanti}
+          onBack={() => setVistaMobile("asta")}
+        />
+      </MobileScreenHeader>
     );
   }
 
@@ -315,9 +377,10 @@ export default function MobileController() {
       style={{
         maxWidth: "520px",
         margin: "0 auto",
-        padding: "10px 12px 25px",
+        padding: "0 12px 25px",
       }}
     >
+      <MobileNavigation />
       {/* ==============================================
           TESTATA SQUADRA
       ============================================== */}
@@ -425,70 +488,6 @@ export default function MobileController() {
 
       <BidHistory bids={storicoOfferte} />
 
-      {/* NAVIGAZIONE MOBILE: ASTA / FANTA SCHEDINA */}
-      <div
-        style={{
-          position: "sticky",
-          bottom: "10px",
-          zIndex: 20,
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
-          gap: "8px",
-          marginTop: "12px",
-          padding: "8px",
-          borderRadius: "12px",
-          background: "#0b0520",
-          border: "1px solid #29144d",
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setVistaMobile("asta")}
-          style={{
-            border: "0",
-            borderRadius: "9px",
-            padding: "10px",
-            background: "#16083d",
-            color: "#38bdf8",
-            fontWeight: 800,
-            cursor: "pointer",
-          }}
-        >
-          🔨 ASTA
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setVistaMobile("highlander")}
-          style={{
-            border: "0",
-            borderRadius: "9px",
-            padding: "10px 6px",
-            background: "#16083d",
-            color: "#cbd5e1",
-            fontWeight: 800,
-            cursor: "pointer",
-          }}
-        >
-          🏆 HIGHLANDER
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setVistaMobile("schedina")}
-          style={{
-            border: "0",
-            borderRadius: "9px",
-            padding: "10px",
-            background: "#16083d",
-            color: "#cbd5e1",
-            fontWeight: 800,
-            cursor: "pointer",
-          }}
-        >
-          🎟️ SCHEDINA
-        </button>
-      </div>
-    </div>
+      <MobileNavigation />   </div>
   );
 }

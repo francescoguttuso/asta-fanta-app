@@ -244,20 +244,6 @@ export default function FantaSchedinaMobile({
           marginBottom: "10px",
         }}
       >
-        <button
-          type="button"
-          onClick={onBack}
-          style={{
-            border: 0,
-            background: "transparent",
-            color: "#94a3b8",
-            padding: 0,
-            cursor: "pointer",
-            marginBottom: "8px",
-          }}
-        >
-          ← Torna all'asta
-        </button>
 
         <div style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
           FANTA SCHEDINA
