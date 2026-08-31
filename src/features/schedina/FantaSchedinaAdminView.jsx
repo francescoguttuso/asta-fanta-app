@@ -11,6 +11,8 @@ import {
   getSchedinaRankingAdjustments,
   setFantaSchedinaRound,
   exportFantaSchedinaData,
+  getExcludedFantaSchedinaTeamIds,
+  setFantaSchedinaTeamParticipation,
 } from "./fantaSchedinaStore";
 
 const SIGNS = ["1", "X", "2"];
@@ -30,6 +32,7 @@ export default function FantaSchedinaAdminView() {
   const [editingPicks, setEditingPicks] = useState([]);
   const [rankingAdjustments, setRankingAdjustments] = useState({});
   const [savingAdjustment, setSavingAdjustment] = useState(null);
+  const [savingParticipation, setSavingParticipation] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -126,6 +129,18 @@ export default function FantaSchedinaAdminView() {
     ].filter(Boolean);
   }, [activeRound]);
 
+  const excludedTeamIds = useMemo(
+    () => new Set(getExcludedFantaSchedinaTeamIds(session)),
+    [session],
+  );
+
+  const schedinaParticipants = useMemo(
+    () => partecipanti.filter(
+      (participant) => !excludedTeamIds.has(String(participant.id)),
+    ),
+    [partecipanti, excludedTeamIds],
+  );
+
   useEffect(() => {
     setResults(roundState.results || []);
   }, [selectedRound, roundState.results]);
@@ -134,7 +149,7 @@ export default function FantaSchedinaAdminView() {
 
   const playedRows = useMemo(
     () =>
-      partecipanti.map((participant) => {
+      schedinaParticipants.map((participant) => {
         const rawPicks =
           picksByTeam[String(participant.id)] ??
           picksByTeam[participant.id] ??
@@ -150,12 +165,12 @@ export default function FantaSchedinaAdminView() {
           points: calculateSchedinaPoints(picks, results),
         };
       }),
-    [partecipanti, picksByTeam, results],
+    [schedinaParticipants, picksByTeam, results],
   );
 
   const cumulativeRanking = useMemo(
-    () => calculateSchedinaCumulativeRanking(session, partecipanti),
-    [partecipanti, session],
+    () => calculateSchedinaCumulativeRanking(session, schedinaParticipants),
+    [schedinaParticipants, session],
   );
 
   useEffect(() => {
@@ -275,6 +290,25 @@ export default function FantaSchedinaAdminView() {
     }
   };
 
+  const toggleFantaSchedinaParticipant = async (participant) => {
+    const id = String(participant.id);
+    const currentlyExcluded = excludedTeamIds.has(id);
+
+    try {
+      setSavingParticipation(participant.id);
+      await setFantaSchedinaTeamParticipation(
+        FANTA_SCHEDINA_REF,
+        participant.id,
+        currentlyExcluded,
+      );
+    } catch (error) {
+      console.error("Errore modifica partecipazione FantaSchedina:", error);
+      alert("Impossibile modificare la partecipazione alla FantaSchedina.");
+    } finally {
+      setSavingParticipation(null);
+    }
+  };
+
   const saveResults = async () => {
     if (!round || results.length !== round.matches.length) return;
 
@@ -284,7 +318,7 @@ export default function FantaSchedinaAdminView() {
       const pointsByTeam = {};
       const roundPicks = roundState.picks || {};
 
-      partecipanti.forEach((participant) => {
+      schedinaParticipants.forEach((participant) => {
         const picks =
           roundPicks[String(participant.id)] ??
           roundPicks[participant.id] ??
@@ -449,7 +483,7 @@ export default function FantaSchedinaAdminView() {
         }}
       >
         {[
-          ["👥", "Partecipanti", partecipanti.length],
+          ["👥", "Partecipanti", schedinaParticipants.length],
           ["🎟️", "Hanno giocato", playedCount],
           ["✅", "Complete", completedCount],
         ].map(([icon, label, value]) => (
@@ -469,6 +503,60 @@ export default function FantaSchedinaAdminView() {
           </div>
         ))}
       </div>
+
+      <section style={{ marginBottom: 22 }}>
+        <h3 style={{ color: "#fff", marginBottom: 6 }}>
+          👥 Partecipanti FantaSchedina
+        </h3>
+        <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 10 }}>
+          Puoi escludere una squadra solo dalla FantaSchedina. Asta e Highlander
+          non vengono modificati. Le schedine e i punti già salvati restano in
+          Firebase e ricompaiono se riattivi la squadra.
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 8,
+          }}
+        >
+          {partecipanti.map((participant) => {
+            const excluded = excludedTeamIds.has(String(participant.id));
+            const isSaving = savingParticipation === participant.id;
+
+            return (
+              <button
+                key={participant.id}
+                type="button"
+                onClick={() => toggleFantaSchedinaParticipant(participant)}
+                disabled={isSaving}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderRadius: 9,
+                  border: excluded
+                    ? "1px solid #7f1d1d"
+                    : "1px solid #14532d",
+                  background: excluded ? "#2a0d14" : "#0b2a20",
+                  color: "#fff",
+                  cursor: isSaving ? "not-allowed" : "pointer",
+                  textAlign: "left",
+                  fontWeight: 800,
+                }}
+              >
+                <span>{getParticipantName(participant)}</span>
+                <span style={{ color: excluded ? "#f87171" : "#34d399" }}>
+                  {isSaving ? "..." : excluded ? "ESCLUSO" : "ATTIVO"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       <section style={{ marginBottom: 22 }}>
         <h3 style={{ color: "#fff", marginBottom: 10 }}>

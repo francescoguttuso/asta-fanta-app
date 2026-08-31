@@ -12,6 +12,8 @@ import {
   hasSubmittedRound,
   submitFantaSchedina,
   saveFantaSchedinaPicks,
+  getExcludedFantaSchedinaTeamIds,
+  isFantaSchedinaTeamExcluded,
 } from "@/features/schedina/fantaSchedinaStore";
 
 const SIGNS = ["1", "X", "2"];
@@ -122,6 +124,17 @@ export default function FantaSchedinaMobile({
   const roundState = session?.rounds?.[selectedRound] || {};
   const isOpen = roundState.open === true;
   const submitted = hasSubmittedRound(session, selectedRound, teamId);
+  const excluded = isFantaSchedinaTeamExcluded(session, teamId);
+  const excludedTeamIds = useMemo(
+    () => new Set(getExcludedFantaSchedinaTeamIds(session)),
+    [session],
+  );
+  const schedinaParticipants = useMemo(
+    () => partecipanti.filter(
+      (participant) => !excludedTeamIds.has(String(participant.id)),
+    ),
+    [partecipanti, excludedTeamIds],
+  );
 
   useEffect(() => {
     setPicks(getRoundPicks(session, selectedRound, teamId));
@@ -143,7 +156,7 @@ export default function FantaSchedinaMobile({
     const submittedAt = roundState.submittedAt || {};
     const matchCount = round?.matches?.length || 0;
 
-    return partecipanti
+    return schedinaParticipants
       .map((participant) => {
         const id = String(participant.id);
         const rawPicks = allPicks[id] ?? allPicks[participant.id] ?? [];
@@ -166,15 +179,15 @@ export default function FantaSchedinaMobile({
         };
       })
       .filter(Boolean);
-  }, [partecipanti, roundState, round, session, selectedRound]);
+  }, [schedinaParticipants, roundState, round, session, selectedRound]);
 
   const cumulativeRanking = useMemo(
-    () => calculateSchedinaCumulativeRanking(session, partecipanti),
-    [partecipanti, session],
+    () => calculateSchedinaCumulativeRanking(session, schedinaParticipants),
+    [schedinaParticipants, session],
   );
 
   const choose = (matchIndex, sign) => {
-    if (!isOpen || submitted) return;
+    if (excluded || !isOpen || submitted) return;
 
     setPicks((current) => {
       const next = [...current];
@@ -196,6 +209,11 @@ export default function FantaSchedinaMobile({
   };
 
   const confirm = async () => {
+    if (excluded) {
+      setMessage("⛔ La tua squadra non partecipa alla FantaSchedina.");
+      return;
+    }
+
     if (submitted) {
       setMessage("🔒 Schedina già confermata. Non è più modificabile.");
       return;
@@ -227,6 +245,35 @@ export default function FantaSchedinaMobile({
       setSaving(false);
     }
   };
+
+  if (excluded) {
+    return (
+      <div
+        className="container mobile-container"
+        style={{ maxWidth: "520px", margin: "0 auto", padding: "10px 12px 25px" }}
+      >
+        <div
+          className="card"
+          style={{
+            padding: 20,
+            textAlign: "center",
+            border: "1px solid #7f1d1d",
+            background: "#2a0d14",
+          }}
+        >
+          <div style={{ fontSize: 30, marginBottom: 8 }}>🎟️</div>
+          <h2 style={{ color: "#f87171", margin: "0 0 8px" }}>
+            FantaSchedina non attiva
+          </h2>
+          <div style={{ color: "#cbd5e1", lineHeight: 1.5 }}>
+            <strong>{teamName}</strong> non partecipa alla FantaSchedina.
+            <br />
+            Asta e Highlander restano disponibili normalmente.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
