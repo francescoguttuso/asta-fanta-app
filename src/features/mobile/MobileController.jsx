@@ -38,9 +38,7 @@ export default function MobileController() {
     return localStorage.getItem(SAVED_TEAM_KEY) || "";
   });
 
-  const [showTeamSelector, setShowTeamSelector] = useState(
-    () => !localStorage.getItem(SAVED_TEAM_KEY),
-  );
+  const [showTeamSelector, setShowTeamSelector] = useState(true);
 
   const [vistaMobile, setVistaMobile] = useState("asta");
 
@@ -57,21 +55,18 @@ export default function MobileController() {
   // =====================================================
 
   const handleTeamChange = (value) => {
+    // La selezione non chiude più automaticamente la schermata:
+    // serve una conferma esplicita con il pulsante "SELEZIONA SQUADRA".
     setMioId(value);
-
-    if (value) {
-      localStorage.setItem(SAVED_TEAM_KEY, value);
-
-      setShowTeamSelector(false);
-    }
   };
 
-  // =====================================================
-  // CAMBIA SQUADRA
-  // =====================================================
+  const confermaSquadra = () => {
+    if (!mioId) {
+      return;
+    }
 
-  const cambiaSquadra = () => {
-    setShowTeamSelector(true);
+    localStorage.setItem(SAVED_TEAM_KEY, mioId);
+    setShowTeamSelector(false);
   };
 
   // =====================================================
@@ -215,6 +210,18 @@ export default function MobileController() {
     ? (utenteSelezionato.stopDisponibili ?? 2)
     : 2;
 
+  const MobileTopHeader = () => (
+    <div className="mobile-top-header">
+      <div className="mobile-header-spacer" aria-hidden="true" />
+      <img
+        src="/images/fantariggio-logo.png"
+        alt="FantaRiggio Fantacalcio"
+        className="mobile-logo"
+      />
+      <div className="mobile-header-spacer" aria-hidden="true" />
+    </div>
+  );
+
   const MobileNavigation = () => (
     <div
       style={{
@@ -243,6 +250,7 @@ export default function MobileController() {
           <button
             key={view}
             type="button"
+            className={`mobile-nav-button ${vistaMobile === view ? "active" : ""}`}
             onClick={() => setVistaMobile(view)}
             style={{
               width: "100%",
@@ -268,6 +276,7 @@ export default function MobileController() {
 
   const MobileScreenHeader = ({ children }) => (
     <div style={{ width: "100%" }}>
+      <MobileTopHeader />
       <MobileNavigation />
       {children}
     </div>
@@ -280,43 +289,23 @@ export default function MobileController() {
   if (showTeamSelector || !mioId) {
     return (
       <div
-        className="container mobile-container"
+        className="container mobile-container mobile-selection-screen"
         style={{
           maxWidth: "520px",
           margin: "0 auto",
-          padding: "20px 15px",
+          padding: "14px 15px 28px",
         }}
       >
+        <MobileTopHeader />
+
         <div
-          className="card"
+          className="card mobile-selection-card"
           style={{
             textAlign: "center",
-            padding: "25px 20px",
           }}
         >
-          <div
-            style={{
-              fontSize: "2.5rem",
-              marginBottom: "10px",
-            }}
-          >
-            ⚽
-          </div>
-
-          <h2
-            style={{
-              color: "#38bdf8",
-              marginBottom: "8px",
-            }}
-          >
-            Fanta Asta
-          </h2>
-
           <p
-            style={{
-              color: "#94a3b8",
-              marginBottom: "20px",
-            }}
+            className="mobile-selection-intro"
           >
             Seleziona la tua squadra per entrare nell'asta.
           </p>
@@ -327,6 +316,7 @@ export default function MobileController() {
             selectedTeam={utenteSelezionato}
             remainingStops={stopRimanentiSelezionato}
             onTeamChange={handleTeamChange}
+            onConfirm={confermaSquadra}
           />
         </div>
       </div>
@@ -380,6 +370,7 @@ export default function MobileController() {
         padding: "0 12px 25px",
       }}
     >
+      <MobileTopHeader />
       <MobileNavigation />
       {/* ==============================================
           TESTATA SQUADRA
@@ -409,13 +400,25 @@ export default function MobileController() {
 
           <div
             style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
               color: "#38bdf8",
               fontSize: "1.15rem",
               fontWeight: "800",
               marginTop: "2px",
             }}
           >
-            🟢 {utenteSelezionato?.nome}
+            <span>🟢 {utenteSelezionato?.nome}</span>
+            <button
+              type="button"
+              className="mobile-inline-team-menu"
+              aria-label="Cambia squadra"
+              title="Cambia squadra"
+              onClick={() => setShowTeamSelector(true)}
+            >
+              ⋮
+            </button>
           </div>
         </div>
 
@@ -443,21 +446,7 @@ export default function MobileController() {
           </strong>
         </div>
 
-        <button
-          type="button"
-          onClick={cambiaSquadra}
-          title="Cambia squadra"
-          style={{
-            border: "none",
-            background: "transparent",
-            color: "#94a3b8",
-            fontSize: "1.4rem",
-            cursor: "pointer",
-            padding: "4px",
-          }}
-        >
-          ⋮
-        </button>
+
       </div>
 
       {/* ==============================================
@@ -488,6 +477,6 @@ export default function MobileController() {
 
       <BidHistory bids={storicoOfferte} />
 
-      <MobileNavigation />   </div>
+    </div>
   );
 }

@@ -1,0 +1,354 @@
+/* =========================================================
+   FANTA ASTA — REDESIGN VISIVO 2
+   Solo presentazione: nessuna modifica alla logica.
+   ========================================================= */
+
+:root {
+  --fr-bg: #070d1b;
+  --fr-panel: #111b2e;
+  --fr-panel-2: #0b1426;
+  --fr-line: #263752;
+  --fr-cyan: #32c8ff;
+  --fr-blue: #3977ff;
+  --fr-purple: #7047e8;
+  --fr-green: #18d69b;
+  --fr-gold: #ffc33d;
+  --fr-red: #ff5570;
+  --fr-text: #f5f8ff;
+  --fr-muted: #8fa0b8;
+}
+
+/* ================= DESKTOP SERVER ================= */
+@media (min-width: 861px) {
+  body:has(.fanta-server) {
+    background:
+      radial-gradient(circle at 12% 8%, rgba(50,200,255,.09), transparent 26%),
+      radial-gradient(circle at 88% 12%, rgba(112,71,232,.12), transparent 30%),
+      #050a15;
+  }
+
+  .fanta-server {
+    max-width: 1680px;
+    margin: 0 auto;
+    padding: 22px 28px 40px;
+    background: linear-gradient(180deg, #091122 0%, #070d1b 100%);
+    box-shadow: 0 0 80px rgba(0,0,0,.38);
+  }
+
+  .fanta-server .header-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 22px;
+    margin-bottom: 18px !important;
+    padding: 18px 22px !important;
+    border: 1px solid #263752 !important;
+    border-radius: 20px !important;
+    background:
+      linear-gradient(135deg, rgba(21,36,64,.98), rgba(11,19,36,.98)) !important;
+    box-shadow: 0 18px 45px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.05) !important;
+  }
+
+  .fanta-server .main-title {
+    font-size: clamp(1.35rem, 2vw, 2rem) !important;
+    letter-spacing: .01em;
+    text-shadow: 0 0 24px rgba(50,200,255,.18);
+  }
+
+  .fanta-server .header-actions .btn {
+    min-height: 42px;
+    border: 1px solid rgba(255,255,255,.08) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 8px 18px rgba(0,0,0,.2);
+  }
+
+  .fanta-server .fanta-floating-nav {
+    width: 100%;
+    justify-content: flex-start;
+    margin: 0 0 18px;
+    padding: 7px;
+    border-radius: 16px;
+    background: #0c1629;
+    border: 1px solid #263752;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+  }
+
+  .fanta-server .fanta-floating-nav .btn {
+    border-radius: 11px;
+  }
+
+  .fanta-server .auction-layout {
+    grid-template-columns: minmax(480px, 1.35fr) minmax(310px, .8fr) minmax(310px, .8fr);
+    grid-template-areas: "auction teams players";
+    gap: 18px;
+    align-items: start;
+  }
+
+  .fanta-server .card,
+  .fanta-server .auction-card,
+  .fanta-server .players-card,
+  .fanta-server .teams-card {
+    border: 1px solid var(--fr-line) !important;
+    border-radius: 20px !important;
+    background: linear-gradient(160deg, rgba(18,30,51,.98), rgba(8,15,29,.98)) !important;
+    box-shadow: 0 18px 38px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.035) !important;
+  }
+
+  .fanta-server .card h2 {
+    border-left: 0;
+    padding-left: 0;
+    color: var(--fr-text);
+  }
+
+  .fanta-server .auction-card {
+    min-height: 640px;
+  }
+
+  .fanta-server .players-card,
+  .fanta-server .teams-card {
+    position: sticky;
+    top: 16px;
+  }
+
+  .fanta-server .player-row,
+  .fanta-server .team-row {
+    border-bottom: 1px solid rgba(143,160,184,.12) !important;
+    transition: .18s ease;
+  }
+
+  .fanta-server .player-row:hover,
+  .fanta-server .team-row:hover {
+    background: rgba(50,200,255,.055);
+  }
+
+  .fanta-server .schedina-admin-screen,
+  .fanta-server .highlander-admin-screen {
+    margin-top: 4px !important;
+    padding: 22px !important;
+    border: 1px solid var(--fr-line);
+    border-radius: 22px;
+    background: linear-gradient(160deg, #111c30, #080f1e) !important;
+    box-shadow: 0 20px 50px rgba(0,0,0,.3);
+  }
+
+  .fanta-server .schedina-admin-screen .card,
+  .fanta-server .highlander-admin-screen .card {
+    border: 1px solid var(--fr-line) !important;
+    border-radius: 16px !important;
+    background: #0d182b !important;
+    box-shadow: 0 12px 26px rgba(0,0,0,.2) !important;
+  }
+
+  .fanta-server .schedina-admin-screen button,
+  .fanta-server .highlander-admin-screen button,
+  .fanta-server .schedina-admin-screen select,
+  .fanta-server .highlander-admin-screen select,
+  .fanta-server .schedina-admin-screen input,
+  .fanta-server .highlander-admin-screen input {
+    border-radius: 11px !important;
+  }
+}
+
+/* ================= CLIENT MOBILE ================= */
+.client-mobile {
+  background:
+    radial-gradient(circle at 50% -10%, rgba(50,200,255,.08), transparent 34%),
+    linear-gradient(180deg, #081122 0%, #050b18 100%) !important;
+}
+
+.client-mobile .mobile-app-header {
+  border-bottom: 1px solid rgba(50,200,255,.16) !important;
+  background: linear-gradient(180deg, rgba(9,18,34,.98), rgba(8,15,28,.94)) !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.22);
+}
+
+.client-mobile .mobile-brand strong {
+  letter-spacing: .06em;
+}
+
+.client-mobile .mobile-brand-icon {
+  width: 38px !important;
+  height: 38px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #3977ff, #7047e8) !important;
+  box-shadow: 0 8px 20px rgba(57,119,255,.25);
+}
+
+.client-mobile .mobile-navigation-shell {
+  padding: 8px 0 10px !important;
+  background: transparent !important;
+}
+
+.client-mobile .mobile-navigation-shell > div {
+  padding: 0 !important;
+}
+
+.client-mobile .mobile-navigation-shell button {
+  min-height: 44px !important;
+  border: 1px solid rgba(255,255,255,.06) !important;
+  border-radius: 12px !important;
+  background: linear-gradient(180deg, #17104a, #110c35) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 7px 16px rgba(0,0,0,.18);
+}
+
+.client-mobile .mobile-navigation-shell button[style*="#24105a"] {
+  background: linear-gradient(135deg, #7047e8, #3977ff) !important;
+  color: white !important;
+  border-color: rgba(255,255,255,.16) !important;
+  box-shadow: 0 8px 22px rgba(112,71,232,.3) !important;
+}
+
+.client-mobile .mobile-auction-screen,
+.client-mobile .schedina-mobile-screen,
+.client-mobile .highlander-mobile-screen {
+  background: transparent !important;
+}
+
+.client-mobile .card {
+  border: 1px solid #263752 !important;
+  border-radius: 18px !important;
+  background: linear-gradient(160deg, #142137, #0b1426) !important;
+  box-shadow: 0 15px 32px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.03) !important;
+}
+
+/* Asta: hero più moderno */
+.client-mobile .mobile-auction-card {
+  padding: 14px !important;
+  border-radius: 22px !important;
+  background:
+    radial-gradient(circle at 78% 15%, rgba(112,71,232,.16), transparent 28%),
+    linear-gradient(160deg, #17263e, #0a1426) !important;
+}
+
+.client-mobile .mobile-auction-card > div:first-of-type {
+  min-height: 190px !important;
+  border: 1px solid rgba(50,200,255,.12);
+  background: linear-gradient(135deg, rgba(9,18,34,.3), rgba(112,71,232,.06));
+}
+
+.client-mobile .mobile-countdown {
+  width: 92px;
+  height: 92px;
+  flex-basis: 92px;
+  background: conic-gradient(var(--fr-cyan) var(--timer-progress,100%), #25334b 0) !important;
+  box-shadow: 0 0 28px rgba(50,200,255,.2);
+}
+
+.client-mobile .mobile-countdown-ring {
+  background: #08111f !important;
+  border: 1px solid rgba(255,255,255,.05);
+}
+
+.client-mobile .mobile-countdown-ring span {
+  font-size: 28px !important;
+}
+
+.client-mobile .mobile-auction-card .alert-box {
+  border: 1px solid #263752 !important;
+  border-radius: 14px !important;
+  background: #080f1c !important;
+}
+
+.client-mobile .mobile-auction-card .mobile-bid-actions .btn {
+  min-height: 56px !important;
+  font-weight: 900 !important;
+  letter-spacing: .02em;
+}
+
+.client-mobile .mobile-auction-card .mobile-bid-actions .btn:nth-child(1) {
+  background: linear-gradient(135deg, #3977ff, #2557c7) !important;
+}
+.client-mobile .mobile-auction-card .mobile-bid-actions .btn:nth-child(2) {
+  background: linear-gradient(135deg, #18b98a, #08785f) !important;
+}
+.client-mobile .mobile-auction-card .mobile-bid-actions .btn:nth-child(3) {
+  background: linear-gradient(135deg, #8054ed, #5632b4) !important;
+}
+
+/* Schedina / Highlander: vera gerarchia da app, non semplici card */
+.client-mobile .schedina-mobile-screen,
+.client-mobile .highlander-mobile-screen {
+  padding-top: 2px !important;
+}
+
+.client-mobile .schedina-mobile-screen > .card:first-child,
+.client-mobile .highlander-mobile-screen > .card:first-child {
+  position: relative;
+  overflow: hidden;
+  padding: 18px !important;
+  border-radius: 20px !important;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(50,200,255,.18), transparent 35%),
+    linear-gradient(145deg, #162744, #0b1426) !important;
+}
+
+.client-mobile .schedina-mobile-screen > .card:first-child::after,
+.client-mobile .highlander-mobile-screen > .card:first-child::after {
+  content: "";
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  right: -32px;
+  bottom: -35px;
+  border: 1px solid rgba(50,200,255,.18);
+  border-radius: 50%;
+}
+
+.client-mobile .schedina-mobile-screen > .card:not(:first-child),
+.client-mobile .highlander-mobile-screen > .card:not(:first-child) {
+  padding: 15px !important;
+}
+
+.client-mobile .schedina-mobile-screen select,
+.client-mobile .highlander-mobile-screen select {
+  min-height: 46px !important;
+  border: 1px solid #304563 !important;
+  background: #090f1d !important;
+}
+
+.client-mobile .schedina-mobile-screen button,
+.client-mobile .highlander-mobile-screen button {
+  border-radius: 11px !important;
+}
+
+.client-mobile .schedina-mobile-screen .btn-green {
+  min-height: 48px !important;
+  background: linear-gradient(135deg, #18d69b, #078261) !important;
+  box-shadow: 0 10px 20px rgba(24,214,155,.16);
+}
+
+.client-mobile .schedina-mobile-screen [style*="#100822"],
+.client-mobile .highlander-mobile-screen [style*="#100822"] {
+  border-color: #273a58 !important;
+  background: #0b1426 !important;
+}
+
+.client-mobile .highlander-mobile-screen [style*="#2a2108"] {
+  background: linear-gradient(145deg, #30250b, #171306) !important;
+  border-color: #9a7315 !important;
+}
+
+.client-mobile .highlander-mobile-screen [style*="#facc15"] {
+  text-shadow: 0 0 14px rgba(250,204,21,.16);
+}
+
+/* micro-polish */
+.client-mobile .mobile-navigation-shell,
+.client-mobile .card,
+.client-mobile button,
+.client-mobile select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 390px) {
+  .client-mobile .mobile-navigation-shell button {
+    font-size: 12px !important;
+  }
+  .client-mobile .mobile-countdown {
+    width: 82px;
+    height: 82px;
+    flex-basis: 82px;
+  }
+}

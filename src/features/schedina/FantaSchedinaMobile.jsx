@@ -249,7 +249,7 @@ export default function FantaSchedinaMobile({
   if (excluded) {
     return (
       <div
-        className="container mobile-container"
+        className="mobile-feature-container mobile-schedina-container"
         style={{ maxWidth: "520px", margin: "0 auto", padding: "10px 12px 25px" }}
       >
         <div
@@ -277,7 +277,7 @@ export default function FantaSchedinaMobile({
 
   return (
     <div
-      className="container mobile-container"
+      className="mobile-feature-container mobile-schedina-container"
       style={{
         maxWidth: "520px",
         margin: "0 auto",
@@ -285,7 +285,7 @@ export default function FantaSchedinaMobile({
       }}
     >
       <div
-        className="card"
+        className="card mobile-feature-hero"
         style={{
           padding: "14px",
           marginBottom: "10px",
@@ -300,6 +300,7 @@ export default function FantaSchedinaMobile({
         </h2>
 
         <select
+          className="mobile-feature-select"
           value={selectedRound}
           onChange={(event) =>
             setSelectedRound(Number(event.target.value))
@@ -320,7 +321,7 @@ export default function FantaSchedinaMobile({
       </div>
 
       <div
-        className="card"
+        className="card mobile-feature-card"
         style={{
           padding: "12px",
           marginBottom: "10px",
@@ -375,6 +376,7 @@ export default function FantaSchedinaMobile({
                   <button
                     key={sign}
                     type="button"
+                    className={`mobile-sign-button ${active ? "active" : ""}`}
                     disabled={!isOpen || submitted}
                     onClick={() => choose(index, sign)}
                     style={{
@@ -415,7 +417,7 @@ export default function FantaSchedinaMobile({
           type="button"
           onClick={confirm}
           disabled={!isOpen || submitted || saving || completed !== round.matches.length}
-          className="btn btn-green"
+          className="btn btn-green mobile-confirm-action"
           style={{
             width: "100%",
             marginTop: "10px",
@@ -438,7 +440,7 @@ export default function FantaSchedinaMobile({
         )}
       </div>
 
-      <div className="card" style={{ padding: "12px", marginBottom: "10px" }}>
+      <div className="card mobile-feature-card" style={{ padding: "12px", marginBottom: "10px" }}>
         <div style={{ color: "#fff", fontWeight: 900, marginBottom: "10px" }}>
           🎯 Schedine giocate — {round.label}
         </div>
@@ -502,7 +504,7 @@ export default function FantaSchedinaMobile({
         )}
       </div>
 
-      <div className="card" style={{ padding: "12px", marginBottom: "10px" }}>
+      <div className="card mobile-feature-card" style={{ padding: "12px", marginBottom: "10px" }}>
         <div style={{ color: "#fff", fontWeight: 900, marginBottom: "10px" }}>
           🏆 Classifica generale FantaSchedina
         </div>

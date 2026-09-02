@@ -9,6 +9,8 @@ import {
   getSurvivors,
 } from "./highlanderStore";
 
+<style>{`@keyframes fantaSpin { to { transform: rotate(360deg); } }`}</style>
+
 export default function HighlanderMobile({
   auctionDocRef,
   partecipanti = [],
@@ -78,8 +80,9 @@ export default function HighlanderMobile({
 
   if (loading) {
     return (
-      <div className="container mobile-container" style={{ maxWidth: 520, margin: "0 auto", padding: 18 }}>
-        <div className="card" style={{ padding: 20, textAlign: "center", color: "#94a3b8" }}>
+      <div className="mobile-feature-container mobile-highlander-container" style={{ maxWidth: 520, margin: "0 auto", padding: 18 }}>
+        <div className="card mobile-feature-card" style={{ padding: 20, textAlign: "center", color: "#94a3b8" }}>
+          <div style={{ width: 42, height: 42, borderRadius: "50%", border: "4px solid #26345a", borderTopColor: "#b33cff", borderRightColor: "#2563ff", margin: "0 auto 12px", animation: "fantaSpin 0.9s linear infinite" }} />
           Caricamento Highlander...
         </div>
       </div>
@@ -88,11 +91,11 @@ export default function HighlanderMobile({
 
   return (
     <div
-      className="container mobile-container"
+      className="mobile-feature-container mobile-highlander-container"
       style={{ maxWidth: 520, margin: "0 auto", padding: "12px 12px 90px" }}
     >
       <div
-        className="card"
+        className="card mobile-feature-card"
         style={{
           padding: 16,
           marginBottom: 12,
@@ -111,7 +114,7 @@ export default function HighlanderMobile({
 
       {champion && (
         <div
-          className="card"
+          className="card mobile-feature-card"
           style={{
             padding: 16,
             marginBottom: 12,
@@ -130,7 +133,7 @@ export default function HighlanderMobile({
       )}
 
       <div
-        className="card"
+        className="card mobile-feature-card"
         style={{
           padding: 14,
           marginBottom: 12,
@@ -168,7 +171,7 @@ export default function HighlanderMobile({
       </div>
 
       <div
-        className="card"
+        className="card mobile-feature-card"
         style={{
           padding: 14,
           marginBottom: 12,
@@ -198,12 +201,13 @@ export default function HighlanderMobile({
         )}
       </div>
 
-      <div className="card" style={{ padding: 14, marginBottom: 12, borderRadius: 12 }}>
+      <div className="card mobile-feature-card" style={{ padding: 14, marginBottom: 12, borderRadius: 12 }}>
         <div style={{ color: "#fff", fontWeight: 900, marginBottom: 10 }}>
           📊 PUNTEGGI DELLE DUE GIORNATE
         </div>
 
         <select
+          className="mobile-feature-select"
           value={selectedBlockId}
           onChange={(event) => setSelectedBlockId(Number(event.target.value))}
           style={{
@@ -314,7 +318,7 @@ export default function HighlanderMobile({
 
       {currentBlock && ranking.length > 0 && (
         <div
-          className="card"
+          className="card mobile-feature-card"
           style={{
             padding: 14,
             marginBottom: 12,
@@ -352,7 +356,7 @@ export default function HighlanderMobile({
       )}
 
       {eliminated.length > 0 && (
-        <div className="card" style={{ padding: 14, borderRadius: 12 }}>
+        <div className="card mobile-feature-card" style={{ padding: 14, borderRadius: 12 }}>
           <div style={{ color: "#fff", fontWeight: 900, marginBottom: 8 }}>
             ❌ Eliminati
           </div>

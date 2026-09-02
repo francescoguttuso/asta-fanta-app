@@ -164,176 +164,120 @@ export default function MobileAuctionPanel({
           GIOCATORE IN ASTA
       ================================================= */}
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "stretch",
-          gap: "14px",
-          marginBottom: "12px",
-          minHeight: "150px",
-        }}
-      >
-        {/* ===============================================
-            CAMPIONCINO
-        =============================================== */}
-
+      <div className="mobile-auction-player-row">
         <div
           style={{
-            width: "105px",
-            minWidth: "105px",
+            minWidth: 0,
+            height: "150px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <img
-            src={playerImageSrc}
-            alt={`Maglia ${player.squadra || ""}`}
-            style={{
-              width: "105px",
-              height: "150px",
-              objectFit: "contain",
-              borderRadius: "12px",
-            }}
-            onError={(event) => {
-              event.currentTarget.style.display = "none";
-            }}
-          />
+          {playerImageSrc ? (
+            <img
+              src={playerImageSrc}
+              alt={`Maglia ${player.squadra || ""}`}
+              style={{
+                width: "100%",
+                maxWidth: "112px",
+                height: "145px",
+                objectFit: "contain",
+                display: "block",
+                filter: "drop-shadow(0 8px 14px rgba(0,0,0,.45))",
+              }}
+              onError={(event) => {
+                event.currentTarget.style.display = "none";
+              }}
+            />
+          ) : (
+            <span style={{ color: "#64748b", fontSize: "0.7rem", textAlign: "center" }}>
+              Maglia non disponibile
+            </span>
+          )}
         </div>
-
-        {/* ===============================================
-            INFORMAZIONI GIOCATORE
-        =============================================== */}
 
         <div
           style={{
-            flex: 1,
+            minWidth: 0,
+            textAlign: "center",
             display: "flex",
             flexDirection: "column",
-            justifyContent: "space-between",
-            textAlign: "center",
-            padding: "4px 0",
+            justifyContent: "center",
           }}
         >
-          {/* NOME */}
-
-          <div>
-            <div
-              style={{
-                color: "#38bdf8",
-                fontSize: "2rem",
-                fontWeight: "800",
-                lineHeight: "1.1",
-              }}
-            >
-              {player.nome}
-            </div>
-
-            <div
-              style={{
-                color: "#94a3b8",
-                fontSize: "1.2rem",
-                marginTop: "4px",
-              }}
-            >
-              {player.squadra} • {player.ruolo}
-            </div>
-          </div>
-
-          {/* =============================================
-              TIMER
-          ============================================= */}
-
           <div
             style={{
-              textAlign: "center",
-              fontSize: "2.4rem",
-              fontWeight: "800",
               color: "#38bdf8",
-              lineHeight: "1",
+              fontSize: "clamp(1.35rem, 5vw, 1.9rem)",
+              fontWeight: "900",
+              lineHeight: "1.05",
+              overflowWrap: "anywhere",
             }}
           >
-            <span
-              style={{
-                display: "inline-block",
-                animation:
-                  isTimerStarted && !isPaused
-                    ? "hourglassSpin 3s linear infinite"
-                    : "none",
-              }}
-            >
-              ⏳
-            </span>{" "}
-            {timer}s
+            {player.nome}
           </div>
 
-          {/* =============================================
-              STATO ASTA
-          ============================================= */}
+          <div style={{ color: "#94a3b8", fontSize: "0.95rem", marginTop: "5px" }}>
+            {player.squadra} • {player.ruolo}
+          </div>
 
           <div
             style={{
-              textAlign: "center",
-              fontSize: "1rem",
-              fontWeight: "800",
-              color: "#fbbf24",
-              whiteSpace: "nowrap",
+              color: isPaused ? "#f87171" : "#fbbf24",
+              fontSize: "0.78rem",
+              fontWeight: "900",
+              marginTop: "12px",
             }}
           >
             {!isTimerStarted ? (
               <>⏳ IN ATTESA DI AVVIO</>
             ) : isPaused ? (
-              <div
-                style={{
-                  color: "#f87171",
-                }}
-              >
-                🛑 STOP DA: <strong>{stopCalledBy}</strong>
-                <div
-                  style={{
-                    fontSize: "1rem",
-                    marginTop: "4px",
-                  }}
-                >
-                  ⏱️ Ripresa tra: {stopTimer}s
-                </div>
-              </div>
+              <>🛑 STOP DA: <strong>{stopCalledBy}</strong></>
             ) : (
-              <>⏱️ TIMER ATTIVO</>
+              <>⏱️ ASTA IN CORSO</>
             )}
           </div>
         </div>
+
+        <div
+          style={{
+            width: "128px",
+            height: "128px",
+            borderRadius: "50%",
+            padding: "5px",
+            boxSizing: "border-box",
+            background: isPaused
+              ? `conic-gradient(#fb2c82 ${Math.max(0, Math.min(100, (Number(timer) / 10) * 100))}%, #24102b 0)`
+              : `conic-gradient(#b33cff ${Math.max(0, Math.min(100, (Number(timer) / 10) * 100))}%, #2563ff 0)`,
+            boxShadow: isPaused
+              ? "0 0 22px rgba(251,44,130,.35)"
+              : "0 0 25px rgba(76,81,255,.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            justifySelf: "center",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              borderRadius: "50%",
+              background: "radial-gradient(circle at 50% 45%, #17102f 0%, #080d20 70%)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              boxSizing: "border-box",
+            }}
+          >
+            <div style={{ color: "#c084fc", fontSize: "0.6rem", fontWeight: "900", letterSpacing: "0.08em" }}>TEMPO</div>
+            <div style={{ color: "#fff", fontSize: "2.5rem", fontWeight: "900", lineHeight: "0.95" }}>{timer}</div>
+            <div style={{ color: "#c084fc", fontSize: "0.58rem", fontWeight: "900", marginTop: "3px" }}>SEC</div>
+          </div>
+        </div>
       </div>
-
-      {/* =================================================
-          ANIMAZIONE CLESSIDRA
-      ================================================= */}
-
-      <style>
-        {`
-          @keyframes hourglassSpin {
-            0% {
-              transform: rotate(0deg);
-            }
-
-            45% {
-              transform: rotate(0deg);
-            }
-
-            50% {
-              transform: rotate(180deg);
-            }
-
-            95% {
-              transform: rotate(180deg);
-            }
-
-            100% {
-              transform: rotate(360deg);
-            }
-          }
-        `}
-      </style>
 
       {/* =================================================
           OFFERTA CORRENTE

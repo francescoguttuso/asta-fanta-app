@@ -342,3 +342,618 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+
+/* =========================================================
+   FANTARIGGIO - MOBILE HEADER
+========================================================= */
+.mobile-top-header {
+  width: 100%;
+  min-height: 112px;
+  display: grid;
+  grid-template-columns: 56px 1fr 56px;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 6px 8px 2px;
+  background: #0b1226;
+  border-bottom: 1px solid #1e2b49;
+}
+.mobile-logo {
+  width: 150px;
+  height: 105px;
+  object-fit: contain;
+  display: block;
+  justify-self: center;
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,.45));
+}
+.mobile-menu-btn {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: #f8fafc;
+  font-size: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.mobile-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+}
+.mobile-live-badge {
+  display: none;
+}
+.mobile-notification {
+  display: none;
+}
+.mobile-auction-player-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) minmax(120px, 1.2fr) 128px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 12px;
+}
+@media (max-width: 430px) {
+  .mobile-top-header {
+    grid-template-columns: 44px 1fr 44px;
+    min-height: 104px;
+  }
+  .mobile-logo { width: 136px; height: 96px; }
+  .mobile-auction-player-row {
+    grid-template-columns: 86px minmax(0, 1fr) 112px;
+    gap: 5px;
+  }
+}
+
+
+/* =========================================================
+   FANTARIGGIO MOBILE - MODERN CONTROLS
+========================================================= */
+.mobile-container {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(59,130,246,.10), transparent 34%),
+    #0b1226;
+}
+
+.mobile-top-header {
+  background: linear-gradient(180deg, #0a1022 0%, #0d1630 100%);
+}
+
+.mobile-logo {
+  width: 164px;
+  height: 112px;
+}
+
+.mobile-menu-btn {
+  border-radius: 14px;
+  transition: transform .18s ease, background .18s ease;
+}
+
+.mobile-menu-btn:active {
+  transform: scale(.94);
+  background: rgba(59,130,246,.12);
+}
+
+.mobile-header-actions {
+  width: 100%;
+  height: 100%;
+}
+
+.mobile-container .card {
+  border-radius: 16px;
+  border: 1px solid #31415f;
+  box-shadow: 0 12px 28px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.025);
+}
+
+.mobile-container .btn,
+.mobile-container button {
+  border-radius: 13px !important;
+  border: 1px solid rgba(255,255,255,.07) !important;
+  transition: transform .18s ease, filter .18s ease, box-shadow .18s ease;
+}
+
+.mobile-container .btn:hover,
+.mobile-container button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+.mobile-container .btn:active,
+.mobile-container button:active:not(:disabled) {
+  transform: translateY(0) scale(.98);
+}
+
+/* Navigazione principale */
+.mobile-container .mobile-nav-button {
+  min-height: 44px;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, #1a0b4b, #25105e) !important;
+  color: #dbeafe !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+.mobile-container .mobile-nav-button.active {
+  background: linear-gradient(135deg, #2563eb, #7c3aed) !important;
+  color: #fff !important;
+  box-shadow: 0 0 18px rgba(99,102,241,.30);
+}
+
+/* Pulsanti offerta */
+.mobile-bid-actions .btn {
+  min-height: 48px;
+  border-radius: 14px !important;
+  font-size: 1rem !important;
+  letter-spacing: .01em;
+}
+
+.mobile-bid-actions .btn:nth-child(1) {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+}
+
+.mobile-bid-actions .btn:nth-child(2) {
+  background: linear-gradient(135deg, #059669, #047857) !important;
+}
+
+.mobile-bid-actions .btn:nth-child(3) {
+  background: linear-gradient(135deg, #7c3aed, #5b21b6) !important;
+}
+
+.mobile-container .btn-orange {
+  min-height: 48px;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  color: #fff !important;
+  box-shadow: 0 7px 18px rgba(245,158,11,.16);
+}
+
+/* Select squadra */
+.mobile-team-selector {
+  background: linear-gradient(180deg, #17233a, #111b30);
+  border: 1px solid #31415f;
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.mobile-team-selector label {
+  color: #e2e8f0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin-bottom: 10px !important;
+}
+
+.mobile-team-selector .input-field {
+  min-height: 52px;
+  border-radius: 14px;
+  border: 1px solid #3b82f6;
+  background: #0b1327;
+  color: #f8fafc;
+  outline: none;
+}
+
+.mobile-team-selector .input-field:focus {
+  border-color: #a855f7;
+  box-shadow: 0 0 0 3px rgba(168,85,247,.14);
+}
+
+.mobile-team-summary {
+  background: linear-gradient(180deg, #17233a, #101a2d) !important;
+  border-radius: 18px !important;
+  border: 1px solid #31415f !important;
+}
+
+@media (max-width: 430px) {
+  .mobile-logo {
+    width: 142px;
+    height: 98px;
+  }
+}
+
+/* Selezione squadra: conferma esplicita e menu per cambiare squadra */
+.mobile-confirm-team-button {
+  width: 100%;
+  margin-top: 12px;
+  min-height: 48px;
+  border: 1px solid rgba(56,189,248,.55);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #155eef, #6d28d9);
+  color: #fff;
+  font-weight: 900;
+  letter-spacing: .35px;
+  box-shadow: 0 8px 20px rgba(37,99,235,.25);
+}
+
+.mobile-confirm-team-button:disabled {
+  opacity: .42;
+  cursor: not-allowed;
+  filter: grayscale(.35);
+}
+
+.mobile-team-menu-btn {
+  width: 40px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #f8fafc;
+  font-size: 2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mobile-team-menu-btn:active {
+  transform: scale(.92);
+}
+
+
+/* =========================================================
+   FANTARIGGIO MOBILE v7 - SELEZIONE SQUADRA
+========================================================= */
+.mobile-selection-screen {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 50% 8%, rgba(59,130,246,.12), transparent 30%),
+    linear-gradient(180deg, #081126 0%, #0b1328 55%, #070e1f 100%);
+}
+
+.mobile-selection-card {
+  margin-top: 8px !important;
+  padding: 18px 14px 20px !important;
+  background: linear-gradient(180deg, rgba(30,41,59,.96), rgba(18,29,49,.96)) !important;
+  border: 1px solid rgba(71,85,105,.75) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 18px 40px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.035) !important;
+}
+
+.mobile-selection-intro {
+  margin: 0 0 16px !important;
+  color: #a8b6ca !important;
+  font-size: .86rem !important;
+  letter-spacing: .01em;
+}
+
+.mobile-team-selector {
+  padding: 16px !important;
+  border-radius: 18px !important;
+  background: linear-gradient(145deg, #18253b, #101b30) !important;
+  border: 1px solid #344766 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.03), 0 8px 20px rgba(0,0,0,.16) !important;
+}
+
+.mobile-team-selector label {
+  display: block;
+  text-align: center;
+  font-size: 1rem !important;
+  margin-bottom: 10px !important;
+  color: #f1f5f9 !important;
+}
+
+.mobile-team-selector .input-field {
+  min-height: 54px !important;
+  padding: 0 14px !important;
+  border-radius: 15px !important;
+  border: 1px solid #3b82f6 !important;
+  background: #091326 !important;
+  font-weight: 700;
+  box-shadow: 0 0 0 1px rgba(59,130,246,.05), inset 0 2px 8px rgba(0,0,0,.18);
+}
+
+.mobile-team-selector .input-field:hover {
+  border-color: #60a5fa !important;
+}
+
+.mobile-confirm-team-button {
+  min-height: 52px !important;
+  margin-top: 12px !important;
+  border: 0 !important;
+  border-radius: 15px !important;
+  background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%) !important;
+  box-shadow: 0 10px 24px rgba(59,130,246,.22), inset 0 1px 0 rgba(255,255,255,.16) !important;
+  font-size: .9rem;
+}
+
+.mobile-confirm-team-button:not(:disabled):active {
+  transform: scale(.985) !important;
+}
+
+.mobile-team-summary {
+  margin-top: 12px !important;
+  padding: 16px !important;
+  border-radius: 18px !important;
+  background: linear-gradient(145deg, #18253b, #101b30) !important;
+  border: 1px solid #344766 !important;
+}
+
+.mobile-team-summary > div:first-child {
+  text-align: center;
+  color: #38bdf8 !important;
+  font-size: .98rem !important;
+  line-height: 1.4;
+}
+
+.mobile-team-summary p {
+  text-align: center;
+  font-size: .76rem !important;
+  line-height: 1.55 !important;
+  color: #aab8ca !important;
+}
+
+@media (max-width: 430px) {
+  .mobile-selection-card {
+    padding: 16px 10px 18px !important;
+  }
+
+  .mobile-logo {
+    width: 150px;
+    height: 104px;
+  }
+}
+
+
+/* =========================================================
+   FANTARIGGIO MOBILE v8 - FINAL POLISH
+========================================================= */
+.mobile-inline-team-menu {
+  width: 28px;
+  height: 30px;
+  padding: 0;
+  margin-left: 2px;
+  border: 1px solid rgba(96,165,250,.22) !important;
+  border-radius: 9px !important;
+  background: rgba(8,19,38,.55) !important;
+  color: #e2e8f0 !important;
+  font-size: 1.25rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none !important;
+}
+.mobile-inline-team-menu:hover {
+  background: rgba(59,130,246,.16) !important;
+  transform: none !important;
+}
+.mobile-team-summary-title {
+  color: #38bdf8;
+  font-size: 1.05rem;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+.mobile-team-summary-note {
+  margin: 0;
+  color: #94a3b8;
+  font-size: .78rem;
+  line-height: 1.45;
+}
+.mobile-selection-screen .mobile-top-header {
+  min-height: 142px;
+}
+.mobile-selection-screen .mobile-logo {
+  width: 205px;
+  height: 136px;
+}
+@media (max-width: 430px) {
+  .mobile-selection-screen .mobile-top-header {
+    min-height: 134px;
+  }
+  .mobile-selection-screen .mobile-logo {
+    width: 190px;
+    height: 128px;
+  }
+}
+
+
+/* =========================================================
+   FANTARIGGIO MOBILE v9 - HEADER COMUNE
+   Stile condiviso per Selezione, Asta, Schedina e Highlander
+========================================================= */
+.mobile-top-header {
+  width: 100%;
+  min-height: 144px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px 4px;
+  background: linear-gradient(180deg, #080f22 0%, #0b1530 100%);
+  border-bottom: 1px solid #1e2b49;
+  box-sizing: border-box;
+}
+
+.mobile-header-spacer {
+  width: 1px;
+  height: 1px;
+}
+
+.mobile-logo {
+  width: 194px !important;
+  height: 132px !important;
+  object-fit: contain;
+  display: block;
+  justify-self: center;
+  filter: drop-shadow(0 10px 20px rgba(0,0,0,.5));
+}
+
+/* Nessun vecchio menu/header action */
+.mobile-menu-btn,
+.mobile-header-actions {
+  display: none !important;
+}
+
+/* Tutte le schermate mobile condividono la stessa resa delle card */
+.mobile-container .card {
+  border-radius: 17px;
+  border: 1px solid #31415f;
+  box-shadow: 0 12px 28px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.025);
+}
+
+/* Navigazione superiore: pulsanti più moderni e coerenti */
+.mobile-container .mobile-nav-button {
+  min-height: 42px !important;
+  border-radius: 13px !important;
+  border: 1px solid rgba(96,165,250,.16) !important;
+  background: linear-gradient(135deg, #17074a, #250a66) !important;
+  color: #dbeafe !important;
+  box-shadow: 0 6px 16px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.05) !important;
+}
+
+.mobile-container .mobile-nav-button.active {
+  background: linear-gradient(135deg, #2563eb, #7c3aed) !important;
+  color: #fff !important;
+  border-color: rgba(147,197,253,.5) !important;
+  box-shadow: 0 8px 20px rgba(59,130,246,.25) !important;
+}
+
+/* Selezione: logo protagonista */
+.mobile-selection-screen .mobile-top-header {
+  min-height: 158px;
+}
+
+.mobile-selection-screen .mobile-logo {
+  width: 222px !important;
+  height: 150px !important;
+}
+
+/* Schedina e Highlander: stesso respiro verticale dell'Asta */
+.mobile-container .mobile-nav-button,
+.mobile-container .card {
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+@media (max-width: 430px) {
+  .mobile-top-header {
+    min-height: 136px;
+  }
+
+  .mobile-logo {
+    width: 182px !important;
+    height: 124px !important;
+  }
+
+  .mobile-selection-screen .mobile-top-header {
+    min-height: 150px;
+  }
+
+  .mobile-selection-screen .mobile-logo {
+    width: 210px !important;
+    height: 142px !important;
+  }
+}
+
+
+/* =========================================================
+   FANTARIGGIO MOBILE v10 - SCHEDINA + HIGHLANDER
+   Stesso contenitore, forme e palette della schermata ASTA
+========================================================= */
+.mobile-feature-container {
+  width: 100%;
+  max-width: 520px !important;
+  margin: 0 auto !important;
+  padding: 0 12px 25px !important;
+  box-sizing: border-box !important;
+  background: var(--bg-main) !important;
+  min-height: 0 !important;
+  color: var(--text-main);
+}
+
+.mobile-feature-container .mobile-feature-card,
+.mobile-feature-container .mobile-feature-hero,
+.mobile-feature-container .card {
+  background: #1e293b !important;
+  border: 1px solid #31415f !important;
+  border-radius: 17px !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.025) !important;
+  box-sizing: border-box;
+}
+
+.mobile-feature-container .mobile-feature-hero {
+  background: linear-gradient(180deg,#17243a,#111c30) !important;
+}
+
+.mobile-feature-container .mobile-feature-card button,
+.mobile-feature-container .mobile-confirm-action,
+.mobile-feature-container .mobile-sign-button {
+  border-radius: 13px !important;
+  border: 1px solid rgba(96,165,250,.18) !important;
+  min-height: 44px;
+  font-weight: 800 !important;
+  box-shadow: 0 7px 16px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.06) !important;
+  transition: transform .15s ease, filter .15s ease, border-color .15s ease !important;
+}
+
+.mobile-feature-container .mobile-sign-button {
+  background: linear-gradient(135deg,#17074a,#250a66) !important;
+  color: #dbeafe !important;
+}
+
+.mobile-feature-container .mobile-sign-button.active {
+  background: linear-gradient(135deg,#2563eb,#7c3aed) !important;
+  color: #fff !important;
+  border-color: rgba(147,197,253,.7) !important;
+  box-shadow: 0 8px 20px rgba(59,130,246,.28), inset 0 1px 0 rgba(255,255,255,.12) !important;
+}
+
+.mobile-feature-container .mobile-confirm-action {
+  background: linear-gradient(135deg,#059669,#10b981) !important;
+  color: #fff !important;
+  border-color: rgba(110,231,183,.35) !important;
+}
+
+.mobile-feature-container .mobile-feature-card button:not(:disabled):active,
+.mobile-feature-container .mobile-confirm-action:not(:disabled):active,
+.mobile-feature-container .mobile-sign-button:not(:disabled):active {
+  transform: scale(.985) !important;
+}
+
+.mobile-feature-container button:disabled {
+  opacity: .48 !important;
+  cursor: not-allowed !important;
+}
+
+.mobile-feature-container .mobile-feature-select,
+.mobile-feature-container select {
+  width: 100% !important;
+  min-height: 50px !important;
+  padding: 0 14px !important;
+  border-radius: 14px !important;
+  border: 1px solid #3b82f6 !important;
+  background: #091326 !important;
+  color: #f8fafc !important;
+  font-weight: 800 !important;
+  box-sizing: border-box !important;
+  outline: none;
+}
+
+.mobile-feature-container h2,
+.mobile-feature-container h3 {
+  color: #38bdf8;
+}
+
+.mobile-feature-container strong {
+  color: inherit;
+}
+
+.mobile-schedina-container .mobile-feature-hero h2 {
+  color: #38bdf8 !important;
+  border-left: 4px solid #3b82f6;
+  padding-left: 10px;
+}
+
+.mobile-highlander-container .mobile-feature-card:first-of-type {
+  background: linear-gradient(180deg,#10172a,#0b1020) !important;
+}
+
+.mobile-highlander-container .mobile-feature-card select {
+  background: #091326 !important;
+}
+
+@media (max-width: 430px) {
+  .mobile-feature-container {
+    max-width: 420px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+}
