@@ -260,13 +260,22 @@ export default function HighlanderMobile({
           });
 
           return (
-            <div style={{ overflowX: "auto" }}>
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "100%",
+                overflowX: "auto",
+                overflowY: "hidden",
+                WebkitOverflowScrolling: "touch",
+              }}
+            >
               <div
                 style={{
-                  minWidth: 430,
+                  width: 600,
+                  minWidth: 600,
                   display: "grid",
-                  gridTemplateColumns: "minmax(125px, 1fr) 72px 72px 78px",
-                  gap: 6,
+                  gridTemplateColumns: "220px 85px 85px 90px",
+                  gap: 8,
                   alignItems: "center",
                 }}
               >
@@ -289,14 +298,22 @@ export default function HighlanderMobile({
                     style={{
                       gridColumn: "1 / -1",
                       display: "grid",
-                      gridTemplateColumns: "minmax(125px, 1fr) 72px 72px 78px",
-                      gap: 6,
+                      gridTemplateColumns: "220px 85px 85px 90px",
+                      gap: 8,
                       alignItems: "center",
                       padding: "9px 0",
                       borderBottom: "1px solid #21173d",
                     }}
                   >
-                    <span style={{ color: "#e5e7eb", fontWeight: 800 }}>
+                    <span
+                      style={{
+                        color: "#e5e7eb",
+                        fontWeight: 800,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "clip",
+                      }}
+                    >
                       {row.nome}
                     </span>
                     <strong style={{ color: row.day1 != null ? "#38bdf8" : "#64748b", textAlign: "right" }}>
