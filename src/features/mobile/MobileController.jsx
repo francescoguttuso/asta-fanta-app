@@ -296,7 +296,9 @@ export default function MobileController() {
           padding: "14px 15px 28px",
         }}
       >
-        <MobileTopHeader />
+        <div className="mobile-selection-header">
+          <MobileTopHeader />
+        </div>
 
         <div
           className="card mobile-selection-card"

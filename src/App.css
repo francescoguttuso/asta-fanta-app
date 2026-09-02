@@ -957,3 +957,32 @@
     padding-right: 12px !important;
   }
 }
+
+
+/* =========================================================
+   FANTARIGGIO MOBILE v11 - LOGO SELEZIONE SQUADRA
+   Logo più grande solo nella schermata iniziale.
+   Il resto delle schermate mantiene il dimensionamento già approvato.
+========================================================= */
+.mobile-selection-header .mobile-top-header {
+  min-height: 148px;
+  grid-template-columns: 1fr;
+  padding: 4px 8px 6px;
+}
+
+.mobile-selection-header .mobile-logo {
+  width: 205px;
+  height: 142px;
+  max-width: 100%;
+}
+
+@media (max-width: 430px) {
+  .mobile-selection-header .mobile-top-header {
+    min-height: 148px;
+  }
+
+  .mobile-selection-header .mobile-logo {
+    width: 205px;
+    height: 142px;
+  }
+}
