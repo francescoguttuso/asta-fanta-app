@@ -263,32 +263,30 @@ export default function HighlanderMobile({
             <div
               style={{
                 width: "100%",
-                maxWidth: "100%",
-                overflowX: "auto",
-                overflowY: "hidden",
-                WebkitOverflowScrolling: "touch",
+                minWidth: 0,
+                overflow: "hidden",
               }}
             >
               <div
                 style={{
-                  width: 600,
-                  minWidth: 600,
+                  width: "100%",
+                  minWidth: 0,
                   display: "grid",
-                  gridTemplateColumns: "220px 85px 85px 90px",
-                  gap: 8,
+                  gridTemplateColumns: "minmax(0, 1fr) 48px 48px 58px",
+                  gap: 5,
                   alignItems: "center",
                 }}
               >
-                <strong style={{ color: "#94a3b8", fontSize: 12 }}>
+                <strong style={{ color: "#94a3b8", fontSize: 11 }}>
                   SQUADRA
                 </strong>
-                <strong style={{ color: "#38bdf8", fontSize: 12, textAlign: "right" }}>
+                <strong style={{ color: "#38bdf8", fontSize: 11, textAlign: "right" }}>
                   G{block.from}
                 </strong>
-                <strong style={{ color: "#38bdf8", fontSize: 12, textAlign: "right" }}>
+                <strong style={{ color: "#38bdf8", fontSize: 11, textAlign: "right" }}>
                   G{block.to}
                 </strong>
-                <strong style={{ color: "#facc15", fontSize: 12, textAlign: "right" }}>
+                <strong style={{ color: "#facc15", fontSize: 11, textAlign: "right" }}>
                   TOTALE
                 </strong>
 
@@ -298,31 +296,35 @@ export default function HighlanderMobile({
                     style={{
                       gridColumn: "1 / -1",
                       display: "grid",
-                      gridTemplateColumns: "220px 85px 85px 90px",
-                      gap: 8,
+                      gridTemplateColumns: "minmax(0, 1fr) 48px 48px 58px",
+                      gap: 5,
                       alignItems: "center",
-                      padding: "9px 0",
+                      padding: "8px 0",
                       borderBottom: "1px solid #21173d",
+                      minWidth: 0,
                     }}
                   >
                     <span
                       style={{
                         color: "#e5e7eb",
                         fontWeight: 800,
+                        fontSize: 13.5,
+                        lineHeight: 1.2,
                         whiteSpace: "nowrap",
                         overflow: "hidden",
-                        textOverflow: "clip",
+                        textOverflow: "ellipsis",
+                        minWidth: 0,
                       }}
                     >
                       {row.nome}
                     </span>
-                    <strong style={{ color: row.day1 != null ? "#38bdf8" : "#64748b", textAlign: "right" }}>
+                    <strong style={{ color: row.day1 != null ? "#38bdf8" : "#64748b", textAlign: "right", fontSize: 13 }}>
                       {row.day1 != null ? row.day1 : "—"}
                     </strong>
-                    <strong style={{ color: row.day2 != null ? "#38bdf8" : "#64748b", textAlign: "right" }}>
+                    <strong style={{ color: row.day2 != null ? "#38bdf8" : "#64748b", textAlign: "right", fontSize: 13 }}>
                       {row.day2 != null ? row.day2 : "—"}
                     </strong>
-                    <strong style={{ color: row.total != null ? "#facc15" : "#64748b", textAlign: "right" }}>
+                    <strong style={{ color: row.total != null ? "#facc15" : "#64748b", textAlign: "right", fontSize: 13 }}>
                       {row.total != null ? row.total : "—"}
                     </strong>
                   </div>

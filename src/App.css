@@ -834,12 +834,12 @@
   }
 
   .mobile-selection-screen .mobile-top-header {
-    min-height: 150px;
+    min-height: 184px;
   }
 
   .mobile-selection-screen .mobile-logo {
-    width: 210px !important;
-    height: 142px !important;
+    width: 260px !important;
+    height: 176px !important;
   }
 }
 
@@ -978,11 +978,11 @@
 
 @media (max-width: 430px) {
   .mobile-selection-header .mobile-top-header {
-    min-height: 148px;
+    min-height: 184px;
   }
 
   .mobile-selection-header .mobile-logo {
-    width: 205px;
-    height: 142px;
+    width: 260px;
+    height: 176px;
   }
 }
