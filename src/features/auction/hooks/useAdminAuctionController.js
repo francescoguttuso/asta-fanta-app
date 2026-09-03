@@ -51,6 +51,9 @@ export default function useAdminAuctionController() {
   const [vistaCorrente, setVistaCorrente] = useState('dashboard');
   const [squadraManualeId, setSquadraManualeId] = useState('');
   const [prezzoManuale, setPrezzoManuale] = useState('');
+  const [serverBidderId, setServerBidderId] = useState(() =>
+    localStorage.getItem('fantaServerBidderId') || '1',
+  );
   const [filtroLettera, setFiltroLettera] = useState('TUTTE');
   const [filtriRuoliAttivi, setFiltriRuoliAttivi] =
     useState(INITIAL_ROLE_FILTERS);
@@ -387,17 +390,25 @@ export default function useAdminAuctionController() {
   const faiOfferta = async (incremento = 1) => {
     if (!giocatoreInAsta || !isTimerStarted || timer === 0 || isPaused) return;
 
-    const admin = partecipanti.find((partecipante) => partecipante.id === 1);
+    const offerenteServer = partecipanti.find(
+      (partecipante) => String(partecipante.id) === String(serverBidderId),
+    );
+
+    if (!offerenteServer) {
+      alert('Seleziona la squadra per cui il Server deve rilanciare.');
+      return;
+    }
 
     try {
       await placeBid({
         docRef,
-        bidderId: '1',
-        bidderName: admin?.nome || 'Admin',
+        bidderId: String(offerenteServer.id),
+        bidderName: offerenteServer.nome || `Squadra ${offerenteServer.id}`,
         increment: incremento,
       });
     } catch (error) {
       console.error('Errore nel rilancio server: ', error);
+      alert(error?.message || 'Impossibile effettuare il rilancio dal Server.');
     }
   };
 
@@ -637,6 +648,16 @@ export default function useAdminAuctionController() {
     }
   };
 
+  const cambiaOfferenteServer = (value) => {
+    const normalized = String(value || '');
+    setServerBidderId(normalized);
+    if (normalized) localStorage.setItem('fantaServerBidderId', normalized);
+  };
+
+  const offerenteServer = partecipanti.find(
+    (partecipante) => String(partecipante.id) === String(serverBidderId),
+  );
+
   return {
     vistaCorrente,
     setVistaCorrente,
@@ -644,6 +665,9 @@ export default function useAdminAuctionController() {
     setSquadraManualeId,
     prezzoManuale,
     setPrezzoManuale,
+    serverBidderId,
+    setServerBidderId: cambiaOfferenteServer,
+    offerenteServer,
     filtroLettera,
     setFiltroLettera,
     filtriRuoliAttivi,
