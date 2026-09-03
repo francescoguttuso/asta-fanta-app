@@ -1755,8 +1755,14 @@
   .server-rosters-view { padding: 10px 7px 22px; }
   .server-rosters-toolbar { align-items: flex-start; flex-direction: column; }
   .server-rosters-legend { justify-content: flex-start; }
-  .server-rosters-grid { gap: 3px; }
-  .server-roster-team-header { min-height: 108px; padding: 7px 4px; }
+  .server-rosters-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .server-roster-team-header { min-height: 108px; padding: 9px 12px; }
+  .server-roster-team-name strong {
+    font-size: 1rem;
+  }
   .server-roster-role { padding-left: 2px; padding-right: 2px; }
   .server-roster-player-slot { grid-template-columns: minmax(0,1fr) 22px; }
   .server-roster-player-price { display: none; }
