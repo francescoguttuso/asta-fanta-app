@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { ALPHABET } from "@/data/auctionDefaults";
 import {
   useAdminAuctionContext,
@@ -14,77 +15,80 @@ export default function AvailablePlayers() {
     setFiltroLettera: onLetterChange,
     chiamaGiocatore: onCallPlayer,
   } = useAdminAuctionContext();
+  const [query, setQuery] = useState("");
+
+  const visiblePlayers = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return players;
+    return players.filter((player) =>
+      `${player.nome} ${player.squadra} ${player.ruolo}`.toLowerCase().includes(normalized),
+    );
+  }, [players, query]);
 
   return (
-    <div className="card players-card">
-      <h2>
-        🔍 Elenco Giocatori Disponibili ({players.length} / {giocatori.length})
-      </h2>
-
-      <div className="role-filters">
-        <span style={{ fontWeight: "bold", fontSize: "0.9rem" }}>
-          Filtra Ruoli:
-        </span>
-        {Object.keys(activeRoleFilters).map((role) => (
-          <label
-            key={role}
-            style={{
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={activeRoleFilters[role]}
-              onChange={() => onRoleToggle(role)}
-            />
-            {role}
-          </label>
-        ))}
+    <div className="server-panel server-players-card">
+      <div className="server-panel-title">
+        <span>🔎</span> ELENCO GIOCATORI DISPONIBILI ({visiblePlayers.length} / {giocatori.length})
       </div>
 
-      <div className="letter-filters">
+      <div className="server-player-tools">
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Cerca giocatore o squadra..."
+        />
+        <div className="server-role-filters">
+          <span>Ruolo:</span>
+          {Object.keys(activeRoleFilters).map((role) => (
+            <label key={role}>
+              <input
+                type="checkbox"
+                checked={activeRoleFilters[role]}
+                onChange={() => onRoleToggle(role)}
+              />
+              {role}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="server-letter-filters">
         <button
+          type="button"
+          className={selectedLetter === "TUTTE" ? "active" : ""}
           onClick={() => onLetterChange("TUTTE")}
-          className={`btn ${
-            selectedLetter === "TUTTE" ? "btn-blue" : "btn-grey"
-          }`}
-          style={{ padding: "5px 10px", fontSize: "0.8rem" }}
         >
           TUTTE
         </button>
         {ALPHABET.map((letter) => (
           <button
+            type="button"
             key={letter}
+            className={selectedLetter === letter ? "active" : ""}
             onClick={() => onLetterChange(letter)}
-            className={`btn ${
-              selectedLetter === letter ? "btn-blue" : "btn-grey"
-            }`}
-            style={{
-              padding: "5px 8px",
-              fontSize: "0.8rem",
-              minWidth: "30px",
-            }}
           >
             {letter}
           </button>
         ))}
       </div>
 
-      <div className="player-list">
-        {players.map((player) => (
-          <div key={player.id} className="player-row">
-            <span className="player-name">
-              {player.nome} - {player.squadra} ({player.ruolo})
-            </span>
+      <div className="server-player-list-head">
+        <span>GIOCATORE</span><span>SQUADRA</span><span>RUOLO</span><span>AZIONE</span>
+      </div>
+
+      <div className="server-player-list">
+        {visiblePlayers.map((player) => (
+          <div key={player.id} className="server-player-row">
+            <strong title={player.nome}>{player.nome}</strong>
+            <span title={player.squadra}>{player.squadra}</span>
+            <b>{player.ruolo}</b>
             <button
+              type="button"
               onClick={() => onCallPlayer(player)}
               disabled={isConfigMode}
-              className="btn-call btn-blue"
             >
-              Chiama 🔨
+              CHIAMA ›
             </button>
           </div>
         ))}

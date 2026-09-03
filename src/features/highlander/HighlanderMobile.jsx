@@ -9,6 +9,8 @@ import {
   getSurvivors,
 } from "./highlanderStore";
 
+<style>{`@keyframes fantaSpin { to { transform: rotate(360deg); } }`}</style>
+
 export default function HighlanderMobile({
   auctionDocRef,
   partecipanti = [],
@@ -78,8 +80,9 @@ export default function HighlanderMobile({
 
   if (loading) {
     return (
-      <div className="container mobile-container" style={{ maxWidth: 520, margin: "0 auto", padding: 18 }}>
-        <div className="card" style={{ padding: 20, textAlign: "center", color: "#94a3b8" }}>
+      <div className="mobile-feature-container mobile-highlander-container" style={{ maxWidth: 520, margin: "0 auto", padding: 18 }}>
+        <div className="card mobile-feature-card" style={{ padding: 20, textAlign: "center", color: "#94a3b8" }}>
+          <div style={{ width: 42, height: 42, borderRadius: "50%", border: "4px solid #26345a", borderTopColor: "#b33cff", borderRightColor: "#2563ff", margin: "0 auto 12px", animation: "fantaSpin 0.9s linear infinite" }} />
           Caricamento Highlander...
         </div>
       </div>
@@ -88,11 +91,11 @@ export default function HighlanderMobile({
 
   return (
     <div
-      className="container mobile-container"
+      className="mobile-feature-container mobile-highlander-container"
       style={{ maxWidth: 520, margin: "0 auto", padding: "12px 12px 90px" }}
     >
       <div
-        className="card"
+        className="card mobile-feature-card"
         style={{
           padding: 16,
           marginBottom: 12,
@@ -111,7 +114,7 @@ export default function HighlanderMobile({
 
       {champion && (
         <div
-          className="card"
+          className="card mobile-feature-card"
           style={{
             padding: 16,
             marginBottom: 12,
@@ -130,7 +133,7 @@ export default function HighlanderMobile({
       )}
 
       <div
-        className="card"
+        className="card mobile-feature-card"
         style={{
           padding: 14,
           marginBottom: 12,
@@ -168,7 +171,7 @@ export default function HighlanderMobile({
       </div>
 
       <div
-        className="card"
+        className="card mobile-feature-card"
         style={{
           padding: 14,
           marginBottom: 12,
@@ -198,12 +201,13 @@ export default function HighlanderMobile({
         )}
       </div>
 
-      <div className="card" style={{ padding: 14, marginBottom: 12, borderRadius: 12 }}>
+      <div className="card mobile-feature-card" style={{ padding: 14, marginBottom: 12, borderRadius: 12 }}>
         <div style={{ color: "#fff", fontWeight: 900, marginBottom: 10 }}>
           📊 PUNTEGGI DELLE DUE GIORNATE
         </div>
 
         <select
+          className="mobile-feature-select"
           value={selectedBlockId}
           onChange={(event) => setSelectedBlockId(Number(event.target.value))}
           style={{
@@ -256,26 +260,33 @@ export default function HighlanderMobile({
           });
 
           return (
-            <div style={{ overflowX: "auto" }}>
+            <div
+              style={{
+                width: "100%",
+                minWidth: 0,
+                overflow: "hidden",
+              }}
+            >
               <div
                 style={{
-                  minWidth: 430,
+                  width: "100%",
+                  minWidth: 0,
                   display: "grid",
-                  gridTemplateColumns: "minmax(125px, 1fr) 72px 72px 78px",
-                  gap: 6,
+                  gridTemplateColumns: "minmax(0, 1fr) 48px 48px 58px",
+                  gap: 5,
                   alignItems: "center",
                 }}
               >
-                <strong style={{ color: "#94a3b8", fontSize: 12 }}>
+                <strong style={{ color: "#94a3b8", fontSize: 11 }}>
                   SQUADRA
                 </strong>
-                <strong style={{ color: "#38bdf8", fontSize: 12, textAlign: "right" }}>
+                <strong style={{ color: "#38bdf8", fontSize: 11, textAlign: "right" }}>
                   G{block.from}
                 </strong>
-                <strong style={{ color: "#38bdf8", fontSize: 12, textAlign: "right" }}>
+                <strong style={{ color: "#38bdf8", fontSize: 11, textAlign: "right" }}>
                   G{block.to}
                 </strong>
-                <strong style={{ color: "#facc15", fontSize: 12, textAlign: "right" }}>
+                <strong style={{ color: "#facc15", fontSize: 11, textAlign: "right" }}>
                   TOTALE
                 </strong>
 
@@ -285,23 +296,35 @@ export default function HighlanderMobile({
                     style={{
                       gridColumn: "1 / -1",
                       display: "grid",
-                      gridTemplateColumns: "minmax(125px, 1fr) 72px 72px 78px",
-                      gap: 6,
+                      gridTemplateColumns: "minmax(0, 1fr) 48px 48px 58px",
+                      gap: 5,
                       alignItems: "center",
-                      padding: "9px 0",
+                      padding: "8px 0",
                       borderBottom: "1px solid #21173d",
+                      minWidth: 0,
                     }}
                   >
-                    <span style={{ color: "#e5e7eb", fontWeight: 800 }}>
+                    <span
+                      style={{
+                        color: "#e5e7eb",
+                        fontWeight: 800,
+                        fontSize: 13.5,
+                        lineHeight: 1.2,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        minWidth: 0,
+                      }}
+                    >
                       {row.nome}
                     </span>
-                    <strong style={{ color: row.day1 != null ? "#38bdf8" : "#64748b", textAlign: "right" }}>
+                    <strong style={{ color: row.day1 != null ? "#38bdf8" : "#64748b", textAlign: "right", fontSize: 13 }}>
                       {row.day1 != null ? row.day1 : "—"}
                     </strong>
-                    <strong style={{ color: row.day2 != null ? "#38bdf8" : "#64748b", textAlign: "right" }}>
+                    <strong style={{ color: row.day2 != null ? "#38bdf8" : "#64748b", textAlign: "right", fontSize: 13 }}>
                       {row.day2 != null ? row.day2 : "—"}
                     </strong>
-                    <strong style={{ color: row.total != null ? "#facc15" : "#64748b", textAlign: "right" }}>
+                    <strong style={{ color: row.total != null ? "#facc15" : "#64748b", textAlign: "right", fontSize: 13 }}>
                       {row.total != null ? row.total : "—"}
                     </strong>
                   </div>
@@ -314,7 +337,7 @@ export default function HighlanderMobile({
 
       {currentBlock && ranking.length > 0 && (
         <div
-          className="card"
+          className="card mobile-feature-card"
           style={{
             padding: 14,
             marginBottom: 12,
@@ -352,7 +375,7 @@ export default function HighlanderMobile({
       )}
 
       {eliminated.length > 0 && (
-        <div className="card" style={{ padding: 14, borderRadius: 12 }}>
+        <div className="card mobile-feature-card" style={{ padding: 14, borderRadius: 12 }}>
           <div style={{ color: "#fff", fontWeight: 900, marginBottom: 8 }}>
             ❌ Eliminati
           </div>

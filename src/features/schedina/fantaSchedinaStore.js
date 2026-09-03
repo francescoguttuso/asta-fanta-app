@@ -65,16 +65,28 @@ export async function ensureFantaSchedinaDocument(auctionDocRef = null) {
       (key) => !rounds[key],
     );
 
-    if (needsRoundInitialization || !Number.isInteger(existingActiveRound)) {
+    const needsExcludedTeamsInitialization = !Array.isArray(current.excludedTeamIds);
+
+    if (
+      needsRoundInitialization ||
+      !Number.isInteger(existingActiveRound) ||
+      needsExcludedTeamsInitialization
+    ) {
       await updateDoc(FANTA_SCHEDINA_REF, {
         ...(needsRoundInitialization ? { rounds: normalizedRounds } : {}),
-        activeRound: firstOpenRound,
+        ...(!Number.isInteger(existingActiveRound) ? { activeRound: firstOpenRound } : {}),
+        ...(needsExcludedTeamsInitialization ? { excludedTeamIds: [] } : {}),
       });
 
       return {
         ...current,
         rounds: normalizedRounds,
-        activeRound: firstOpenRound,
+        activeRound: Number.isInteger(existingActiveRound)
+          ? existingActiveRound
+          : firstOpenRound,
+        excludedTeamIds: Array.isArray(current.excludedTeamIds)
+          ? current.excludedTeamIds
+          : [],
       };
     }
 
@@ -91,6 +103,9 @@ export async function ensureFantaSchedinaDocument(auctionDocRef = null) {
     rounds: buildOpenRounds(legacy.rounds || {}),
     activeRound: legacy.activeRound ?? null,
     rankingAdjustments: legacy.rankingAdjustments || {},
+    excludedTeamIds: Array.isArray(legacy.excludedTeamIds)
+      ? legacy.excludedTeamIds
+      : [],
     migratedFromAuctionSession: Boolean(
       source?.exists() && source.data()?.fantaSchedina,
     ),
@@ -189,6 +204,42 @@ export async function setFantaSchedinaRound(docRef, roundIndex, open) {
     [`rounds.${currentRound}.open`]: false,
     [`rounds.${currentRound}.lockedAt`]: new Date().toISOString(),
     activeRound: nextRound,
+  });
+}
+
+export function getExcludedFantaSchedinaTeamIds(session) {
+  if (!Array.isArray(session?.excludedTeamIds)) return [];
+  return session.excludedTeamIds.map(String);
+}
+
+export function isFantaSchedinaTeamExcluded(session, teamId) {
+  if (teamId === undefined || teamId === null || teamId === "") return false;
+  return getExcludedFantaSchedinaTeamIds(session).includes(String(teamId));
+}
+
+export async function setFantaSchedinaTeamParticipation(
+  docRef,
+  teamId,
+  enabled,
+) {
+  if (!docRef) throw new Error("FantaSchedina non disponibile.");
+
+  const snap = await getDoc(docRef);
+  if (!snap.exists()) throw new Error("FantaSchedina non inizializzata.");
+
+  const current = snap.data() || {};
+  const excluded = new Set(
+    Array.isArray(current.excludedTeamIds)
+      ? current.excludedTeamIds.map(String)
+      : [],
+  );
+  const id = String(teamId);
+
+  if (enabled) excluded.delete(id);
+  else excluded.add(id);
+
+  await updateDoc(docRef, {
+    excludedTeamIds: Array.from(excluded),
   });
 }
 

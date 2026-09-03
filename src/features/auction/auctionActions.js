@@ -5,7 +5,11 @@ import {
   AUCTION_DURATION_MS,
   getRemainingMilliseconds,
 } from "@/utils/timerUtils";
-import { findNextPlayer, sortPlayersAlphabetically } from "@/utils/playerUtils";
+import {
+  findNextPlayer,
+  getUnassignedPlayers,
+  sortPlayersAlphabetically,
+} from "@/utils/playerUtils";
 
 export const saveAuctionSession = async ({
   docRef,
@@ -405,12 +409,15 @@ export const completeContextualSwitch = async ({ docRef, candidateId }) => {
       ? session.giocatori
       : [];
 
-    const remainingPlayers = [
-      ...currentPlayers.filter(
-        (p) => String(p.id) !== String(pending.player.id),
-      ),
-      { ...candidate },
-    ];
+    const remainingPlayers = getUnassignedPlayers(
+      [
+        ...currentPlayers.filter(
+          (p) => String(p.id) !== String(pending.player.id),
+        ),
+        { ...candidate },
+      ],
+      updatedParticipants,
+    );
 
     const fallbackResult = findNextPlayer(
       remainingPlayers,
@@ -497,8 +504,12 @@ export const buildPlayerAssignment = ({
     };
   });
 
-  const remainingPlayers = players.filter(
-    (availablePlayer) => availablePlayer.id !== player.id,
+  // Invariante: il listone contiene esclusivamente giocatori non assegnati.
+  // Il giocatore appena acquistato viene quindi escluso e, come ulteriore
+  // protezione, filtriamo anche eventuali vecchi duplicati presenti nelle rose.
+  const remainingPlayers = getUnassignedPlayers(
+    players.filter((availablePlayer) => availablePlayer.id !== player.id),
+    updatedParticipants,
   );
 
   const { player: nextPlayer, letter: nextLetter } = findNextPlayer(

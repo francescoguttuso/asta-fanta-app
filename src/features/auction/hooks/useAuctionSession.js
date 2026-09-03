@@ -4,6 +4,7 @@ import { db } from '@/firebaseConfig';
 import { INITIAL_PARTICIPANTS, INITIAL_PLAYERS } from '@/data/auctionDefaults';
 import { STOP_DURATION_MS, getRemainingSeconds } from '@/utils/timerUtils';
 import {
+  getUnassignedPlayers,
   normalizePlayer,
   sortPlayersAlphabetically,
 } from '@/utils/playerUtils';
@@ -72,12 +73,26 @@ export default function useAuctionSession({ isMobileView }) {
     const unsubscribe = onSnapshot(AUCTION_SESSION_REF, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        const giocatoriParsed = (data.giocatori || INITIAL_PLAYERS).map(
-          normalizePlayer,
+        const partecipantiParsed = data.partecipanti || INITIAL_PARTICIPANTS;
+
+        // INVARIANTE DEL LISTONE: qui dentro devono esserci soltanto i
+        // giocatori non assegnati. Uniamo il catalogo locale al listone
+        // salvato così possiamo recuperare eventuali giocatori disponibili
+        // mancanti da vecchie sessioni, ma filtriamo sempre quelli presenti
+        // nelle rose.
+        const catalogoById = new Map(
+          [...(INITIAL_PLAYERS || []), ...(data.giocatori || [])].map((player) => [
+            String(player.id),
+            normalizePlayer(player),
+          ]),
+        );
+        const giocatoriDisponibili = getUnassignedPlayers(
+          Array.from(catalogoById.values()),
+          partecipantiParsed,
         );
 
-        setGiocatori(sortPlayersAlphabetically(giocatoriParsed));
-        setPartecipanti(data.partecipanti || INITIAL_PARTICIPANTS);
+        setGiocatori(giocatoriDisponibili);
+        setPartecipanti(partecipantiParsed);
         setIsConfigMode(
           data.isConfigMode !== undefined ? data.isConfigMode : true,
         );

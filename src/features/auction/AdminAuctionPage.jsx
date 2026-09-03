@@ -1,45 +1,65 @@
 import AppHeader from "./components/AppHeader";
 import AppNavigation from "./components/AppNavigation";
-import AuctionPanel from "./components/AuctionPanel";
-import AvailablePlayers from "./components/AvailablePlayers";
 import CalendarView from "./components/CalendarView";
 import PlaceholderView from "./components/PlaceholderView";
 import RostersView from "./components/RostersView";
 import TeamConfiguration from "./components/TeamConfiguration";
-import TeamsSummary from "./components/TeamsSummary";
-import TeamImportExport from "./components/TeamImportExport";
+import ServerDashboard from "./components/ServerDashboard";
 import FantaSchedinaAdminView from "../schedina/FantaSchedinaAdminView";
 import HighlanderAdminView from "../highlander/HighlanderAdminView";
 import AdminAuctionProvider from "./context/AdminAuctionProvider";
-import { useAdminAuctionContext } from "./context/useAuctionContexts";
+import {
+  useAdminAuctionContext,
+  useAuctionSessionContext,
+} from "./context/useAuctionContexts";
 
 function AdminAuctionContent() {
-  const { vistaCorrente } = useAdminAuctionContext();
+  const { vistaCorrente, impostaModalitaConfigurazione } = useAdminAuctionContext();
+  const { isConfigMode } = useAuctionSessionContext();
 
   return (
-    <div className="container">
-      <AppHeader />
-      <AppNavigation />
-      <TeamConfiguration />
-      <TeamImportExport />
-
-      {vistaCorrente === "dashboard" ? (
-        <div className="auction-layout">
-          <AuctionPanel />
-          <TeamsSummary />
-          <AvailablePlayers />
+    <div className="server-shell-v5">
+      <aside className="server-sidebar-v5">
+        <div className="server-sidebar-brand-v5">
+          <img src="/images/fantariggio-logo.png" alt="FantaRiggio" />
+          <span>SERVER</span>
         </div>
-      ) : vistaCorrente === "rose" ? (
-        <RostersView />
-      ) : vistaCorrente === "calendario" ? (
-        <CalendarView />
-      ) : vistaCorrente === "schedina" ? (
-        <FantaSchedinaAdminView />
-      ) : vistaCorrente === "highlander" ? (
-        <HighlanderAdminView />
-      ) : (
-        <PlaceholderView />
-      )}
+
+        <AppNavigation />
+
+        {!isConfigMode && (
+          <button
+            type="button"
+            className="server-sidebar-settings"
+            onClick={() => impostaModalitaConfigurazione(true)}
+          >
+            ⚙ Impostazioni squadre
+          </button>
+        )}
+
+        <div className="server-sidebar-status">● Server operativo</div>
+      </aside>
+
+      <main className={`server-main-v5 ${vistaCorrente === "rose" && !isConfigMode ? "server-main-rosters-wide" : ""}`}>
+        <AppHeader />
+        <div className="server-mobile-nav-v5"><AppNavigation /></div>
+
+        {isConfigMode ? (
+          <TeamConfiguration />
+        ) : vistaCorrente === "dashboard" ? (
+          <ServerDashboard />
+        ) : vistaCorrente === "rose" ? (
+          <RostersView />
+        ) : vistaCorrente === "calendario" ? (
+          <CalendarView />
+        ) : vistaCorrente === "schedina" ? (
+          <FantaSchedinaAdminView />
+        ) : vistaCorrente === "highlander" ? (
+          <HighlanderAdminView />
+        ) : (
+          <PlaceholderView />
+        )}
+      </main>
     </div>
   );
 }
