@@ -24,42 +24,17 @@ function AdminAuctionContent() {
           <img src="/images/fantariggio-logo.png" alt="FantaRiggio" />
           <span>SERVER</span>
         </div>
-
-        <AppNavigation />
-
-        {!isConfigMode && (
-          <button
-            type="button"
-            className="server-sidebar-settings"
-            onClick={() => impostaModalitaConfigurazione(true)}
-          >
-            ⚙ Impostazioni squadre
-          </button>
-        )}
-
-        <div className="server-sidebar-status">● Server operativo</div>
-      </aside>
-
-      <main className={`server-main-v5 ${vistaCorrente === "rose" && !isConfigMode ? "server-main-rosters-wide" : ""}`}>
-        <AppHeader />
-        <div className="server-mobile-nav-v5"><AppNavigation /></div>
-
-        {isConfigMode ? (
-          <TeamConfiguration />
-        ) : vistaCorrente === "dashboard" ? (
-          <ServerDashboard />
-        ) : vistaCorrente === "rose" ? (
-          <RostersView />
-        ) : vistaCorrente === "calendario" ? (
-          <CalendarView />
-        ) : vistaCorrente === "schedina" ? (
-          <FantaSchedinaAdminView />
-        ) : vistaCorrente === "highlander" ? (
-          <HighlanderAdminView />
-        ) : (
-          <PlaceholderView />
-        )}
-      </main>
+      ) : vistaCorrente === "rose" ? (
+        <RostersView />
+      ) : vistaCorrente === "calendario" ? (
+        <CalendarView />
+      ) : vistaCorrente === "schedina" ? (
+        <FantaSchedinaAdminView />
+      ) : vistaCorrente === "highlander" ? (
+        <HighlanderAdminView />
+      ) : (
+        <PlaceholderView />
+      )}
     </div>
   );
 }
