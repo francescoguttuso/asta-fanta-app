@@ -5,7 +5,7 @@ import {
   INITIAL_ROLE_FILTERS,
   ROLE_LIMITS,
 } from '@/data/auctionDefaults';
-import { filterPlayers, normalizePlayers } from '@/utils/playerUtils';
+import { filterPlayers, getUnassignedPlayers, normalizePlayers } from '@/utils/playerUtils';
 import {
   buildPlayerAssignment,
   calculateMaximumBid,
@@ -70,8 +70,16 @@ export default function useAdminAuctionController() {
           contenutoJson.players || contenutoJson,
         );
 
-        setGiocatori(nuoviGiocatori);
-        saveSession({ players: nuoviGiocatori });
+        // La lista dell'asta contiene ESCLUSIVAMENTE i giocatori non assegnati.
+        // Un giocatore già presente in una rosa non deve mai tornare nel listone
+        // solo perché è stato ricaricato il catalogo JSON.
+        const giocatoriDisponibili = getUnassignedPlayers(
+          nuoviGiocatori,
+          partecipanti,
+        );
+
+        setGiocatori(giocatoriDisponibili);
+        saveSession({ players: giocatoriDisponibili });
         alert('File JSON importato e aggiornato con successo!');
       } catch (errore) {
         console.error('Errore durante il parsing del JSON:', errore);
@@ -331,10 +339,26 @@ export default function useAdminAuctionController() {
           };
         });
 
-        // Salviamo solo le rose/nomi/crediti: lo stato dell'asta corrente
-        // (timer, giocatore in asta, offerte, ecc.) non viene toccato.
-        saveSession({ participants: nuoviPartecipanti });
+        // Dopo l'importazione il listone deve contenere soltanto i giocatori
+        // che NON appartengono a nessuna rosa. Partiamo dal catalogo completo
+        // e togliamo tutti gli ID appena assegnati.
+        const catalogoCompleto = [...(INITIAL_PLAYERS || []), ...(giocatori || [])];
+        const catalogoById = new Map(
+          catalogoCompleto.map((player) => [String(player.id), player]),
+        );
+        const giocatoriDisponibili = getUnassignedPlayers(
+          Array.from(catalogoById.values()),
+          nuoviPartecipanti,
+        );
+
+        // Salviamo solo rose/nomi/crediti + il listone corretto. Lo stato
+        // dell'asta corrente (timer, giocatore in asta, offerte, ecc.) non viene toccato.
+        saveSession({
+          participants: nuoviPartecipanti,
+          players: giocatoriDisponibili,
+        });
         setPartecipanti(nuoviPartecipanti);
+        setGiocatori(giocatoriDisponibili);
         alert('Rose importate con successo!');
       } catch (error) {
         console.error('Errore importazione squadre:', error);

@@ -19,6 +19,20 @@ export const sortPlayersAlphabetically = (players) =>
 export const normalizePlayers = (players) =>
   sortPlayersAlphabetically(players.map(normalizePlayer));
 
+export const getUnassignedPlayers = (players, participants) => {
+  const rosteredIds = new Set(
+    (participants || []).flatMap((participant) =>
+      Array.isArray(participant.rosa)
+        ? participant.rosa.map((player) => String(player.id))
+        : [],
+    ),
+  );
+
+  return sortPlayersAlphabetically(
+    (players || []).filter((player) => !rosteredIds.has(String(player.id))),
+  );
+};
+
 export const filterPlayers = (players, selectedLetter, activeRoleFilters) =>
   sortPlayersAlphabetically(players).filter((player) => {
     const matchesLetter =
