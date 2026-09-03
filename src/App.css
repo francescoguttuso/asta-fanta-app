@@ -1414,7 +1414,6 @@
   .server-mobile-nav-v5 { display:block; margin-bottom:10px; }
   .server-mobile-nav-v5 .server-side-nav { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; }
   .server-mobile-nav-v5 .server-side-nav button { min-height:40px; justify-content:center; padding:7px 4px; background:#11072f; }
-  .server-mobile-nav-v5 .server-side-nav button:nth-child(n+4) { display:none; }
   .server-mobile-nav-v5 .server-side-nav button span { width:auto; }
   .server-mobile-nav-v5 .server-side-nav button b { font-size:.62rem; }
   .server-dashboard { grid-template-columns:1fr; grid-template-areas:"auction" "players" "support" "bottom"; gap:10px; }
@@ -1764,7 +1763,7 @@
     font-size: 1rem;
   }
   .server-roster-role { padding-left: 2px; padding-right: 2px; }
-  .server-roster-player-slot { grid-template-columns: minmax(0,1fr) 22px; }
-  .server-roster-player-price { display: none; }
-  .server-roster-delete { width: 20px; height: 20px; }
+  .server-roster-player-slot { grid-template-columns: minmax(0,1fr) auto 24px; gap: 5px; padding: 0 6px; }
+  .server-roster-player-price { display: inline; font-size: .62rem; }
+  .server-roster-delete { width: 22px; height: 22px; }
 }
