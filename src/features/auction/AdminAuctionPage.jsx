@@ -1,3 +1,5 @@
+import { signOut } from "firebase/auth";
+import { auth } from "../../firebaseConfig";
 import AppHeader from "./components/AppHeader";
 import AppNavigation from "./components/AppNavigation";
 import CalendarView from "./components/CalendarView";
@@ -38,11 +40,28 @@ function AdminAuctionContent() {
         )}
 
         <div className="server-sidebar-status">● Server operativo</div>
+
+        <button
+          type="button"
+          className="server-sidebar-logout"
+          onClick={() => signOut(auth)}
+        >
+          ↪ Esci
+        </button>
       </aside>
 
-      <main className="server-main-v5">
+      <main className={`server-main-v5 ${vistaCorrente === "rose" && !isConfigMode ? "server-main-rosters-wide" : ""}`}>
         <AppHeader />
-        <div className="server-mobile-nav-v5"><AppNavigation /></div>
+        <div className="server-mobile-nav-v5">
+          <AppNavigation />
+          <button
+            type="button"
+            className="server-mobile-logout"
+            onClick={() => signOut(auth)}
+          >
+            ↪ Esci
+          </button>
+        </div>
 
         {isConfigMode ? (
           <TeamConfiguration />
