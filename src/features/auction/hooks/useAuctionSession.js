@@ -28,6 +28,7 @@ export default function useAuctionSession({ isMobileView }) {
   const [timer, setTimer] = useState(10);
   const [timerEndsAt, setTimerEndsAt] = useState(null);
   const [timerStartedAt, setTimerStartedAt] = useState(null);
+  const [timerClockOffsetMs, setTimerClockOffsetMs] = useState(0);
   const [stopTimer, setStopTimer] = useState(30);
   const [pendingSwitch, setPendingSwitch] = useState(null);
   const [repairMarketOpen, setRepairMarketOpen] = useState(false);
@@ -146,6 +147,9 @@ export default function useAuctionSession({ isMobileView }) {
           });
         }
         setTimerStartedAt(data.timerStartedAt || null);
+        if (data.timerStartedAt?.toMillis) {
+          setTimerClockOffsetMs(data.timerStartedAt.toMillis() - Date.now());
+        }
         setStoricoOfferte(data.storicoOfferte || []);
 
         const timerSalvato = data.timer !== undefined ? data.timer : 10;
@@ -194,20 +198,18 @@ export default function useAuctionSession({ isMobileView }) {
     }
 
     const aggiornaTimer = () => {
-      // Il valore salvato dal Server e' il limite superiore autorevole del
-      // countdown. Evita che un timestamp locale/Firestore leggermente
-      // anticipato faccia visualizzare 11 quando l'asta e' partita da 10.
-      // Manteniamo getRemainingSeconds (ceil) per non ripristinare il vecchio
-      // salto 3 -> 0 negli ultimi secondi.
-      setTimer((currentTimer) =>
-        Math.min(currentTimer > 0 ? currentTimer : 10, getRemainingSeconds(timerEndsAt)),
-      );
+      // Usiamo la stessa scadenza timerEndsAt del Server, ma calcoliamo
+      // "now" con l'orologio sincronizzato tramite timerStartedAt (serverTimestamp).
+      // In questo modo Server e Client non dipendono dalla differenza tra i
+      // rispettivi orologi locali. Manteniamo ceil per evitare il vecchio 3 -> 0.
+      const nowSincronizzato = Date.now() + timerClockOffsetMs;
+      setTimer(getRemainingSeconds(timerEndsAt, nowSincronizzato));
     };
 
     aggiornaTimer();
     const intervallo = setInterval(aggiornaTimer, 250);
     return () => clearInterval(intervallo);
-  }, [giocatoreInAsta, isTimerStarted, isPaused, timerEndsAt]);
+  }, [giocatoreInAsta, isTimerStarted, isPaused, timerEndsAt, timerClockOffsetMs]);
 
   useEffect(() => {
     let interval = null;
