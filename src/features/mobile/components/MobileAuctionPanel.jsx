@@ -9,7 +9,6 @@ export default function MobileAuctionPanel({
   isPaused,
   stopCalledBy,
   stopTimer,
-  stopStartedAt,
   selectedTeamId,
   remainingStops,
   onBid,
@@ -146,28 +145,12 @@ export default function MobileAuctionPanel({
   const stopDisabled =
     actionsDisabled || currentBid <= 30 || remainingStops <= 0;
 
-  // STOP attivo: usiamo sia isPaused sia stopCalledBy come segnali
-  // autorevoli, così il Client non può mostrare il timer dell'asta
-  // mentre Firestore sta già mostrando lo STOP.
+
+  // STOP attivo: il Client usa direttamente lo stesso stopTimer
+  // aggiornato da useAuctionSession. Nessun nuovo timestamp e nessuna
+  // modifica al countdown normale dell'asta.
   const stopActive = Boolean(isPaused || stopCalledBy);
-
-  // Il countdown STOP viene ricavato anche dall'istante di avvio ricevuto
-  // dalla sessione. Questo evita di dipendere da un eventuale valore locale
-  // rimasto indietro durante il cambio di stato.
-  const getStopStartedMillis = (value) => {
-    if (!value) return null;
-    if (typeof value === "number") return value;
-    if (typeof value.toMillis === "function") return value.toMillis();
-    if (value.seconds !== undefined) return Number(value.seconds) * 1000;
-    return null;
-  };
-
-  const stopStartedMillis = getStopStartedMillis(stopStartedAt);
-  const calculatedStopTimer = stopStartedMillis
-    ? Math.max(0, 30 - Math.floor((Date.now() - stopStartedMillis) / 1000))
-    : stopTimer;
-
-  const displayedTimer = stopActive ? calculatedStopTimer : timer;
+  const displayedTimer = stopActive ? stopTimer : timer;
   const displayedMax = stopActive ? 30 : 10;
   const timerProgress = Math.max(
     0,
@@ -261,7 +244,7 @@ export default function MobileAuctionPanel({
           >
             {!isTimerStarted ? (
               <>⏳ IN ATTESA DI AVVIO</>
-            ) : stopActive ? (
+            ) : isPaused ? (
               <>🛑 STOP DA: <strong>{stopCalledBy}</strong></>
             ) : (
               <>⏱️ ASTA IN CORSO</>
@@ -276,7 +259,7 @@ export default function MobileAuctionPanel({
             borderRadius: "50%",
             padding: "5px",
             boxSizing: "border-box",
-            background: isPaused
+            background: stopActive
               ? `conic-gradient(#fb2c82 ${timerProgress}%, #24102b 0)`
               : `conic-gradient(#b33cff ${timerProgress}%, #2563ff 0)`,
             boxShadow: isPaused
@@ -301,9 +284,9 @@ export default function MobileAuctionPanel({
               boxSizing: "border-box",
             }}
           >
-            <div style={{ color: isPaused ? "#f87171" : "#c084fc", fontSize: "0.6rem", fontWeight: "900", letterSpacing: "0.08em" }}>{stopActive ? "STOP" : "TEMPO"}</div>
+            <div style={{ color: stopActive ? "#f87171" : "#c084fc", fontSize: "0.6rem", fontWeight: "900", letterSpacing: "0.08em" }}>{stopActive ? "STOP" : "TEMPO"}</div>
             <div style={{ color: "#fff", fontSize: "2.5rem", fontWeight: "900", lineHeight: "0.95" }}>{displayedTimer}</div>
-            <div style={{ color: isPaused ? "#f87171" : "#c084fc", fontSize: "0.58rem", fontWeight: "900", marginTop: "3px" }}>SEC</div>
+            <div style={{ color: "#c084fc", fontSize: "0.58rem", fontWeight: "900", marginTop: "3px" }}>SEC</div>
           </div>
         </div>
       </div>
