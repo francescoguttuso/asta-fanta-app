@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { INITIAL_PARTICIPANTS, INITIAL_PLAYERS } from '@/data/auctionDefaults';
 import { STOP_DURATION_MS, getRemainingSeconds } from '@/utils/timerUtils';
@@ -33,6 +33,7 @@ export default function useAuctionSession({ isMobileView }) {
   const [repairMarketOpen, setRepairMarketOpen] = useState(false);
   const [repairMarketInitialRosters, setRepairMarketInitialRosters] = useState(null);
   const [repairMarketOpenedAt, setRepairMarketOpenedAt] = useState(null);
+  const lastPublishedTimerRef = useRef(null);
 
   const currentSessionRef = useRef(null);
   currentSessionRef.current = {
@@ -189,24 +190,46 @@ export default function useAuctionSession({ isMobileView }) {
 
   useEffect(() => {
     if (!giocatoreInAsta || !isTimerStarted || isPaused || !timerEndsAt) {
+      lastPublishedTimerRef.current = null;
       return;
     }
 
-    const aggiornaTimer = () => {
-      // Il valore salvato dal Server e' il limite superiore autorevole del
-      // countdown. Evita che un timestamp locale/Firestore leggermente
-      // anticipato faccia visualizzare 11 quando l'asta e' partita da 10.
-      // Manteniamo getRemainingSeconds (ceil) per non ripristinare il vecchio
-      // salto 3 -> 0 negli ultimi secondi.
+    // Il Server e' il riferimento del countdown. Il Server calcola il
+    // secondo localmente e pubblica su Firestore SOLO quando cambia il
+    // numero visualizzato. Il Client Mobile, invece, non ricalcola il
+    // countdown con il proprio orologio: riceve quel valore da Firestore.
+    // In questo modo evitiamo il classico ritardo 9 -> Client ancora 10
+    // dovuto a due orologi locali e due momenti di ricezione differenti.
+    if (isMobileView) {
+      return;
+    }
+
+    const aggiornaTimerServer = async () => {
+      const prossimoTimer = getRemainingSeconds(timerEndsAt);
+
       setTimer((currentTimer) =>
-        Math.min(currentTimer > 0 ? currentTimer : 10, getRemainingSeconds(timerEndsAt)),
+        Math.min(currentTimer > 0 ? currentTimer : 10, prossimoTimer),
       );
+
+      if (lastPublishedTimerRef.current === prossimoTimer) {
+        return;
+      }
+
+      lastPublishedTimerRef.current = prossimoTimer;
+
+      try {
+        await updateDoc(AUCTION_SESSION_REF, {
+          timer: prossimoTimer,
+        });
+      } catch (error) {
+        console.error('Errore pubblicazione countdown su Firestore:', error);
+      }
     };
 
-    aggiornaTimer();
-    const intervallo = setInterval(aggiornaTimer, 250);
+    aggiornaTimerServer();
+    const intervallo = setInterval(aggiornaTimerServer, 100);
     return () => clearInterval(intervallo);
-  }, [giocatoreInAsta, isTimerStarted, isPaused, timerEndsAt]);
+  }, [giocatoreInAsta, isTimerStarted, isPaused, timerEndsAt, isMobileView]);
 
   useEffect(() => {
     let interval = null;
