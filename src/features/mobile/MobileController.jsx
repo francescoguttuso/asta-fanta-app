@@ -463,6 +463,7 @@ export default function MobileController() {
         isPaused={isPaused}
         stopCalledBy={stopChiamatoDa}
         stopTimer={stopTimer}
+        stopStartedAt={stopIniziatoAt}
         selectedTeamId={mioId}
         remainingStops={stopRimanentiSelezionato}
         onBid={faiOffertaMobile}
