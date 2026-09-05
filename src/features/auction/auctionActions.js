@@ -1,4 +1,4 @@
-import { runTransaction, setDoc } from "firebase/firestore";
+import { runTransaction, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/firebaseConfig";
 import { ALPHABET, ROLE_LIMITS } from "@/data/auctionDefaults";
 import {
@@ -27,7 +27,12 @@ export const saveAuctionSession = async ({
   bidHistory,
   timer,
   timerEndsAt,
+  timerStartedAt = null,
   pendingSwitch = null,
+  repairMarketOpen = false,
+  repairMarketInitialRosters = null,
+  repairMarketOpenedAt = null,
+  repairMarketInitialized = true,
 }) => {
   // IMPORTANTISSIMO: l'asta e la FantaSchedina condividono lo stesso
   // documento Firestore. Senza merge:true, ogni salvataggio dell'asta
@@ -48,7 +53,12 @@ export const saveAuctionSession = async ({
     storicoOfferte: bidHistory,
     timer,
     timerEndsAt,
+    timerStartedAt,
     pendingSwitch,
+    repairMarketOpen,
+    repairMarketInitialRosters,
+    repairMarketOpenedAt,
+    repairMarketInitialized,
   }, { merge: true });
 };
 
@@ -62,15 +72,20 @@ export const startAuctionTimer = async ({ docRef }) => {
       isTimerStarted: true,
       timer: 10,
       timerEndsAt: Date.now() + AUCTION_DURATION_MS,
+      timerStartedAt: serverTimestamp(),
     });
   });
 };
 
-export const buildSwitchCandidates = (participant, role) => {
+export const buildSwitchCandidates = (participant, role, repairMarketInitialRosters = null) => {
   if (!participant?.rosa?.length || !role) return [];
+
+  const initialIds = repairMarketInitialRosters?.[String(participant.id)];
+  const eligibleIds = Array.isArray(initialIds) ? new Set(initialIds.map(String)) : null;
 
   return participant.rosa
     .filter((player) => String(player.ruolo) === String(role))
+    .filter((player) => !eligibleIds || eligibleIds.has(String(player.id)))
     .map((player) => ({
       id: player.id,
       nome: player.nome,
@@ -79,7 +94,7 @@ export const buildSwitchCandidates = (participant, role) => {
     }));
 };
 
-export const calculateMaximumBid = ({ participant, role }) => {
+export const calculateMaximumBid = ({ participant, role, repairMarketOpen = false, repairMarketInitialRosters = null }) => {
   if (!participant) return 0;
 
   const credits = Math.max(0, Number(participant.crediti || 0));
@@ -93,7 +108,11 @@ export const calculateMaximumBid = ({ participant, role }) => {
 
   if (!roleIsFull) return credits;
 
-  const candidates = buildSwitchCandidates(participant, role);
+  const candidates = buildSwitchCandidates(
+    participant,
+    role,
+    repairMarketOpen ? repairMarketInitialRosters : null,
+  );
   if (!candidates.length) return 0;
 
   const highestCutValue = candidates.reduce(
@@ -120,6 +139,8 @@ export const placeBid = async ({ docRef, bidderId, bidderName, increment }) => {
     const maximumBid = calculateMaximumBid({
       participant: bidder,
       role: session.giocatoreInAsta.ruolo,
+      repairMarketOpen: Boolean(session.repairMarketOpen),
+      repairMarketInitialRosters: session.repairMarketInitialRosters || null,
     });
 
     const newBid =
@@ -142,6 +163,7 @@ export const placeBid = async ({ docRef, bidderId, bidderName, increment }) => {
       ultimoOfferenteId: bidderId,
       timer: 10,
       timerEndsAt: Date.now() + AUCTION_DURATION_MS,
+      timerStartedAt: serverTimestamp(),
       isPaused: false,
       stopChiamatoDa: null,
       stopIniziatoAt: null,
@@ -271,6 +293,7 @@ export const resumeAuctionAfterStop = async ({ docRef, stopStartedAt }) => {
       timerRimanenteMs: null,
       timer: Math.ceil(remainingTimerMs / 1000),
       timerEndsAt: remainingTimerMs > 0 ? Date.now() + remainingTimerMs : null,
+      timerStartedAt: remainingTimerMs > 0 ? serverTimestamp() : null,
     });
   });
 };
@@ -306,12 +329,21 @@ export const createContextualSwitch = async ({
       throw new Error("Il taglio contestuale non è necessario per questa squadra.");
     }
 
-    const candidates = buildSwitchCandidates(winner, role);
+    const candidates = buildSwitchCandidates(
+      winner,
+      role,
+      session.repairMarketOpen ? session.repairMarketInitialRosters : null,
+    );
     if (!candidates.length) {
       throw new Error(`Nessun giocatore da svincolare nel reparto ${role}.`);
     }
 
-    const maximumBid = calculateMaximumBid({ participant: winner, role });
+    const maximumBid = calculateMaximumBid({
+      participant: winner,
+      role,
+      repairMarketOpen: Boolean(session.repairMarketOpen),
+      repairMarketInitialRosters: session.repairMarketInitialRosters || null,
+    });
     if (Number(price) > maximumBid) {
       throw new Error(
         `Offerta non sostenibile: massimo consentito ${maximumBid} FM.`,
@@ -370,10 +402,18 @@ export const completeContextualSwitch = async ({ docRef, candidateId }) => {
     if (!winner) return;
 
     const roster = Array.isArray(winner.rosa) ? winner.rosa : [];
+    const initialIds = session.repairMarketOpen
+      ? session.repairMarketInitialRosters?.[String(winner.id)]
+      : null;
+    const candidateIsEligible = Array.isArray(initialIds)
+      ? initialIds.map(String).includes(String(candidateId))
+      : true;
+
     const candidate = roster.find(
       (p) =>
         String(p.id) === String(candidateId) &&
-        String(p.ruolo) === String(pending.role),
+        String(p.ruolo) === String(pending.role) &&
+        candidateIsEligible,
     );
 
     if (!candidate) {
@@ -450,6 +490,7 @@ export const completeContextualSwitch = async ({ docRef, candidateId }) => {
       storicoOfferte: [],
       timer: 10,
       timerEndsAt: null,
+      timerStartedAt: null,
       pendingSwitch: null,
     });
   });
