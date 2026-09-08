@@ -145,6 +145,18 @@ export default function MobileAuctionPanel({
   const stopDisabled =
     actionsDisabled || currentBid <= 30 || remainingStops <= 0;
 
+
+  // STOP attivo: il Client usa direttamente lo stesso stopTimer
+  // aggiornato da useAuctionSession. Nessun nuovo timestamp e nessuna
+  // modifica al countdown normale dell'asta.
+  const stopActive = Boolean(isPaused || stopCalledBy);
+  const displayedTimer = stopActive ? stopTimer : timer;
+  const displayedMax = stopActive ? 30 : 10;
+  const timerProgress = Math.max(
+    0,
+    Math.min(100, (Number(displayedTimer) / displayedMax) * 100),
+  );
+
   // =====================================================
   // RENDER
   // =====================================================
@@ -247,9 +259,9 @@ export default function MobileAuctionPanel({
             borderRadius: "50%",
             padding: "5px",
             boxSizing: "border-box",
-            background: isPaused
-              ? `conic-gradient(#fb2c82 ${Math.max(0, Math.min(100, (Number(timer) / 10) * 100))}%, #24102b 0)`
-              : `conic-gradient(#b33cff ${Math.max(0, Math.min(100, (Number(timer) / 10) * 100))}%, #2563ff 0)`,
+            background: stopActive
+              ? `conic-gradient(#fb2c82 ${timerProgress}%, #24102b 0)`
+              : `conic-gradient(#b33cff ${timerProgress}%, #2563ff 0)`,
             boxShadow: isPaused
               ? "0 0 22px rgba(251,44,130,.35)"
               : "0 0 25px rgba(76,81,255,.4)",
@@ -272,8 +284,8 @@ export default function MobileAuctionPanel({
               boxSizing: "border-box",
             }}
           >
-            <div style={{ color: "#c084fc", fontSize: "0.6rem", fontWeight: "900", letterSpacing: "0.08em" }}>TEMPO</div>
-            <div style={{ color: "#fff", fontSize: "2.5rem", fontWeight: "900", lineHeight: "0.95" }}>{timer}</div>
+            <div style={{ color: stopActive ? "#f87171" : "#c084fc", fontSize: "0.6rem", fontWeight: "900", letterSpacing: "0.08em" }}>{stopActive ? "STOP" : "TEMPO"}</div>
+            <div style={{ color: "#fff", fontSize: "2.5rem", fontWeight: "900", lineHeight: "0.95" }}>{displayedTimer}</div>
             <div style={{ color: "#c084fc", fontSize: "0.58rem", fontWeight: "900", marginTop: "3px" }}>SEC</div>
           </div>
         </div>

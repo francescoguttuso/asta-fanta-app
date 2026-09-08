@@ -27,8 +27,13 @@ export default function useAuctionSession({ isMobileView }) {
   const [storicoOfferte, setStoricoOfferte] = useState([]);
   const [timer, setTimer] = useState(10);
   const [timerEndsAt, setTimerEndsAt] = useState(null);
+  const [timerStartedAt, setTimerStartedAt] = useState(null);
+  const [timerClockOffsetMs, setTimerClockOffsetMs] = useState(0);
   const [stopTimer, setStopTimer] = useState(30);
   const [pendingSwitch, setPendingSwitch] = useState(null);
+  const [repairMarketOpen, setRepairMarketOpen] = useState(false);
+  const [repairMarketInitialRosters, setRepairMarketInitialRosters] = useState(null);
+  const [repairMarketOpenedAt, setRepairMarketOpenedAt] = useState(null);
 
   const currentSessionRef = useRef(null);
   currentSessionRef.current = {
@@ -46,7 +51,11 @@ export default function useAuctionSession({ isMobileView }) {
     bidHistory: storicoOfferte,
     timer,
     timerEndsAt,
+    timerStartedAt,
     pendingSwitch,
+    repairMarketOpen,
+    repairMarketInitialRosters,
+    repairMarketOpenedAt,
   };
 
   const saveSession = useCallback(async (changes = {}) => {
@@ -62,6 +71,10 @@ export default function useAuctionSession({ isMobileView }) {
         timerEndsAt:
           nextTimerStarted && !nextSession.paused
             ? (changes.endsAt ?? nextSession.timerEndsAt)
+            : null,
+        timerStartedAt:
+          nextTimerStarted && !nextSession.paused
+            ? (changes.timerStartedAt ?? nextSession.timerStartedAt)
             : null,
       });
     } catch (err) {
@@ -107,10 +120,43 @@ export default function useAuctionSession({ isMobileView }) {
         setStopIniziatoAt(data.stopIniziatoAt || null);
         setUltimoAcquisto(data.ultimoAcquisto || null);
         setPendingSwitch(data.pendingSwitch || null);
+
+        // L'Asta Riparazione deve partire DISATTIVATA alla prima
+        // inizializzazione della nuova gestione. Dopo questa inizializzazione
+        // lo stato viene invece persistito normalmente, così un semplice
+        // reload non interrompe una sessione di riparazione già aperta.
+        const repairMarketInitialized = data.repairMarketInitialized === true;
+        const repairMarketIsOpen = repairMarketInitialized
+          ? Boolean(data.repairMarketOpen)
+          : false;
+
+        setRepairMarketOpen(repairMarketIsOpen);
+        setRepairMarketInitialRosters(
+          repairMarketInitialized ? data.repairMarketInitialRosters || null : null,
+        );
+        setRepairMarketOpenedAt(
+          repairMarketInitialized ? data.repairMarketOpenedAt || null : null,
+        );
+
+        if (!repairMarketInitialized) {
+          saveSession({
+            repairMarketOpen: false,
+            repairMarketInitialRosters: null,
+            repairMarketOpenedAt: null,
+            repairMarketInitialized: true,
+          });
+        }
+        setTimerStartedAt(data.timerStartedAt || null);
+        if (data.timerStartedAt?.toMillis) {
+          setTimerClockOffsetMs(data.timerStartedAt.toMillis() - Date.now());
+        }
         setStoricoOfferte(data.storicoOfferte || []);
 
         const timerSalvato = data.timer !== undefined ? data.timer : 10;
         setTimer(timerSalvato);
+        // Una sola scadenza condivisa: usiamo sempre timerEndsAt scritto dal Server.
+        // Non ricostruiamo la scadenza da timerStartedAt, perché introdurrebbe
+        // un riferimento temporale diverso tra Server e Client.
         setTimerEndsAt(
           data.timerEndsAt ||
             (data.isTimerStarted && !data.isPaused && timerSalvato > 0
@@ -132,8 +178,13 @@ export default function useAuctionSession({ isMobileView }) {
           lastPurchase: null,
           bidHistory: [],
           pendingSwitch: null,
+          repairMarketOpen: false,
+          repairMarketInitialRosters: null,
+          repairMarketOpenedAt: null,
+          repairMarketInitialized: true,
           timer: 10,
           timerEndsAt: null,
+          timerStartedAt: null,
         });
       }
     });
@@ -147,13 +198,18 @@ export default function useAuctionSession({ isMobileView }) {
     }
 
     const aggiornaTimer = () => {
-      setTimer(getRemainingSeconds(timerEndsAt));
+      // Usiamo la stessa scadenza timerEndsAt del Server, ma calcoliamo
+      // "now" con l'orologio sincronizzato tramite timerStartedAt (serverTimestamp).
+      // In questo modo Server e Client non dipendono dalla differenza tra i
+      // rispettivi orologi locali. Manteniamo ceil per evitare il vecchio 3 -> 0.
+      const nowSincronizzato = Date.now() + timerClockOffsetMs;
+      setTimer(getRemainingSeconds(timerEndsAt, nowSincronizzato));
     };
 
     aggiornaTimer();
     const intervallo = setInterval(aggiornaTimer, 250);
     return () => clearInterval(intervallo);
-  }, [giocatoreInAsta, isTimerStarted, isPaused, timerEndsAt]);
+  }, [giocatoreInAsta, isTimerStarted, isPaused, timerEndsAt, timerClockOffsetMs]);
 
   useEffect(() => {
     let interval = null;
@@ -217,6 +273,8 @@ export default function useAuctionSession({ isMobileView }) {
     setTimer,
     stopTimer,
     pendingSwitch,
+    repairMarketOpen,
+    repairMarketInitialRosters,
     saveSession,
   };
 }

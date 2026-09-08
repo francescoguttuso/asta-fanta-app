@@ -45,6 +45,9 @@ export default function useAdminAuctionController() {
     isPaused,
     setTimer,
     timer,
+    repairMarketOpen,
+    repairMarketInitialRosters,
+    pendingSwitch,
     saveSession,
   } = session;
 
@@ -120,6 +123,41 @@ export default function useAdminAuctionController() {
     }
   };
 
+  const apriChiudiAstaRiparazione = useCallback(async () => {
+    if (repairMarketOpen) {
+      if (!window.confirm("Sei sicuro di voler chiudere l'Asta Riparazione?\n\nDa questo momento la sessione di riparazione terminerà e alla prossima apertura verrà creata una nuova fotografia delle rose.")) {
+        return;
+      }
+
+      if (pendingSwitch) {
+        alert('Completa prima la sostituzione del giocatore in corso.');
+        return;
+      }
+
+      await saveSession({
+        repairMarketOpen: false,
+        repairMarketInitialRosters: null,
+        repairMarketOpenedAt: null,
+        repairMarketInitialized: true,
+      });
+      return;
+    }
+
+    const snapshot = Object.fromEntries(
+      partecipanti.map((participant) => [
+        String(participant.id),
+        (participant.rosa || []).map((player) => String(player.id)),
+      ]),
+    );
+
+    await saveSession({
+      repairMarketOpen: true,
+      repairMarketInitialRosters: snapshot,
+      repairMarketOpenedAt: new Date().toISOString(),
+      repairMarketInitialized: true,
+    });
+  }, [repairMarketOpen, pendingSwitch, partecipanti, saveSession]);
+
   const resettaTutto = () => {
     if (
       !window.confirm(
@@ -144,6 +182,9 @@ export default function useAdminAuctionController() {
       bidHistory: [],
       timer: 10,
       pendingSwitch: null,
+      repairMarketOpen: false,
+      repairMarketInitialRosters: null,
+      repairMarketOpenedAt: null,
     });
     setTimer(10);
   };
@@ -511,6 +552,8 @@ export default function useAdminAuctionController() {
     const maximumBid = calculateMaximumBid({
       participant: vincitore,
       role: ruolo,
+      repairMarketOpen,
+      repairMarketInitialRosters,
     });
 
     if (offertaCorrente > maximumBid) {
@@ -538,6 +581,8 @@ export default function useAdminAuctionController() {
     offertaCorrente,
     completaAssegnazione,
     preparaTaglioContestuale,
+    repairMarketOpen,
+    repairMarketInitialRosters,
   ]);
 
   useEffect(() => {
@@ -587,6 +632,8 @@ export default function useAdminAuctionController() {
     const maximumBid = calculateMaximumBid({
       participant: vincitore,
       role: ruolo,
+      repairMarketOpen,
+      repairMarketInitialRosters,
     });
 
     if (prezzo > maximumBid) {
@@ -634,6 +681,14 @@ export default function useAdminAuctionController() {
       }
 
       const player = participant.rosa[playerIndex];
+      if (repairMarketOpen) {
+        const initialIds = repairMarketInitialRosters?.[String(participant.id)] || [];
+        if (!initialIds.map(String).includes(String(player.id))) {
+          throw new Error(
+            'Durante l’Asta Riparazione non puoi svincolare un giocatore acquistato durante la sessione.',
+          );
+        }
+      }
       const prezzoRestituito = Number(player.prezzo || 0);
 
       const nuovaRosa = participant.rosa.filter(
@@ -713,5 +768,7 @@ export default function useAdminAuctionController() {
     assegnaGiocatore,
     assegnaGiocatoreManualmente,
     rimuoviGiocatoreDallaRosa,
+    repairMarketOpen,
+    apriChiudiAstaRiparazione,
   };
 }
