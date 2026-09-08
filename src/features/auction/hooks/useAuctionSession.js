@@ -34,6 +34,7 @@ export default function useAuctionSession({ isMobileView }) {
   const [repairMarketOpen, setRepairMarketOpen] = useState(false);
   const [repairMarketInitialRosters, setRepairMarketInitialRosters] = useState(null);
   const [repairMarketOpenedAt, setRepairMarketOpenedAt] = useState(null);
+  const [repairMarketPurchasedPlayers, setRepairMarketPurchasedPlayers] = useState(null);
 
   const currentSessionRef = useRef(null);
   currentSessionRef.current = {
@@ -56,6 +57,7 @@ export default function useAuctionSession({ isMobileView }) {
     repairMarketOpen,
     repairMarketInitialRosters,
     repairMarketOpenedAt,
+    repairMarketPurchasedPlayers,
   };
 
   const saveSession = useCallback(async (changes = {}) => {
@@ -137,12 +139,43 @@ export default function useAuctionSession({ isMobileView }) {
         setRepairMarketOpenedAt(
           repairMarketInitialized ? data.repairMarketOpenedAt || null : null,
         );
+        const storedRepairPurchases =
+          repairMarketInitialized ? data.repairMarketPurchasedPlayers || null : null;
+        let normalizedRepairPurchases = storedRepairPurchases;
+
+        // Retrocompatibilità: se una sessione di riparazione era già aperta
+        // prima dell'introduzione del registro acquisti, ricaviamo comunque
+        // i giocatori acquistati durante la sessione confrontando la rosa
+        // attuale con la fotografia iniziale.
+        if (repairMarketIsOpen && data.repairMarketInitialRosters) {
+          const derived = { ...(storedRepairPurchases || {}) };
+          partecipantiParsed.forEach((participant) => {
+            const teamKey = String(participant.id);
+            const initialIds = new Set(
+              (data.repairMarketInitialRosters?.[teamKey] || []).map(String),
+            );
+            const currentIds = (participant.rosa || []).map((player) => String(player.id));
+            const derivedPurchased = currentIds.filter((id) => !initialIds.has(id));
+            const existing = Array.isArray(derived[teamKey])
+              ? derived[teamKey].map(String)
+              : [];
+            derived[teamKey] = Array.from(new Set([...existing, ...derivedPurchased]));
+          });
+          normalizedRepairPurchases = derived;
+
+          if (JSON.stringify(derived) !== JSON.stringify(storedRepairPurchases || null)) {
+            saveSession({ repairMarketPurchasedPlayers: derived });
+          }
+        }
+
+        setRepairMarketPurchasedPlayers(normalizedRepairPurchases);
 
         if (!repairMarketInitialized) {
           saveSession({
             repairMarketOpen: false,
             repairMarketInitialRosters: null,
             repairMarketOpenedAt: null,
+            repairMarketPurchasedPlayers: null,
             repairMarketInitialized: true,
           });
         }
@@ -181,6 +214,7 @@ export default function useAuctionSession({ isMobileView }) {
           repairMarketOpen: false,
           repairMarketInitialRosters: null,
           repairMarketOpenedAt: null,
+          repairMarketPurchasedPlayers: null,
           repairMarketInitialized: true,
           timer: 10,
           timerEndsAt: null,
@@ -275,6 +309,7 @@ export default function useAuctionSession({ isMobileView }) {
     pendingSwitch,
     repairMarketOpen,
     repairMarketInitialRosters,
+    repairMarketPurchasedPlayers,
     saveSession,
   };
 }

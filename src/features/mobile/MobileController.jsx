@@ -35,6 +35,7 @@ export default function MobileController() {
     pendingSwitch,
     repairMarketOpen,
     repairMarketInitialRosters,
+    repairMarketPurchasedPlayers,
     docRef,
   } = useAuctionSessionContext();
 
@@ -247,6 +248,7 @@ export default function MobileController() {
         role: ruoloAsta,
         repairMarketOpen: Boolean(repairMarketOpen),
         repairMarketInitialRosters: repairMarketInitialRosters || null,
+        repairMarketPurchasedPlayers: repairMarketPurchasedPlayers || null,
       })
     : creditiDisponibili;
 

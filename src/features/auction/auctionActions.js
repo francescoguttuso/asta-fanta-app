@@ -32,6 +32,7 @@ export const saveAuctionSession = async ({
   repairMarketOpen = false,
   repairMarketInitialRosters = null,
   repairMarketOpenedAt = null,
+  repairMarketPurchasedPlayers = null,
   repairMarketInitialized = true,
 }) => {
   // IMPORTANTISSIMO: l'asta e la FantaSchedina condividono lo stesso
@@ -58,6 +59,7 @@ export const saveAuctionSession = async ({
     repairMarketOpen,
     repairMarketInitialRosters,
     repairMarketOpenedAt,
+    repairMarketPurchasedPlayers,
     repairMarketInitialized,
   }, { merge: true });
 };
@@ -77,15 +79,19 @@ export const startAuctionTimer = async ({ docRef }) => {
   });
 };
 
-export const buildSwitchCandidates = (participant, role, repairMarketInitialRosters = null) => {
+export const buildSwitchCandidates = (participant, role, repairMarketInitialRosters = null, repairMarketPurchasedPlayers = null) => {
   if (!participant?.rosa?.length || !role) return [];
 
   const initialIds = repairMarketInitialRosters?.[String(participant.id)];
   const eligibleIds = Array.isArray(initialIds) ? new Set(initialIds.map(String)) : null;
+  const purchasedIds = new Set(
+    (repairMarketPurchasedPlayers?.[String(participant.id)] || []).map(String),
+  );
 
   return participant.rosa
     .filter((player) => String(player.ruolo) === String(role))
     .filter((player) => !eligibleIds || eligibleIds.has(String(player.id)))
+    .filter((player) => !purchasedIds.has(String(player.id)))
     .map((player) => ({
       id: player.id,
       nome: player.nome,
@@ -94,7 +100,7 @@ export const buildSwitchCandidates = (participant, role, repairMarketInitialRost
     }));
 };
 
-export const calculateMaximumBid = ({ participant, role, repairMarketOpen = false, repairMarketInitialRosters = null }) => {
+export const calculateMaximumBid = ({ participant, role, repairMarketOpen = false, repairMarketInitialRosters = null, repairMarketPurchasedPlayers = null }) => {
   if (!participant) return 0;
 
   const credits = Math.max(0, Number(participant.crediti || 0));
@@ -112,6 +118,7 @@ export const calculateMaximumBid = ({ participant, role, repairMarketOpen = fals
     participant,
     role,
     repairMarketOpen ? repairMarketInitialRosters : null,
+    repairMarketOpen ? repairMarketPurchasedPlayers : null,
   );
   if (!candidates.length) return 0;
 
@@ -141,6 +148,7 @@ export const placeBid = async ({ docRef, bidderId, bidderName, increment }) => {
       role: session.giocatoreInAsta.ruolo,
       repairMarketOpen: Boolean(session.repairMarketOpen),
       repairMarketInitialRosters: session.repairMarketInitialRosters || null,
+      repairMarketPurchasedPlayers: session.repairMarketPurchasedPlayers || null,
     });
 
     const newBid =
@@ -333,6 +341,7 @@ export const createContextualSwitch = async ({
       winner,
       role,
       session.repairMarketOpen ? session.repairMarketInitialRosters : null,
+      session.repairMarketOpen ? session.repairMarketPurchasedPlayers : null,
     );
     if (!candidates.length) {
       throw new Error(`Nessun giocatore da svincolare nel reparto ${role}.`);
@@ -343,6 +352,7 @@ export const createContextualSwitch = async ({
       role,
       repairMarketOpen: Boolean(session.repairMarketOpen),
       repairMarketInitialRosters: session.repairMarketInitialRosters || null,
+      repairMarketPurchasedPlayers: session.repairMarketPurchasedPlayers || null,
     });
     if (Number(price) > maximumBid) {
       throw new Error(
@@ -405,15 +415,22 @@ export const completeContextualSwitch = async ({ docRef, candidateId }) => {
     const initialIds = session.repairMarketOpen
       ? session.repairMarketInitialRosters?.[String(winner.id)]
       : null;
+    const purchasedIds = session.repairMarketOpen
+      ? session.repairMarketPurchasedPlayers?.[String(winner.id)] || []
+      : [];
     const candidateIsEligible = Array.isArray(initialIds)
       ? initialIds.map(String).includes(String(candidateId))
       : true;
+    const candidateWasPurchasedDuringRepair = purchasedIds
+      .map(String)
+      .includes(String(candidateId));
 
     const candidate = roster.find(
       (p) =>
         String(p.id) === String(candidateId) &&
         String(p.ruolo) === String(pending.role) &&
-        candidateIsEligible,
+        candidateIsEligible &&
+        !candidateWasPurchasedDuringRepair,
     );
 
     if (!candidate) {
@@ -444,6 +461,22 @@ export const completeContextualSwitch = async ({ docRef, candidateId }) => {
         ? updatedWinner
         : { ...p, stopDisponibili: 2 },
     );
+
+    const repairMarketPurchasedPlayers = {
+      ...(session.repairMarketPurchasedPlayers || {}),
+    };
+    if (session.repairMarketOpen) {
+      const teamKey = String(winner.id);
+      const existingPurchased = Array.isArray(repairMarketPurchasedPlayers[teamKey])
+        ? repairMarketPurchasedPlayers[teamKey].map(String)
+        : [];
+      if (!existingPurchased.includes(String(pending.player.id))) {
+        repairMarketPurchasedPlayers[teamKey] = [
+          ...existingPurchased,
+          String(pending.player.id),
+        ];
+      }
+    }
 
     const currentPlayers = Array.isArray(session.giocatori)
       ? session.giocatori
@@ -492,6 +525,7 @@ export const completeContextualSwitch = async ({ docRef, candidateId }) => {
       timerEndsAt: null,
       timerStartedAt: null,
       pendingSwitch: null,
+      repairMarketPurchasedPlayers,
     });
   });
 };

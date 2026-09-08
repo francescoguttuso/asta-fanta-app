@@ -47,6 +47,7 @@ export default function useAdminAuctionController() {
     timer,
     repairMarketOpen,
     repairMarketInitialRosters,
+    repairMarketPurchasedPlayers,
     pendingSwitch,
     saveSession,
   } = session;
@@ -138,6 +139,7 @@ export default function useAdminAuctionController() {
         repairMarketOpen: false,
         repairMarketInitialRosters: null,
         repairMarketOpenedAt: null,
+        repairMarketPurchasedPlayers: null,
         repairMarketInitialized: true,
       });
       return;
@@ -154,6 +156,9 @@ export default function useAdminAuctionController() {
       repairMarketOpen: true,
       repairMarketInitialRosters: snapshot,
       repairMarketOpenedAt: new Date().toISOString(),
+      repairMarketPurchasedPlayers: Object.fromEntries(
+        partecipanti.map((participant) => [String(participant.id), []]),
+      ),
       repairMarketInitialized: true,
     });
   }, [repairMarketOpen, pendingSwitch, partecipanti, saveSession]);
@@ -185,6 +190,7 @@ export default function useAdminAuctionController() {
       repairMarketOpen: false,
       repairMarketInitialRosters: null,
       repairMarketOpenedAt: null,
+      repairMarketPurchasedPlayers: null,
     });
     setTimer(10);
   };
@@ -512,11 +518,25 @@ export default function useAdminAuctionController() {
 
       setFiltroLettera(assegnazione.nextLetter);
       setTimer(10);
+      const nextRepairPurchased = {
+        ...(repairMarketPurchasedPlayers || {}),
+      };
+      if (repairMarketOpen && giocatoreInAsta) {
+        const teamKey = String(vincitore.id);
+        const existing = Array.isArray(nextRepairPurchased[teamKey])
+          ? nextRepairPurchased[teamKey].map(String)
+          : [];
+        if (!existing.includes(String(giocatoreInAsta.id))) {
+          nextRepairPurchased[teamKey] = [...existing, String(giocatoreInAsta.id)];
+        }
+      }
+
       await saveSession({
         players: assegnazione.remainingPlayers,
         participants: assegnazione.updatedParticipants,
         ...createReadyAuctionState(assegnazione.nextPlayer),
         lastPurchase: assegnazione.lastPurchase,
+        repairMarketPurchasedPlayers: nextRepairPurchased,
       });
     },
     [
@@ -527,6 +547,8 @@ export default function useAdminAuctionController() {
       filtriRuoliAttivi,
       saveSession,
       setTimer,
+      repairMarketOpen,
+      repairMarketPurchasedPlayers,
     ],
   );
 
@@ -554,6 +576,7 @@ export default function useAdminAuctionController() {
       role: ruolo,
       repairMarketOpen,
       repairMarketInitialRosters,
+      repairMarketPurchasedPlayers,
     });
 
     if (offertaCorrente > maximumBid) {
@@ -583,6 +606,7 @@ export default function useAdminAuctionController() {
     preparaTaglioContestuale,
     repairMarketOpen,
     repairMarketInitialRosters,
+    repairMarketPurchasedPlayers,
   ]);
 
   useEffect(() => {
@@ -634,6 +658,7 @@ export default function useAdminAuctionController() {
       role: ruolo,
       repairMarketOpen,
       repairMarketInitialRosters,
+      repairMarketPurchasedPlayers,
     });
 
     if (prezzo > maximumBid) {
