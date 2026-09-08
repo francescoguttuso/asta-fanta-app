@@ -17,6 +17,9 @@ export default function MobileAuctionPanel({
   pendingSwitch,
   selectedParticipant,
   onSwitch,
+  repairMarketOpen,
+  maxBid,
+  highestReplaceablePlayer,
 }) {
   const [playerImageSrc, setPlayerImageSrc] = useState(
     getTeamShirtUrl(player?.squadra),
@@ -320,6 +323,91 @@ export default function MobileAuctionPanel({
           }}
         >
           {currentBid} FM
+        </div>
+      </div>
+
+      {/* =================================================
+          LIMITE MASSIMO OFFERTA
+      ================================================= */}
+
+      <div
+        className="alert-box"
+        style={{
+          margin: "0 0 12px",
+          padding: "12px 14px",
+          textAlign: "left",
+          border: repairMarketOpen
+            ? "1px solid rgba(251,191,36,.45)"
+            : "1px solid rgba(56,189,248,.25)",
+          background: repairMarketOpen
+            ? "linear-gradient(180deg,#251804,#130c03)"
+            : undefined,
+        }}
+      >
+        <div
+          style={{
+            color: repairMarketOpen ? "#fbbf24" : "#38bdf8",
+            fontSize: "0.78rem",
+            fontWeight: "900",
+            letterSpacing: "0.04em",
+            marginBottom: "8px",
+          }}
+        >
+          {repairMarketOpen ? "🛠️ LIMITE ASTA RIPARAZIONE" : "🎯 LIMITE MASSIMO OFFERTA"}
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto",
+            gap: "5px 12px",
+            alignItems: "center",
+            fontSize: "0.86rem",
+          }}
+        >
+          <span style={{ color: "#94a3b8" }}>💰 Crediti disponibili</span>
+          <strong style={{ color: "#10b981" }}>{Number(selectedParticipant?.crediti || 0)} FM</strong>
+
+          {highestReplaceablePlayer ? (
+            <>
+              <span style={{ color: "#94a3b8" }}>⭐ Più costoso sostituibile</span>
+              <strong style={{ color: "#fbbf24" }}>{Number(highestReplaceablePlayer.prezzo || 0)} FM</strong>
+            </>
+          ) : (
+            <span
+              style={{
+                gridColumn: "1 / -1",
+                color: "#64748b",
+                fontSize: "0.76rem",
+              }}
+            >
+              {repairMarketOpen
+                ? "Nessun giocatore sostituibile in questo reparto."
+                : "Posto disponibile nel reparto: il limite è dato dai soli crediti."}
+            </span>
+          )}
+        </div>
+
+        <div
+          style={{
+            marginTop: "9px",
+            paddingTop: "9px",
+            borderTop: "1px solid rgba(148,163,184,.18)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span style={{ color: "#cbd5e1", fontWeight: "800" }}>MAX CHIAMATA</span>
+          <strong
+            style={{
+              color: "#fff",
+              fontSize: "1.35rem",
+              fontWeight: "900",
+            }}
+          >
+            {Number(maxBid || 0)} FM
+          </strong>
         </div>
       </div>
 

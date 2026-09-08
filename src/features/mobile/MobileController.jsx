@@ -2,7 +2,13 @@ import { useState } from "react";
 
 import { ROLE_LIMITS } from "@/data/auctionDefaults";
 
-import { placeBid, requestAuctionStop, completeContextualSwitch } from "../auction/auctionActions";
+import {
+  placeBid,
+  requestAuctionStop,
+  completeContextualSwitch,
+  calculateMaximumBid,
+  buildSwitchCandidates,
+} from "../auction/auctionActions";
 
 import { useAuctionSessionContext } from "../auction/context/useAuctionContexts";
 
@@ -27,6 +33,8 @@ export default function MobileController() {
     stopTimer,
     ultimoAcquisto,
     pendingSwitch,
+    repairMarketOpen,
+    repairMarketInitialRosters,
     docRef,
   } = useAuctionSessionContext();
 
@@ -90,28 +98,16 @@ export default function MobileController() {
       return;
     }
 
-    // Il fatto che il reparto sia pieno NON impedisce di partecipare:
-    // il taglio avverrà solo dopo l'aggiudicazione.
-    // Durante l'asta il limite è invece il budget sostenibile.
+    // Usiamo ESATTAMENTE lo stesso calcolo dell'Asta di Riparazione
+    // usato dal banditore. In questo modo il limite mostrato e quello
+    // che blocca realmente l'offerta sono sempre identici.
     const ruoloCorrente = giocatoreInAsta.ruolo;
-    const crediti = Math.max(0, Number(utenteCorrente.crediti || 0));
-    const giocatoriRuolo = utenteCorrente.rosa.filter(
-      (g) => String(g.ruolo) === String(ruoloCorrente),
-    );
-
-    const roleLimit = ROLE_LIMITS[ruoloCorrente] || 0;
-    const ruoloPieno =
-      roleLimit > 0 && giocatoriRuolo.length >= roleLimit;
-
-    const valoreMassimoDaTagliare = ruoloPieno
-      ? giocatoriRuolo.reduce(
-          (max, giocatore) =>
-            Math.max(max, Number(giocatore.prezzo || 0)),
-          0,
-        )
-      : 0;
-
-    const massimoOfferta = crediti + valoreMassimoDaTagliare;
+    const massimoOfferta = calculateMaximumBid({
+      participant: utenteCorrente,
+      role: ruoloCorrente,
+      repairMarketOpen: Boolean(repairMarketOpen),
+      repairMarketInitialRosters: repairMarketInitialRosters || null,
+    });
     const prossimaOfferta =
       Number(offertaCorrente || 0) + Number(incremento || 0);
 
@@ -209,6 +205,50 @@ export default function MobileController() {
   const stopRimanentiSelezionato = utenteSelezionato
     ? (utenteSelezionato.stopDisponibili ?? 2)
     : 2;
+
+  // =====================================================
+  // LIMITE MASSIMO VISIBILE SUL MOBILE
+  // =====================================================
+
+  const ruoloAsta = giocatoreInAsta?.ruolo || null;
+  const creditiDisponibili = Math.max(
+    0,
+    Number(utenteSelezionato?.crediti || 0),
+  );
+  const giocatoriRuolo = ruoloAsta
+    ? (utenteSelezionato?.rosa || []).filter(
+        (g) => String(g.ruolo) === String(ruoloAsta),
+      )
+    : [];
+  const roleLimit = ruoloAsta ? ROLE_LIMITS[ruoloAsta] || 0 : 0;
+  const ruoloPieno = roleLimit > 0 && giocatoriRuolo.length >= roleLimit;
+
+  const candidatiSwitch = ruoloAsta
+    ? buildSwitchCandidates(
+        utenteSelezionato,
+        ruoloAsta,
+        repairMarketOpen ? repairMarketInitialRosters : null,
+      )
+    : [];
+
+  const giocatorePiuCostoso = ruoloPieno
+    ? candidatiSwitch.reduce(
+        (max, giocatore) =>
+          Number(giocatore.prezzo || 0) > Number(max?.prezzo || 0)
+            ? giocatore
+            : max,
+        null,
+      )
+    : null;
+
+  const massimoOffertaVisibile = giocatoreInAsta
+    ? calculateMaximumBid({
+        participant: utenteSelezionato,
+        role: ruoloAsta,
+        repairMarketOpen: Boolean(repairMarketOpen),
+        repairMarketInitialRosters: repairMarketInitialRosters || null,
+      })
+    : creditiDisponibili;
 
   const MobileTopHeader = () => (
     <div className="mobile-top-header">
@@ -471,6 +511,9 @@ export default function MobileController() {
         pendingSwitch={pendingSwitch}
         selectedParticipant={utenteSelezionato}
         onSwitch={gestisciSwitch}
+        repairMarketOpen={repairMarketOpen}
+        maxBid={massimoOffertaVisibile}
+        highestReplaceablePlayer={giocatorePiuCostoso}
       />
 
       {/* ==============================================
